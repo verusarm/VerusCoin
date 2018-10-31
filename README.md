@@ -70,7 +70,7 @@ First time you'll need to get assorted startup values downloaded. This takes a m
 ```
 ./zcutil/fetch-params.sh
 ```
-Building for Ubunutu/Mint:
+Building for Ubuntu/Mint/Debian:
 ```
 ./zcutil/build.sh
 ```
