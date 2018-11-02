@@ -10,7 +10,7 @@ variables:
   VERUS_CLI_LINUX: Verus-CLI-Linux-v${VERSION}.tar.gz
   VERUS_CLI_WINDOWS: Verus-CLI-Windows-v${VERSION}.zip
   VERUS_CLI_MACOS: Verus-CLI-MacOS-v${VERSION}.tar.gz
-  DOWNSTREAM_AGAMA_BRANCH: ${CI_COMMIT_REF_NAME}
+  DOWNSTREAM_AGAMA_BRANCH: MichaelF-Dev
   POST_MESSAGE: "Source: ${CI_PROJECT_NAME}/${CI_COMMIT_REF_NAME}\n
   Pipeline Trigger: ${CI_PIPELINE_SOURCE}\n
   Commit: ${CI_COMMIT_SHA}$\n
