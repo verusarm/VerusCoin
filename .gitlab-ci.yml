@@ -117,7 +117,7 @@ build:mac:
   - zcutil/build-mac.sh -j$(sysctl -n hw.physicalcpu)
   - ./makeReleaseMac.sh
   - tar -czvf ${VERUS_CLI_MACOS} verus-cli
-  - sha256sum ${VERUS_CLI_MACOS} > ${VERUS_CLI_MACOS}.sha256
+  - openssl sha -sha256 ${VERUS_CLI_MACOS} > ${VERUS_CLI_MACOS}.sha256
   - curl -F file=@"${VERUS_CLI_MACOS}"
       -F channels="${CLI_POST_CHANNEL}"
       -F initial_comment="${POST_MESSAGE}"
