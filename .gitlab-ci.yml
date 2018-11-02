@@ -324,9 +324,9 @@ deploy:
       -F token="$CI_JOB_TOKEN"
       -F ref="$DOWNSTREAM_AGAMA_BRANCH"
       -F variables\[UPSTREAM_TRIGGER]="${CI_PROJECT_NAME}"
-      -F variables\[VERUS_CLI_LINUX\]="${CI_PROJECT_NAME}/${CI_COMMIT_REF_NAME}/${VERUS_CLI_LINUX}"
-      -F variables\[VERUS_CLI_WINDOWS\]="${CI_PROJECT_NAME}/${CI_COMMIT_REF_NAME}/${VERUS_CLI_WINDOWS}"
-      -F variables\[VERUS_CLI_MACOS\]="${CI_PROJECT_NAME}/${CI_COMMIT_REF_NAME}/${VERUS_CLI_MACOS}"
+      -F variables\[VERUS_CLI_LINUX\]="${CI_PROJECT_NAME}/${CI_COMMIT_REF_NAME}/Linux/${VERUS_CLI_LINUX}"
+      -F variables\[VERUS_CLI_WINDOWS\]="${CI_PROJECT_NAME}/${CI_COMMIT_REF_NAME}/Windows/${VERUS_CLI_WINDOWS}"
+      -F variables\[VERUS_CLI_MACOS\]="${CI_PROJECT_NAME}/${CI_COMMIT_REF_NAME}/MacOS/${VERUS_CLI_MACOS}"
       "https://gitlab.com/api/v4/projects/8018592/trigger/pipeline"
 ########################################################################################################################
 ####END####                                           Deploy                                                 ####END####
