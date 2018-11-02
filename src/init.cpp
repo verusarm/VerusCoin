@@ -76,6 +76,7 @@ using namespace std;
 extern void ThreadSendAlert();
 extern int32_t KOMODO_LOADINGBLOCKS;
 extern bool VERUS_MINTBLOCKS;
+extern std::string VERUS_CHEATCATCHER;
 
 ZCJoinSplit* pzcashParams = NULL;
 
@@ -1868,6 +1869,7 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
 
     StartNode(threadGroup, scheduler);
 
+    VERUS_CHEATCATCHER = GetArg("-cheatcatcher", "");
 
 #ifdef ENABLE_MINING
     // Generate coins in the background
