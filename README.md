@@ -1,4 +1,4 @@
-## VerusCoin version 0.4.0e
+## VerusCoin version 0.4.0f
 
 VerusCoin is a new, mineable and stakeable cryptocurrency. 
 It is a live fork of Komodo that retains its Zcash lineage and improves it.
