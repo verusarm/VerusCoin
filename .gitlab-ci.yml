@@ -6,7 +6,7 @@ stages:
 ####START####                                     PROJECT LEVEL VARIABLES                                  ####START####
 ########################################################################################################################
 variables:
-  VERSION: 0.4.0c
+  VERSION: 0.4.0e
   VERUS_CLI_LINUX: Verus-CLI-Linux-v${VERSION}.tar.gz
   VERUS_CLI_WINDOWS: Verus-CLI-Windows-v${VERSION}.zip
   VERUS_CLI_MACOS: Verus-CLI-MacOS-v${VERSION}.tar.gz
@@ -323,10 +323,10 @@ deploy:
   - curl -X POST
       -F token="$CI_JOB_TOKEN"
       -F ref="$DOWNSTREAM_AGAMA_BRANCH"
-      -F variables\[UPSTREAM_TRIGGER_INFO\]="${POST_MESSAGE}"
-      -F variables\[VERUS_CLI_LINUX\]="${VERUS_CLI_LINUX}"
-      -F variables\[VERUS_CLI_WINDOWS\]="${VERUS_CLI_WINDOWS}"
-      -F variables\[VERUS_CLI_MACOS\]="${VERUS_CLI_MACOS}"
+      -F variables\[UPSTREAM_TRIGGER]="${CI_PROJECT_NAME}"
+      -F variables\[VERUS_CLI_LINUX\]="${CI_PROJECT_NAME}/${CI_COMMIT_REF_NAME}/${VERUS_CLI_LINUX}"
+      -F variables\[VERUS_CLI_WINDOWS\]="${CI_PROJECT_NAME}/${CI_COMMIT_REF_NAME}/${VERUS_CLI_WINDOWS}"
+      -F variables\[VERUS_CLI_MACOS\]="${CI_PROJECT_NAME}/${CI_COMMIT_REF_NAME}/${VERUS_CLI_MACOS}"
       "https://gitlab.com/api/v4/projects/8018592/trigger/pipeline"
 ########################################################################################################################
 ####END####                                           Deploy                                                 ####END####
