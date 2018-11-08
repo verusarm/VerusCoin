@@ -1575,8 +1575,7 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState &state, const CTransa
     CStakeParams p;
     if (ValidateStakeTransaction(tx, p, false))
     {
-        return state.DoS(0, error("AcceptToMemoryPool: attempt to add staking transaction to the mempool"),
-                                 REJECT_INVALID, "staking");
+        return state.DoS(0, false, REJECT_INVALID, "staking");
     }
 
     // is it already in the memory pool?
@@ -3761,7 +3760,8 @@ bool static DisconnectTip(CValidationState &state, bool fBare = false) {
     for (int i = 0; i < block.vtx.size(); i++)
     {
         CTransaction &tx = block.vtx[i];
-        if ((i == (block.vtx.size() - 1)) && ((ASSETCHAINS_LWMAPOS && block.IsVerusPOSBlock()) || (ASSETCHAINS_STAKED != 0 && (komodo_isPoS((CBlock *)&block) != 0))))
+        //if ((i == (block.vtx.size() - 1)) && ((ASSETCHAINS_LWMAPOS && block.IsVerusPOSBlock()) || (ASSETCHAINS_STAKED != 0 && (komodo_isPoS((CBlock *)&block) != 0))))
+        if ((i == (block.vtx.size() - 1)) && (ASSETCHAINS_STAKED != 0 && (komodo_isPoS((CBlock *)&block) != 0)))
         {
             EraseFromWallets(tx.GetHash());
         }
@@ -4542,6 +4542,8 @@ bool CheckBlock(int32_t *futureblockp,int32_t height,CBlockIndex *pindex,const C
                              REJECT_INVALID, "bad-cb-multiple");
     
     // Check transactions
+    CTransaction sTx;
+    CTransaction *ptx = NULL;
     if ( ASSETCHAINS_CC != 0 ) // CC contracts might refer to transactions in the current block, from a CC spend within the same block and out of order
     {
         int32_t i,j,rejects=0,lastrejects=0;
@@ -4562,9 +4564,10 @@ bool CheckBlock(int32_t *futureblockp,int32_t height,CBlockIndex *pindex,const C
                     // take advantage of other checks, but if we were only rejected because it is a valid staking
                     // transaction, sync with wallets and don't mark as a reject
                     if (i == (block.vtx.size() - 1) && ASSETCHAINS_LWMAPOS && block.IsVerusPOSBlock() && state.GetRejectReason() == "staking")
-                        SyncWithWallets(Tx, &block);
-                    else
-                        rejects++;
+                    {
+                        sTx = Tx;
+                        ptx = &sTx;
+                    } else rejects++;
                 }
             }
             if ( rejects == 0 || rejects == lastrejects )
@@ -4603,6 +4606,11 @@ bool CheckBlock(int32_t *futureblockp,int32_t height,CBlockIndex *pindex,const C
         //    fprintf(stderr,"check deposit rejection\n");
         LogPrintf("CheckBlockHeader komodo_check_deposit error");
         return(false);
+    }
+
+    if (ptx)
+    {
+        SyncWithWallets(*ptx, &block);
     }
     return true;
 }

@@ -1346,7 +1346,8 @@ bool CWallet::VerusSelectStakeOutput(CBlock *pBlock, arith_uint256 &hashResult, 
             if (txout.fSpendable && (UintToArith256(txout.tx->GetVerusPOSHash(&(pBlock->nNonce), txout.i, nHeight, pastHash)) <= target) && (txout.nDepth >= VERUS_MIN_STAKEAGE))
             {
                 if ((!pwinner || UintToArith256(curNonce) > UintToArith256(pBlock->nNonce)) &&
-                    (Solver(txout.tx->vout[txout.i].scriptPubKey, whichType, vSolutions) && (whichType == TX_PUBKEY || whichType == TX_PUBKEYHASH)))
+                    (Solver(txout.tx->vout[txout.i].scriptPubKey, whichType, vSolutions) && (whichType == TX_PUBKEY || whichType == TX_PUBKEYHASH)) &&
+                    !cheatList.IsUTXOInList(COutPoint(txout.tx->GetHash(), txout.i), nHeight <= 100 ? 1 : nHeight-100))
                 {
                     //printf("Found PoS block\nnNonce:    %s\n", pBlock->nNonce.GetHex().c_str());
                     pwinner = &txout;
@@ -1397,7 +1398,7 @@ int32_t CWallet::VerusStakeTransaction(CBlock *pBlock, CMutableTransaction &txNe
     const CKeyStore& keystore = *pwalletMain;
     txNew.vin.resize(1);
     txNew.vout.resize(1);
-    txfee = extendedStake ? DEFAULT_STAKE_TXFEE : 0; // extended stakes will always be rebroadcast, so they require a fee to make it fast
+    txfee = extendedStake ? DEFAULT_STAKE_TXFEE : 0;
     txNew.vin[0].prevout.hash = stakeSource.GetHash();
     txNew.vin[0].prevout.n = voutNum;
 
@@ -1423,6 +1424,9 @@ int32_t CWallet::VerusStakeTransaction(CBlock *pBlock, CMutableTransaction &txNe
     // if we are staking with the extended format, add the opreturn data required
     if (extendedStake)
     {
+        // set expiry to time out after 100 blocks, so we can remove the transaction if it orphans
+        txNew.nExpiryHeight = stakeHeight + 100;
+
         uint256 srcBlock = uint256();
         CBlockIndex *pSrcIndex;
 
@@ -2583,7 +2587,7 @@ void CWalletTx::GetAmounts(list<COutputEntry>& listReceived,
         if (nDebit > 0)
         {
             // Don't report 'change' txouts
-            if (pwallet->IsChange(txout))
+            if (!(filter & ISMINE_CHANGE) && pwallet->IsChange(txout))
                 continue;
         }
         else if (!(fIsMine & filter))
