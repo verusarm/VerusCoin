@@ -6,14 +6,14 @@ stages:
 ####START####                                     PROJECT LEVEL VARIABLES                                  ####START####
 ########################################################################################################################
 variables:
-  VERSION: 0.4.0f
+  VERSION: 0.4.0g
   VERUS_CLI_LINUX: Verus-CLI-Linux-v${VERSION}.tar.gz
   VERUS_CLI_WINDOWS: Verus-CLI-Windows-v${VERSION}.zip
   VERUS_CLI_MACOS: Verus-CLI-MacOS-v${VERSION}.tar.gz
-  DOWNSTREAM_AGAMA_BRANCH: MichaelF-Dev
+  DOWNSTREAM_AGAMA_BRANCH: ${CI_COMMIT_REF_NAME}
   POST_MESSAGE: "Source: ${CI_PROJECT_NAME}/${CI_COMMIT_REF_NAME}\n
   Pipeline Trigger: ${CI_PIPELINE_SOURCE}\n
-  Commit: ${CI_COMMIT_SHA}$\n
+  Commit: ${CI_COMMIT_SHA}\n
   ${CI_COMMIT_MESSAGE}"
 ########################################################################################################################
 ####END####                                        PROJECT LEVEL VARIABLES                                   ####END####
@@ -53,6 +53,7 @@ build:linux:
   - if [ "${CI_COMMIT_REF_NAME}" = "master" ]; then strip -g verus-cli/komodod && strip -g verus-cli/komodod; fi
   - tar -czvf ${VERUS_CLI_LINUX} verus-cli
   - sha256sum ${VERUS_CLI_LINUX} > ${VERUS_CLI_LINUX}.sha256
+  after_script:
   - curl -F file=@"${VERUS_CLI_LINUX}"
       -F channels="${CLI_POST_CHANNEL}"
       -F initial_comment="${POST_MESSAGE}"
