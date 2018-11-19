@@ -1,4 +1,7 @@
 #!/bin/bash
+#set working directory to the location of this script
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+cd $DIR
 if [[ "$OSTYPE" == "darwin"* ]]; then
     echo "Removing old binaries"
     rm /Applications/Agama.app/Contents/Resources/app/assets/bin/osx/*
