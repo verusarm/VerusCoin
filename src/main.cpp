@@ -607,9 +607,9 @@ UniValue komodo_snapshot(int top)
 
     if (fAddressIndex) {
 	    if ( pblocktree != 0 ) {
-		result = pblocktree->Snapshot(top);
+		    result = pblocktree->Snapshot(top);
 	    } else {
-		fprintf(stderr,"null pblocktree start with -addressindex=1\n");
+		    fprintf(stderr,"null pblocktree start with -addressindex=1\n");
 	    }
     } else {
 	    fprintf(stderr,"getsnapshot requires -addressindex=1\n");

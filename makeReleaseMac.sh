@@ -7,11 +7,13 @@ cp src/fiat/verus \
    src/verusd \
    doc/man/verus-cli/mac/README.txt \
    zcutil/fetch-params.sh \
+   zcutil/upgrade-agama.sh
    verus-cli
 mv verus-cli/fetch-params.sh verus-cli/fetch-params
 chmod +x ${KMD_DIR}/fetch-params
 chmod +x ${KMD_DIR}/verus
 chmod +x ${KMD_DIR}/verusd
+chmod +x ${KMD_DIR}/upgrade-agama.sh
 
 binaries=("komodo-cli" "komodod")
 alllibs=()

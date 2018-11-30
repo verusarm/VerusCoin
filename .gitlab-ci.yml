@@ -6,7 +6,7 @@ stages:
 ####START####                                     PROJECT LEVEL VARIABLES                                  ####START####
 ########################################################################################################################
 variables:
-  VERSION: 0.4.0g
+  VERSION: 0.4.0h
   VERUS_CLI_LINUX: Verus-CLI-Linux-v${VERSION}.tar.gz
   VERUS_CLI_WINDOWS: Verus-CLI-Windows-v${VERSION}.zip
   VERUS_CLI_MACOS: Verus-CLI-MacOS-v${VERSION}.tar.gz
@@ -43,6 +43,7 @@ build:linux:
       src/verusd
       doc/man/verus-cli/linux/README.txt
       zcutil/fetch-params.sh
+      zcutil/upgrade-agama.sh
       verus-cli
   - mv verus-cli/fetch-params.sh verus-cli/fetch-params
   - chmod +x verus-cli/komodod
@@ -50,6 +51,7 @@ build:linux:
   - chmod +x verus-cli/verus
   - chmod +x verus-cli/verusd
   - chmod +x verus-cli/fetch-params
+  - chmod +x verus-cli/upgrade-agama.sh
   - if [ "${CI_COMMIT_REF_NAME}" = "master" ]; then strip -g verus-cli/komodod && strip -g verus-cli/komodod; fi
   - tar -czvf ${VERUS_CLI_LINUX} verus-cli
   - sha256sum ${VERUS_CLI_LINUX} > ${VERUS_CLI_LINUX}.sha256
@@ -89,6 +91,7 @@ build:windows:
       doc/man/verus-cli/windows/README.txt
       zcutil/fetch-params.bat
       zcutil/wget64.exe
+      zcutil/upgrade-agama.bat
       verus-cli
   - zip -r ${VERUS_CLI_WINDOWS} verus-cli
   - sha256sum ${VERUS_CLI_WINDOWS} > ${VERUS_CLI_WINDOWS}.sha256
@@ -118,7 +121,7 @@ build:mac:
   - zcutil/build-mac.sh -j$(sysctl -n hw.physicalcpu)
   - ./makeReleaseMac.sh
   - tar -czvf ${VERUS_CLI_MACOS} verus-cli
-  - openssl sha -sha256 ${VERUS_CLI_MACOS} > ${VERUS_CLI_MACOS}.sha256
+  - shasum -a 256 ${VERUS_CLI_MACOS} > ${VERUS_CLI_MACOS}.sha256
   - curl -F file=@"${VERUS_CLI_MACOS}"
       -F channels="${CLI_POST_CHANNEL}"
       -F initial_comment="${POST_MESSAGE}"
