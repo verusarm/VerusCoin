@@ -156,7 +156,7 @@ bool CCinitLite(struct CCcontract_info *cp, uint8_t evalcode)
     return found;
 }
 
-bool _Getscriptaddress(char *destaddr, const CScript &scriptPubKey)
+bool _GetscriptaddressEx(char *destaddr, const CScript &scriptPubKey)
 {
     CTxDestination address; 
     txnouttype whichType;
@@ -195,7 +195,7 @@ static bool SignStepCC(const BaseSignatureCreator& creator, const CScript& scrip
         // get the keyID address of the cc and if it is an unspendable cc address, use its pubkey
         // we have nothing else
         char addr[64];
-        if (_Getscriptaddress(addr, subScript) && GetCCByUnspendableAddress(&C, addr))
+        if (_GetscriptaddressEx(addr, subScript) && GetCCByUnspendableAddress(&C, addr))
         {
             vPK.push_back(CPubKey(ParseHex(C.CChexstr)));
             p = COptCCParams(p.VERSION, C.evalcode, 1, 1, vPK, vParams);

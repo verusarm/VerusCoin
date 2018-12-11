@@ -141,30 +141,42 @@ void CCheatList::Remove(const CTxHolder &txh)
 {
     // first narrow by source tx, then compare with tx hash
     uint32_t count;
-    pair<multimap<const uint256, CTxHolder *>::iterator, multimap<const uint256, CTxHolder *>::iterator> range;
     vector<multimap<const uint256, CTxHolder *>::iterator> utxoPrune;
     vector<multimap<const int32_t, CTxHolder>::iterator> heightPrune;
+    uint256 hash = txh.tx.GetHash();
 
     {
         LOCK(cs_cheat);
-        range = indexedCheatCandidates.equal_range(txh.utxo);
-        for (auto it = range.first; it != range.second; it++)
+        auto range = indexedCheatCandidates.equal_range(txh.utxo);
+        auto it = range.first;
+        for ( ; it != range.second; it++)
         {
-            uint256 hash = txh.tx.GetHash();
             if (hash == it->second->tx.GetHash())
+            {
+                utxoPrune.push_back(it);
+            }
+            // if we haven't yet looked at this height, look, otherwise skip
+            int dupHeight = -1;
+            for (auto iter : utxoPrune)
+            {
+                if (iter->second->height == it->second->height)
+                    dupHeight++;
+            }
+            // only remove matching entries by height once
+            if (!dupHeight)
             {
                 auto hrange = orderedCheatCandidates.equal_range(it->second->height);
                 for (auto hit = hrange.first; hit != hrange.second; hit++)
                 {
-                    if (hit->second.tx.GetHash() == hash)
+                    if (hit->second.tx.GetHash() == hash && hit->second.utxo == it->second->utxo)
                     {
                         // add and remove them together
-                        utxoPrune.push_back(it);
                         heightPrune.push_back(hit);
                     }
                 }
             }
         }
+
         for (auto it : utxoPrune)
         {
             indexedCheatCandidates.erase(it);
