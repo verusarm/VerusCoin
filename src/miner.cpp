@@ -165,7 +165,20 @@ CBlockTemplate* CreateNewBlock(const CScript& _scriptPubKeyIn, int32_t gpucount,
         return NULL;
     }
     CBlock *pblock = &pblocktemplate->block; // pointer for convenience
-     // -regtest only: allow overriding block.nVersion with
+
+    // set version according to the current tip height, add solution if it is
+    // VerusHash
+    if (ASSETCHAINS_ALGO == ASSETCHAINS_VERUSHASH)
+    {
+        pblock->nSolution.resize(Eh200_9.SolutionWidth);
+    }
+    else
+    {
+        pblock->nSolution.clear();
+    }
+    pblock->SetVersionByHeight(chainActive.LastTip()->GetHeight() + 1);
+
+    // -regtest only: allow overriding block.nVersion with
     // -blockversion=N to test forking scenarios
     if (Params().MineBlocksOnDemand())
         pblock->nVersion = GetArg("-blockversion", pblock->nVersion);
@@ -686,7 +699,7 @@ CBlockTemplate* CreateNewBlock(const CScript& _scriptPubKeyIn, int32_t gpucount,
             UpdateTime(pblock, Params().GetConsensus(), pindexPrev);
             pblock->nBits = GetNextWorkRequired(pindexPrev, pblock, Params().GetConsensus());
         }
-        pblock->nSolution.clear();
+
         pblocktemplate->vTxSigOps[0] = GetLegacySigOpCount(pblock->vtx[0]);
         if ( ASSETCHAINS_SYMBOL[0] == 0 && IS_KOMODO_NOTARY != 0 && My_notaryid >= 0 )
         {
@@ -928,7 +941,7 @@ int32_t roundrobin_delay;
 arith_uint256 HASHTarget,HASHTarget_POW;
 
 // wait for peers to connect
-int32_t waitForPeers(const CChainParams &chainparams)
+void waitForPeers(const CChainParams &chainparams)
 {
     if (chainparams.MiningRequiresPeers())
     {
@@ -1005,8 +1018,7 @@ void static VerusStaker(CWallet *pwallet)
 
     // Each thread has its own counter
     unsigned int nExtraNonce = 0;
-    std::vector<unsigned char> solnPlaceholder = std::vector<unsigned char>();
-    solnPlaceholder.resize(Eh200_9.SolutionWidth);
+
     uint8_t *script; uint64_t total,checktoshis; int32_t i,j;
 
     while ( (ASSETCHAIN_INIT == 0 || KOMODO_INITDONE == 0) ) //chainActive.Tip()->GetHeight() != 235300 &&
@@ -1075,9 +1087,6 @@ void static VerusStaker(CWallet *pwallet)
             // Search
             //
             int64_t nStart = GetTime();
-
-            // take up the necessary space for alignment
-            pblock->nSolution = solnPlaceholder;
 
             // we don't use this, but IncrementExtraNonce is the function that builds the merkle tree
             unsigned int nExtraNonce = 0;
@@ -1170,8 +1179,7 @@ void static BitcoinMiner_noeq()
     const CChainParams& chainparams = Params();
     // Each thread has its own counter
     unsigned int nExtraNonce = 0;
-    std::vector<unsigned char> solnPlaceholder = std::vector<unsigned char>();
-    solnPlaceholder.resize(Eh200_9.SolutionWidth);
+
     uint8_t *script; uint64_t total,checktoshis; int32_t i,j;
 
     while ( (ASSETCHAIN_INIT == 0 || KOMODO_INITDONE == 0) ) //chainActive.Tip()->GetHeight() != 235300 &&
@@ -1206,10 +1214,10 @@ void static BitcoinMiner_noeq()
             waitForPeers(chainparams);
 
             pindexPrev = chainActive.LastTip();
-            sleep(1);
+            MilliSleep(100);
 
             // prevent forking on startup before the diff algorithm kicks in
-            if (pindexPrev->GetHeight() < 50 || pindexPrev != chainActive.LastTip())
+            if (chainparams.MiningRequiresPeers() && (pindexPrev->GetHeight() < 50 || pindexPrev != chainActive.LastTip()))
             {
                 do {
                     pindexPrev = chainActive.LastTip();
@@ -1281,7 +1289,6 @@ void static BitcoinMiner_noeq()
             //
             uint32_t savebits; int64_t nStart = GetTime();
 
-            pblock->nSolution = solnPlaceholder;
             savebits = pblock->nBits;
             arith_uint256 hashTarget = arith_uint256().SetCompact(pblock->nBits);
             arith_uint256 mask(ASSETCHAINS_NONCEMASK[ASSETCHAINS_ALGO]);
@@ -1312,20 +1319,57 @@ void static BitcoinMiner_noeq()
             {
                 arith_uint256 arNonce = UintToArith256(pblock->nNonce);
 
-                CVerusHashWriter ss = CVerusHashWriter(SER_GETHASH, PROTOCOL_VERSION);
-                ss << *((CBlockHeader *)pblock);
-                int64_t *extraPtr = ss.xI64p();
-                CVerusHash &vh = ss.GetState();
+                // used for V1 and V2
+                bool verusHashV2 = pblock->nVersion == CBlockHeader::VERUS_V2;
+                int64_t *extraPtr;
+                CVerusHash *vh;
+                CVerusHashV2 *vh2;
                 uint256 hashResult = uint256();
-                vh.ClearExtra();
                 int64_t i, count = ASSETCHAINS_NONCEMASK[ASSETCHAINS_ALGO] + 1;
                 int64_t hashesToGo = ASSETCHAINS_HASHESPERROUND[ASSETCHAINS_ALGO];
+
+                // v1 hash writer
+                CVerusHashWriter ss = CVerusHashWriter(SER_GETHASH, PROTOCOL_VERSION);
+
+                // v2 hash writer
+                CVerusHashV2bWriter ss2 = CVerusHashV2bWriter(SER_GETHASH, PROTOCOL_VERSION);
+
+                if (verusHashV2)
+                {
+                    ss2 << *((CBlockHeader *)pblock);
+                    vh2 = &ss2.GetState();
+                    extraPtr = ss2.xI64p();
+
+                    int64_t *harakaBuf = (int64_t *)ss2.GetState().CurBuffer();
+                    vh2->GenNewCLKey(ss2.GetState().CurBuffer());
+                }
+                else
+                {
+                    ss << *((CBlockHeader *)pblock);
+                    vh = &ss.GetState();
+                    extraPtr = ss.xI64p();
+                    vh->ClearExtra();
+                }
 
                 // for speed check NONCEMASK at a time
                 for (i = 0; i < count; i++)
                 {
                     *extraPtr = i;
-                    vh.ExtraHash((unsigned char *)&hashResult);
+                    if (verusHashV2)
+                    {
+                        vh2->ClearExtra();
+
+                        // run verusclhash on the buffer
+                        uint64_t intermediate = vh2->vclh(vh2->CurBuffer());
+
+                        // fill buffer to the end with the result and final hash
+                        vh2->FillExtra((const unsigned char *)intermediate, sizeof(intermediate));
+                        vh2->ExtraHash((unsigned char *)&hashResult);
+                    }
+                    else
+                    {
+                        vh->ExtraHash((unsigned char *)&hashResult);
+                    }
 
                     if ( UintToArith256(hashResult) <= hashTarget )
                     {

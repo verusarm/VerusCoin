@@ -1165,7 +1165,8 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
         // initialize VerusHash
         CVerusHash::init();
         CVerusHashV2::init();
-        CBlockHeader::SetVerusHash();
+        CBlockHeader::SetVerusV2Hash();
+        CConstVerusSolutionVector::activationHeight.SetActivationHeight(1, 100);
     }
 
     // Sanity check
