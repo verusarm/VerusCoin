@@ -1339,8 +1339,6 @@ void static BitcoinMiner_noeq()
                     ss2 << *((CBlockHeader *)pblock);
                     vh2 = &ss2.GetState();
                     extraPtr = ss2.xI64p();
-
-                    int64_t *harakaBuf = (int64_t *)ss2.GetState().CurBuffer();
                     vh2->GenNewCLKey(ss2.GetState().CurBuffer());
                 }
                 else

@@ -146,7 +146,7 @@ class CVerusHashV2
             {
                 (*haraka256Function)(pkey, psrc);
                 psrc = pkey;
-                pkey++;
+                pkey += 256;
             }
             if (nbytesExtra)
             {
@@ -180,7 +180,7 @@ class CVerusHashV2
 
     private:
         // only buf1, the first source, needs to be zero initialized
-        alignas(128) unsigned char buf1[64] = {0}, buf2[64];
+        alignas(16) unsigned char buf1[64] = {0}, buf2[64];
         unsigned char *curBuf = buf1, *result = buf2;
         size_t curPos = 0;
 };
