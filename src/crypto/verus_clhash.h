@@ -66,14 +66,23 @@ struct verusclhasher {
             verusclhasher_random_data_ = NULL;
             verusclhasher_keySizeInBytes = 0;
         }
-        if (!verusclhasher_random_data_)
+        if (verusclhasher_random_data_)
+        {
+            int i = 0;
+            while (newKeySize >>= 1)
+            {
+                i++;
+            }
+            keyMask = (((uint64_t)1) << i) - 1;
+        }
+        else
         {
             if (verusclhasher_random_data_ = alloc_aligned_buffer(newKeySize))
             {
                 verusclhasher_keySizeInBytes = newKeySize;
 
                 int i = 0;
-                while (keysize >>= 1)
+                while (newKeySize >>= 1)
                 {
                     i++;
                 }
