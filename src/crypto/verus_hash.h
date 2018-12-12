@@ -13,6 +13,7 @@ This provides the PoW hash function for Verus, enabling CPU mining.
 
 #include <cpuid.h>
 
+#include "uint256.h"
 #include "crypto/verus_clhash.h"
 
 extern "C" 
@@ -101,7 +102,7 @@ class CVerusHashV2
             std::fill(buf1, buf1 + sizeof(buf1), 0);
         }
 
-        int64_t *ExtraI64Ptr() { return (int64_t *)(curBuf + 32); }
+        inline int64_t *ExtraI64Ptr() { return (int64_t *)(curBuf + 32); }
         inline void ClearExtra()
         {
             if (curPos)
@@ -109,19 +110,23 @@ class CVerusHashV2
                 std::fill(curBuf + 32 + curPos, curBuf + 64, 0);
             }
         }
-        void FillExtra(const unsigned char *data, size_t len)
+
+        template <typename T>
+        void FillExtra(const T *_data)
         {
-            if (curPos)
+            int len = sizeof(T);
+            unsigned char *data = (unsigned char *)_data;
+            int pos = curPos;
+            int left = 32 - pos;
+            do
             {
-                int left = 32 - curPos;
-                do
-                {
-                    std::memcpy(curBuf + 32 + curPos, data, left > len ? len : left);
-                    left -= len;
-                } while (left > 0);
-            }
+                std::memcpy(curBuf + 32 + pos, data, left > len ? len : left);
+                pos += len;
+                left -= len;
+            } while (left > 0);
         }
         inline void ExtraHash(unsigned char hash[32]) { (*haraka512Function)(hash, curBuf); }
+        inline void ExtraHashKeyed(unsigned char hash[32], u128 *key) { (*haraka512KeyedFunction)(hash, curBuf, key); }
 
         void Finalize(unsigned char hash[32])
         {
@@ -137,8 +142,12 @@ class CVerusHashV2
         // chains Haraka256 from 32 bytes to fill the key
         void GenNewCLKey(unsigned char *seedBytes32)
         {
+            // skip keygen if it is the current key
+            if (verusclhasher_seed == *((uint256 *)seedBytes32))
+                return;
+
             // generate a new key by chain hashing with Haraka256 from the last curbuf
-            int n256blks = verusclhasher_keySizeInBytes >> 8;
+            int n256blks = verusclhasher_keySizeInBytes >> 5;
             int nbytesExtra = verusclhasher_keySizeInBytes & 0xff;
             unsigned char *pkey = (unsigned char *)verusclhasher_random_data_;
             unsigned char *psrc = seedBytes32;
@@ -146,7 +155,7 @@ class CVerusHashV2
             {
                 (*haraka256Function)(pkey, psrc);
                 psrc = pkey;
-                pkey += 256;
+                pkey += 32;
             }
             if (nbytesExtra)
             {
@@ -154,11 +163,20 @@ class CVerusHashV2
                 (*haraka256Function)(buf, psrc);
                 memcpy(pkey, buf, nbytesExtra);
             }
+            verusclhasher_seed = *((uint256 *)seedBytes32);
+            //uint256 *bhalf1 = (uint256 *)verusclhasher_random_data_;
+            //uint256 *bhalf2 = bhalf1 + 1;
+            //printf("New CL key: %s%s\n", bhalf1->GetHex().c_str(), bhalf2->GetHex().c_str());
         }
 
         void Finalize2b(unsigned char hash[32])
         {
             ClearExtra();
+
+            //uint256 *bhalf1 = (uint256 *)curBuf;
+            //uint256 *bhalf2 = bhalf1 + 1;
+            //printf("Curbuf: %s%s\n", bhalf1->GetHex().c_str(), bhalf2->GetHex().c_str());
+
 
             // gen new key with what is last in buffer
             GenNewCLKey(curBuf);
@@ -166,11 +184,15 @@ class CVerusHashV2
             // run verusclhash on the buffer
             uint64_t intermediate = vclh(curBuf);
 
+            //printf("intermediate %lx\n", intermediate);
+
             // fill buffer to the end with the result
-            FillExtra((const unsigned char *)intermediate, sizeof(intermediate));
+            FillExtra(&intermediate);
+
+            //printf("Curbuf: %s%s\n", bhalf1->GetHex().c_str(), bhalf2->GetHex().c_str());
 
             // get the final hash with a dynamic key for each hash result
-            (*haraka512KeyedFunction)((unsigned char*)&result, curBuf, (u128 *)verusclhasher_random_data_ + (intermediate & 0xf));
+            (*haraka512KeyedFunction)(hash, curBuf, (u128 *)verusclhasher_random_data_ + (intermediate & 0xf));
         }
 
         inline unsigned char *CurBuffer()

@@ -4704,6 +4704,7 @@ bool ContextualCheckBlock(const CBlock& block, CValidationState& state, CBlockIn
 
     if (block.nVersion != CBlockHeader::GetVersionByHeight(nHeight))
     {
+        printf("ERROR: block rejected as wrong version, version should be %d for block height %d\n", CBlockHeader::GetVersionByHeight(nHeight), nHeight);
         return state.DoS(10, error("%s: block header has incorrect version", __func__), REJECT_INVALID, "incorrect-block-version");
     }
 

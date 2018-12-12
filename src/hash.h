@@ -305,7 +305,7 @@ public:
         return result;
     }
 
-    int64_t *xI64p() { return state.ExtraI64Ptr(); }
+    inline int64_t *xI64p() { return state.ExtraI64Ptr(); }
     CVerusHashV2 &GetState() { return state; }
 
     template<typename T>

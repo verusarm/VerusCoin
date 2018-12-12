@@ -1339,7 +1339,7 @@ void static BitcoinMiner_noeq()
                     ss2 << *((CBlockHeader *)pblock);
                     vh2 = &ss2.GetState();
                     extraPtr = ss2.xI64p();
-                    vh2->GenNewCLKey(ss2.GetState().CurBuffer());
+                    vh2->GenNewCLKey(vh2->CurBuffer());
                 }
                 else
                 {
@@ -1353,16 +1353,19 @@ void static BitcoinMiner_noeq()
                 for (i = 0; i < count; i++)
                 {
                     *extraPtr = i;
+
+                    uint64_t intermediate;
+
                     if (verusHashV2)
                     {
                         vh2->ClearExtra();
 
                         // run verusclhash on the buffer
-                        uint64_t intermediate = vh2->vclh(vh2->CurBuffer());
+                        intermediate = vh2->vclh(vh2->CurBuffer());
 
                         // fill buffer to the end with the result and final hash
-                        vh2->FillExtra((const unsigned char *)intermediate, sizeof(intermediate));
-                        vh2->ExtraHash((unsigned char *)&hashResult);
+                        vh2->FillExtra(&intermediate);
+                        vh2->ExtraHashKeyed((unsigned char *)&hashResult, (u128 *)verusclhasher_random_data_ + (intermediate & 0xf));
                     }
                     else
                     {
@@ -1385,11 +1388,20 @@ void static BitcoinMiner_noeq()
                         int32_t unlockTime = komodo_block_unlocktime(Mining_height);
                         int64_t subsidy = (int64_t)(pblock->vtx[0].vout[0].nValue);
 
+
+                        std::string hashStr = hashResult.GetHex();
+                        //std::string validateStr = hashResult.GetHex();
+                        //std::string hashStr = pblock->GetHash().GetHex();
+                        //uint256 *bhalf1 = (uint256 *)vh2->CurBuffer();
+                        //uint256 *bhalf2 = bhalf1 + 1;
+
                         LogPrintf("Using %s algorithm:\n", ASSETCHAINS_ALGORITHMS[ASSETCHAINS_ALGO]);
-                        LogPrintf("proof-of-work found  \n  hash: %s  \ntarget: %s\n", pblock->GetHash().GetHex(), hashTarget.GetHex());
+                        LogPrintf("proof-of-work found  \n  hash: %s  \ntarget: %s\n", hashStr, hashTarget.GetHex());
                         printf("Found block %d \n", Mining_height );
                         printf("mining reward %.8f %s!\n", (double)subsidy / (double)COIN, ASSETCHAINS_SYMBOL);
-                        printf("  hash: %s  \ntarget: %s\n", pblock->GetHash().GetHex().c_str(), hashTarget.GetHex().c_str());
+                        //printf("  hash: %s\n   val: %s  \ntarget: %s\n", hashStr.c_str(), validateStr.c_str(), hashTarget.GetHex().c_str());
+                        //printf("intermediate %lx\n", intermediate);
+                        printf("  hash: %s\ntarget: %s\n", hashStr.c_str(), hashTarget.GetHex().c_str());
                         if (unlockTime > Mining_height && subsidy >= ASSETCHAINS_TIMELOCKGTE)
                             printf("- timelocked until block %i\n", unlockTime);
                         else

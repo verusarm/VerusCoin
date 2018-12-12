@@ -38,6 +38,7 @@ enum {
 
 extern thread_local void *verusclhasher_random_data_;
 extern thread_local int64_t verusclhasher_keySizeInBytes;
+extern thread_local uint256 verusclhasher_seed;
 
 uint64_t verusclhash(const void * random, const unsigned char buf[64], uint64_t keyMask);
 

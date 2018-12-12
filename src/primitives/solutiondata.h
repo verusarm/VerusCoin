@@ -57,7 +57,7 @@ class CConstVerusSolutionVector
 
         static uint32_t GetVersionByHeight(uint32_t height)
         {
-            activationHeight.ActiveVersion(height);
+            return activationHeight.ActiveVersion(height);
         }
 
         uint32_t Version(std::vector<unsigned char> &vch)
@@ -80,12 +80,10 @@ class CConstVerusSolutionVector
                 vch[1] = (v >> 8) & 0xff;
                 vch[2] = (v >> 16) & 0xff;
                 vch[3] = (v >> 24) & 0xff;
-                printf("Setting solution version to %d\n", v);
                 return true;
             }
             else
             {
-                printf("Not setting solution version\n");
                 return false;
             }
         }
@@ -110,7 +108,7 @@ class CVerusSolutionVector
 
         static uint32_t GetVersionByHeight(uint32_t height)
         {
-            activationHeight.GetVersionByHeight(height);
+            return activationHeight.GetVersionByHeight(height);
         }
 
         uint32_t Version()
