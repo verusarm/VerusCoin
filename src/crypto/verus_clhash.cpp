@@ -171,9 +171,6 @@ static __m128i __verusclmulwithoutreduction64alignedrepeat(const __m128i *random
                 AES2(temp1, temp2, 8);
                 MIX2(temp1, temp2);
 
-                temp1 = _mm_xor_si128(temp1, _mm_load_si128(buftmp));
-                temp2 = _mm_xor_si128(temp2, _mm_load_si128(pbuf));
-
                 acc = _mm_xor_si128(temp1, acc);
                 acc = _mm_xor_si128(temp2, acc);
                 break;
