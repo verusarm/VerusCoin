@@ -58,9 +58,10 @@ struct verusclhasher {
     int64_t keySizeIn64BitWords;
     int64_t keyMask;
 
-    verusclhasher(uint64_t keysize=VERUSKEYSIZE) : keySizeIn64BitWords((keysize >> 7) << 4)
+    // align on 128 byte boundary at end
+    verusclhasher(uint64_t keysize=VERUSKEYSIZE) : keySizeIn64BitWords((keysize >> 4) << 1)
     {
-        int64_t newKeySize = (keysize >> 7) << 7;
+        int64_t newKeySize = (keysize >> 4) << 4;
         if (verusclhasher_random_data_ && newKeySize != verusclhasher_keySizeInBytes)
         {
             std::free((void *)verusclhasher_random_data_);

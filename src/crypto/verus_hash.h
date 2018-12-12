@@ -192,7 +192,7 @@ class CVerusHashV2
             //printf("Curbuf: %s%s\n", bhalf1->GetHex().c_str(), bhalf2->GetHex().c_str());
 
             // get the final hash with a dynamic key for each hash result
-            (*haraka512KeyedFunction)(hash, curBuf, (u128 *)verusclhasher_random_data_ + (intermediate & 0xf));
+            (*haraka512KeyedFunction)(hash, curBuf, (u128 *)verusclhasher_random_data_ + (intermediate & (vclh.keyMask >> 5)));
         }
 
         inline unsigned char *CurBuffer()

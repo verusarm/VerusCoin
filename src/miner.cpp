@@ -1365,7 +1365,8 @@ void static BitcoinMiner_noeq()
 
                         // fill buffer to the end with the result and final hash
                         vh2->FillExtra(&intermediate);
-                        vh2->ExtraHashKeyed((unsigned char *)&hashResult, (u128 *)verusclhasher_random_data_ + (intermediate & 0xf));
+                        vh2->ExtraHashKeyed((unsigned char *)&hashResult, (u128 *)verusclhasher_random_data_ + 
+                                                                          (intermediate & (vh2->vclh.keyMask >> 5)));
                     }
                     else
                     {
