@@ -323,6 +323,7 @@ public:
 
     CBlockIndex(const CBlockHeader& block)
     {
+        printf("New block Index from block. nVersion: %x, nTime: %d, nBits: %d, nNonce: %s\n", block.nVersion, block.nTime, block.nBits, block.nNonce.GetHex().c_str());
         SetNull();
 
         nVersion       = block.nVersion;
@@ -470,7 +471,7 @@ public:
 
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action) {
-        int nVersion = s.GetVersion();
+        int nVersion = s.GetVersion(); if (!ser_action.ForRead()) printf("Serializing block index %s, stream version: %x\n", ToString().c_str(), nVersion);
         if (!(s.GetType() & SER_GETHASH))
             READWRITE(VARINT(nVersion));
 
@@ -525,6 +526,10 @@ public:
 
     uint256 GetBlockHash() const
     {
+        if (nVersion == CBlockHeader::VERUS_V2)
+        {
+            printf("CBlockIndex(nVersion=%x, pprev=%p, nHeight=%d, merkle=%s, ", this->nVersion, pprev, this->chainPower.nHeight, hashMerkleRoot.ToString().c_str());
+        }
         CBlockHeader block;
         block.nVersion        = nVersion;
         block.hashPrevBlock   = hashPrev;
@@ -541,10 +546,8 @@ public:
     std::string ToString() const
     {
         std::string str = "CDiskBlockIndex(";
-        str += CBlockIndex::ToString();
-        str += strprintf("\n                hashBlock=%s, hashPrev=%s)",
-            GetBlockHash().ToString(),
-            hashPrev.ToString());
+        str += strprintf("CBlockIndex(nVersion=%x, pprev=%p, nHeight=%d, merkle=%s, hashBlock=%s, hashPrev=%s)\n",
+            this->nVersion, pprev, this->chainPower.nHeight, hashMerkleRoot.ToString(), GetBlockHash().ToString(), hashPrev.ToString());
         return str;
     }
 };

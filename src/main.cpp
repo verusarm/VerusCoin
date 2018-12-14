@@ -3109,6 +3109,7 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
     
     // verify that the view's current state corresponds to the previous block
     uint256 hashPrevBlock = pindex->pprev == NULL ? uint256() : pindex->pprev->GetBlockHash();
+
     if ( hashPrevBlock != view.GetBestBlock() )
     {
         fprintf(stderr,"ConnectBlock(): hashPrevBlock != view.GetBestBlock()\n");
@@ -3582,7 +3583,7 @@ bool static FlushStateToDisk(CValidationState &state, FlushStateMode mode) {
                     setDirtyBlockIndex.erase(it++);
                 }
                 if (!pblocktree->WriteBatchSync(vFiles, nLastBlockFile, vBlocks)) {
-                    return AbortNode(state, "Files to write to block index database");
+                    return AbortNode(state, "Failed to write to block index database");
                 }
             }
             // Finally remove any pruned files
@@ -4014,7 +4015,7 @@ static bool ActivateBestChainStep(CValidationState &state, CBlockIndex *pindexMo
         }
         nHeight = nTargetHeight;
         
-        // Connect new blocks.
+        // Connect new blocks
         BOOST_REVERSE_FOREACH(CBlockIndex *pindexConnect, vpindexToConnect) {
             if (!ConnectTip(state, pindexConnect, pindexConnect == pindexMostWork ? pblock : NULL)) {
                 if (state.IsInvalid()) {
@@ -4074,6 +4075,7 @@ bool ActivateBestChain(CValidationState &state, CBlock *pblock) {
             pindexMostWork = FindMostWorkChain();
             
             // Whether we have anything to do at all.
+            // printf("mostwork: %lx, chaintip: %p\n", pindexMostWork, chainActive.Tip());
             if (pindexMostWork == NULL || pindexMostWork == chainActive.Tip())
                 return true;
             
@@ -4192,6 +4194,8 @@ CBlockIndex* AddToBlockIndex(const CBlockHeader& block)
 {
     // Check for duplicate
     uint256 hash = block.GetHash();
+    //printf("Hash of new index entry: %s\n\n", hash.GetHex().c_str());
+
     BlockMap::iterator it = mapBlockIndex.find(hash);
     BlockMap::iterator miPrev = mapBlockIndex.find(block.hashPrevBlock);
 
@@ -4208,6 +4212,10 @@ CBlockIndex* AddToBlockIndex(const CBlockHeader& block)
         printf("found %d NULL blocks in mapBlockIndex\n", vrit.size());
     }
     */
+    if (block.hashPrevBlock.IsNull() && hash != Params().consensus.hashGenesisBlock)
+    {
+        printf("Found prior null block on add that isn't the genesis block: %s\n", hash.GetHex().c_str());
+    }
 
     if (it != mapBlockIndex.end())
     {
@@ -5281,9 +5289,11 @@ CBlockIndex * InsertBlockIndex(uint256 hash)
     // Create new
     CBlockIndex* pindexNew = new CBlockIndex();
     if (!pindexNew)
-        throw runtime_error("LoadBlockIndex(): new CBlockIndex failed");
+        throw runtime_error("LoadBlockIndex(): new CBlockIndex failed\n");
     mi = mapBlockIndex.insert(make_pair(hash, pindexNew)).first;
     pindexNew->phashBlock = &((*mi).first);
+
+    //printf("Hash of new index entry: %s\n\n", hash.GetHex().c_str());
     //fprintf(stderr,"inserted to block index %s\n",hash.ToString().c_str());
 
     return pindexNew;

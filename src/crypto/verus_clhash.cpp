@@ -29,6 +29,7 @@
 #endif
 
 thread_local void *verusclhasher_random_data_;
+thread_local void *verusclhasherkey;
 thread_local int64_t verusclhasher_keySizeInBytes;
 thread_local uint256 verusclhasher_seed;
 
@@ -57,7 +58,7 @@ static inline uint64_t precompReduction64( __m128i A) {
 }
 
 // verus intermediate hash extra
-static __m128i __verusclmulwithoutreduction64alignedrepeat(const __m128i *randomsource, const __m128i buf[4], uint64_t keyMask)
+static __m128i __verusclmulwithoutreduction64alignedrepeat(__m128i *randomsource, const __m128i buf[4], uint64_t keyMask)
 {
     __m128i acc = _mm_setzero_si128();
 
@@ -73,13 +74,11 @@ static __m128i __verusclmulwithoutreduction64alignedrepeat(const __m128i *random
         // add 0 - 31, depending on keyoffset, low and high 128 bit random components are swapped this pass
         int randOffset = ((selector >> 6) & keyMask);
         const int64_t keyoffset = randOffset ? (selector >> 4 & 0x02) - 1 : 1;
-        __m128i const *prand = randomsource + randOffset;
+        __m128i *prand = randomsource + randOffset;
 
         // select random start and order of pbuf processing
         pbuf = buf + (selector & 3);
 
-        // 1 additional bit tested below, so 5 bits used in selector to statistically weight
-        // two heavier paths at 0.125 each
         switch (selector & 0x1c)
         {
             case 0:
@@ -89,11 +88,21 @@ static __m128i __verusclmulwithoutreduction64alignedrepeat(const __m128i *random
                 const __m128i add1 = _mm_xor_si128(temp1, temp2);
                 const __m128i clprod1 = _mm_clmulepi64_si128(add1, add1, 0x10);
                 acc = _mm_xor_si128(clprod1, acc);
+
+                const __m128i tempa1 = _mm_mulhrs_epi16(acc, temp1);
+                const __m128i tempa2 = _mm_xor_si128(tempa1, temp1);
+
                 const __m128i temp12 = _mm_load_si128(prand);
+                _mm_store_si128(prand, tempa2);
+
                 const __m128i temp22 = _mm_load_si128(pbuf);
                 const __m128i add12 = _mm_xor_si128(temp12, temp22);
                 const __m128i clprod12 = _mm_clmulepi64_si128(add12, add12, 0x10);
                 acc = _mm_xor_si128(clprod12, acc);
+
+                const __m128i tempb1 = _mm_mulhrs_epi16(acc, temp12);
+                const __m128i tempb2 = _mm_xor_si128(tempb1, temp12);
+                _mm_store_si128(prand+keyoffset, tempb2);
                 break;
             }
             case 4:
@@ -105,10 +114,20 @@ static __m128i __verusclmulwithoutreduction64alignedrepeat(const __m128i *random
                 acc = _mm_xor_si128(clprod1, acc);
                 const __m128i clprod2 = _mm_clmulepi64_si128(temp2, temp2, 0x10);
                 acc = _mm_xor_si128(clprod2, acc);
+
+                const __m128i tempa1 = _mm_mulhrs_epi16(acc, temp1);
+                const __m128i tempa2 = _mm_xor_si128(tempa1, temp1);
+
                 const __m128i temp12 = _mm_load_si128(prand+keyoffset);
+                _mm_store_si128(prand+keyoffset, tempa2);
+
                 const __m128i temp22 = _mm_load_si128((selector & 1) ? pbuf-1 : pbuf+1);
                 const __m128i add12 = _mm_xor_si128(temp12, temp22);
                 acc = _mm_xor_si128(add12, acc);
+
+                const __m128i tempb1 = _mm_mulhrs_epi16(acc, temp12);
+                const __m128i tempb2 = _mm_xor_si128(tempb1, temp12);
+                _mm_store_si128(prand, tempb2);
                 break;
             }
             case 8:
@@ -117,13 +136,23 @@ static __m128i __verusclmulwithoutreduction64alignedrepeat(const __m128i *random
                 const __m128i temp2 = _mm_load_si128(pbuf);
                 const __m128i add1 = _mm_xor_si128(temp1, temp2);
                 acc = _mm_xor_si128(add1, acc);
+
+                const __m128i tempa1 = _mm_mulhrs_epi16(acc, temp1);
+                const __m128i tempa2 = _mm_xor_si128(tempa1, temp1);
+
                 const __m128i temp12 = _mm_load_si128(prand);
+                _mm_store_si128(prand, tempa2);
+
                 const __m128i temp22 = _mm_load_si128((selector & 1) ? pbuf-1 : pbuf+1);
                 const __m128i add12 = _mm_xor_si128(temp12, temp22);
                 const __m128i clprod12 = _mm_clmulepi64_si128(add12, add12, 0x10);
                 acc = _mm_xor_si128(clprod12, acc);
                 const __m128i clprod22 = _mm_clmulepi64_si128(temp22, temp22, 0x10);
                 acc = _mm_xor_si128(clprod22, acc);
+
+                const __m128i tempb1 = _mm_mulhrs_epi16(acc, temp12);
+                const __m128i tempb2 = _mm_xor_si128(tempb1, temp12);
+                _mm_store_si128(prand+keyoffset, tempb2);
                 break;
             }
             case 0x0c:
@@ -141,22 +170,35 @@ static __m128i __verusclmulwithoutreduction64alignedrepeat(const __m128i *random
                 const __m128i modulo = _mm_cvtsi32_si128(dividend % divisor);
                 acc = _mm_xor_si128(modulo, acc);
 
+                const __m128i tempa1 = _mm_mulhrs_epi16(acc, temp1);
+                const __m128i tempa2 = _mm_xor_si128(tempa1, temp1);
+
                 if (dividend & 1)
                 {
                     const __m128i temp12 = _mm_load_si128(prand+keyoffset);
+                    _mm_store_si128(prand+keyoffset, tempa2);
+
                     const __m128i temp22 = _mm_load_si128(pbuf);
                     const __m128i add12 = _mm_xor_si128(temp12, temp22);
                     const __m128i clprod12 = _mm_clmulepi64_si128(add12, add12, 0x10);
                     acc = _mm_xor_si128(clprod12, acc);
                     const __m128i clprod22 = _mm_clmulepi64_si128(temp22, temp22, 0x10);
                     acc = _mm_xor_si128(clprod22, acc);
+
+                    const __m128i tempb1 = _mm_mulhrs_epi16(acc, temp12);
+                    const __m128i tempb2 = _mm_xor_si128(tempb1, temp12);
+                    _mm_store_si128(prand, tempb2);
+                }
+                else
+                {
+                    _mm_store_si128(prand+keyoffset, tempa2);
                 }
                 break;
             }
             case 0x10:
             {
-                // a few AES operations, basically a mini-keyed Haraka256 with only 3 rounds
-                const __m128i *rc = (prand - randomsource) < 12 ? randomsource : prand, *buftmp = (selector & 1) ? pbuf-1 : pbuf+1;
+                // a few AES operations
+                const __m128i *rc = prand, *buftmp = (selector & 1) ? pbuf-1 : pbuf+1;
                 __m128i tmp;
 
                 __m128i temp1 = _mm_load_si128(buftmp);
@@ -173,38 +215,50 @@ static __m128i __verusclmulwithoutreduction64alignedrepeat(const __m128i *random
 
                 acc = _mm_xor_si128(temp1, acc);
                 acc = _mm_xor_si128(temp2, acc);
+
+                const __m128i key = _mm_load_si128(prand);
+                const __m128i tempa1 = _mm_mulhrs_epi16(acc, key);
+                const __m128i tempa2 = _mm_xor_si128(tempa1, key);
+                _mm_store_si128(prand, tempa2);
+
                 break;
             }
             case 0x14:
             {
                 // we'll just call this one the monkins loop, inspired by Chris
-                const __m128i *rc = (prand - randomsource) < 32 ? randomsource : prand, *buftmp = (selector & 1) ? pbuf-1 : pbuf+1;
+                const __m128i *buftmp = (selector & 1) ? pbuf-1 : pbuf+1;
                 __m128i tmp;
 
-
                 uint64_t rounds = selector >> 61; // loop randomly between 1 and 8 times
+                __m128i *pkey = prand;
                 uint64_t aesround = 0;
+                __m128i onekey;
 
                 do
                 {
                     if (selector & (0x10000000 << rounds))
                     {
-                        const __m128i temp1 = _mm_load_si128(prand++);
+                        onekey = _mm_load_si128(pkey++);
                         const __m128i temp2 = _mm_load_si128(rounds & 1 ? pbuf : buftmp);
-                        const __m128i add1 = _mm_xor_si128(temp1, temp2);
+                        const __m128i add1 = _mm_xor_si128(onekey, temp2);
                         const __m128i clprod1 = _mm_clmulepi64_si128(add1, add1, 0x10);
                         acc = _mm_xor_si128(clprod1, acc);
                     }
                     else
                     {
-                        __m128i temp1 = _mm_load_si128(prand++);
+                        const __m128i *rc = pkey++; 
+                        onekey = _mm_load_si128(rc);
                         __m128i temp2 = _mm_load_si128(rounds & 1 ? buftmp : pbuf);
-                        AES2(temp1, temp2, aesround++ << 2);
-                        MIX2(temp1, temp2);
-                        acc = _mm_xor_si128(temp1, acc);
+                        AES2(onekey, temp2, aesround++ << 2);
+                        MIX2(onekey, temp2);
+                        acc = _mm_xor_si128(onekey, acc);
                         acc = _mm_xor_si128(temp2, acc);
                     }
                 } while (rounds--);
+
+                const __m128i tempa1 = _mm_mulhrs_epi16(acc, onekey);
+                const __m128i tempa2 = _mm_xor_si128(tempa1, onekey);
+                _mm_store_si128(prand, tempa2);
                 break;
             }
             case 0x18:
@@ -214,6 +268,10 @@ static __m128i __verusclmulwithoutreduction64alignedrepeat(const __m128i *random
                 const __m128i add1 = _mm_xor_si128(temp1, temp2);
                 const __m128i clprod1 = _mm_clmulepi64_si128(add1, add1, 0x10);
                 acc = _mm_xor_si128(clprod1, acc);
+
+                const __m128i tempa1 = _mm_mulhrs_epi16(acc, temp2);
+                const __m128i tempa2 = _mm_xor_si128(tempa1, temp2);
+                _mm_store_si128(prand, tempa2);
                 break;
             }
             case 0x1c:
@@ -223,8 +281,18 @@ static __m128i __verusclmulwithoutreduction64alignedrepeat(const __m128i *random
                 const __m128i add1 = _mm_xor_si128(temp1, temp2);
                 const __m128i clprod1 = _mm_clmulepi64_si128(add1, add1, 0x10);
                 acc = _mm_xor_si128(clprod1, acc);
+
+                const __m128i tempa1 = _mm_mulhrs_epi16(acc, temp2);
+                const __m128i tempa2 = _mm_xor_si128(tempa1, temp2);
+
                 const __m128i temp3 = _mm_load_si128(prand);
+                _mm_store_si128(prand, tempa2);
+
                 acc = _mm_xor_si128(temp3, acc);
+
+                const __m128i tempb1 = _mm_mulhrs_epi16(acc, temp3);
+                const __m128i tempb2 = _mm_xor_si128(tempb1, temp3);
+                _mm_store_si128(prand + keyoffset, tempb2);
                 break;
             }
         }
@@ -234,9 +302,9 @@ static __m128i __verusclmulwithoutreduction64alignedrepeat(const __m128i *random
 
 // hashes 64 bytes only by doing a carryless multiplication and reduction of the repeated 64 byte sequence 16 times, 
 // returning a 64 bit hash value
-uint64_t verusclhash(const void * random, const unsigned char buf[64], uint64_t keyMask) {
+uint64_t verusclhash(void * random, const unsigned char buf[64], uint64_t keyMask) {
     const unsigned int  m = 128;// we process the data in chunks of 16 cache lines
-    const __m128i * rs64 = (__m128i *)random;
+    __m128i * rs64 = (__m128i *)random;
     const __m128i * string = (const __m128i *) buf;
 
     __m128i  acc = __verusclmulwithoutreduction64alignedrepeat(rs64, string, keyMask);

@@ -1315,18 +1315,28 @@ void static BitcoinMiner_noeq()
                 fprintf(stderr," PoW for staked coin PoS %d%% vs target %d%%\n",percPoS,(int32_t)ASSETCHAINS_STAKED);
             }
 
+            int64_t i, count, hashesToGo;
+            bool verusHashV2 = pblock->nVersion == CBlockHeader::VERUS_V2;
+
+            if (verusHashV2)
+            {
+                count = (ASSETCHAINS_NONCEMASK[ASSETCHAINS_ALGO] >> 3) + 1;
+            }
+            else
+            {
+                count = ASSETCHAINS_NONCEMASK[ASSETCHAINS_ALGO] + 1;
+            }
+
             while (true)
             {
                 arith_uint256 arNonce = UintToArith256(pblock->nNonce);
 
-                // used for V1 and V2
-                bool verusHashV2 = pblock->nVersion == CBlockHeader::VERUS_V2;
                 int64_t *extraPtr;
                 CVerusHash *vh;
                 CVerusHashV2 *vh2;
                 uint256 hashResult = uint256();
-                int64_t i, count = ASSETCHAINS_NONCEMASK[ASSETCHAINS_ALGO] + 1;
-                int64_t hashesToGo = ASSETCHAINS_HASHESPERROUND[ASSETCHAINS_ALGO];
+
+                hashesToGo = ASSETCHAINS_HASHESPERROUND[ASSETCHAINS_ALGO];
 
                 // v1 hash writer
                 CVerusHashWriter ss = CVerusHashWriter(SER_GETHASH, PROTOCOL_VERSION);
@@ -1358,22 +1368,46 @@ void static BitcoinMiner_noeq()
 
                     if (verusHashV2)
                     {
+                        // prepare the buffer
                         vh2->ClearExtra();
+
+                        // refresh the key and get a reference
+                        u128 *hashKey = (u128 *)vh2->vclh.gethashkey();
 
                         // run verusclhash on the buffer
                         intermediate = vh2->vclh(vh2->CurBuffer());
 
                         // fill buffer to the end with the result and final hash
                         vh2->FillExtra(&intermediate);
-                        vh2->ExtraHashKeyed((unsigned char *)&hashResult, (u128 *)verusclhasher_random_data_ + 
-                                                                          (intermediate & (vh2->vclh.keyMask >> 5)));
+                        vh2->ExtraHashKeyed((unsigned char *)&hashResult, hashKey + vh2->IntermediateTo128Offset(intermediate));
                     }
                     else
                     {
                         vh->ExtraHash((unsigned char *)&hashResult);
                     }
 
-                    if ( UintToArith256(hashResult) <= hashTarget )
+                    if ( UintToArith256(hashResult) > hashTarget )
+                    {
+                        // check periodically if we're stale
+                        if (--hashesToGo)
+                        {
+                            continue;
+                        }
+                        else
+                        {
+                            if ( pindexPrev != chainActive.LastTip() )
+                            {
+                                if (lastChainTipPrinted != chainActive.LastTip())
+                                {
+                                    lastChainTipPrinted = chainActive.LastTip();
+                                    printf("Block %d added to chain\n", lastChainTipPrinted->GetHeight());
+                                }
+                                break;
+                            }
+                            hashesToGo = ASSETCHAINS_HASHESPERROUND[ASSETCHAINS_ALGO];
+                        }
+                    }
+                    else
                     {
                         if (pblock->nSolution.size() != 1344)
                         {
@@ -1400,9 +1434,9 @@ void static BitcoinMiner_noeq()
                         LogPrintf("proof-of-work found  \n  hash: %s  \ntarget: %s\n", hashStr, hashTarget.GetHex());
                         printf("Found block %d \n", Mining_height );
                         printf("mining reward %.8f %s!\n", (double)subsidy / (double)COIN, ASSETCHAINS_SYMBOL);
-                        //printf("  hash: %s\n   val: %s  \ntarget: %s\n", hashStr.c_str(), validateStr.c_str(), hashTarget.GetHex().c_str());
+                        //printf("  hash: %s\n   val: %s  \ntarget: %s\n\n", hashStr.c_str(), validateStr.c_str(), hashTarget.GetHex().c_str());
                         //printf("intermediate %lx\n", intermediate);
-                        printf("  hash: %s\ntarget: %s\n", hashStr.c_str(), hashTarget.GetHex().c_str());
+                        printf("  hash: %s\ntarget: %s\n\n", hashStr.c_str(), hashTarget.GetHex().c_str());
                         if (unlockTime > Mining_height && subsidy >= ASSETCHAINS_TIMELOCKGTE)
                             printf("- timelocked until block %i\n", unlockTime);
                         else
@@ -1414,20 +1448,6 @@ void static BitcoinMiner_noeq()
 #endif
                         SetThreadPriority(THREAD_PRIORITY_LOWEST);
                         break;
-                    }
-                    // check periodically if we're stale
-                    if (!--hashesToGo)
-                    {
-                        if ( pindexPrev != chainActive.LastTip() )
-                        {
-                            if (lastChainTipPrinted != chainActive.LastTip())
-                            {
-                                lastChainTipPrinted = chainActive.LastTip();
-                                printf("Block %d added to chain\n", lastChainTipPrinted->GetHeight());
-                            }
-                            break;
-                        }
-                        hashesToGo = ASSETCHAINS_HASHESPERROUND[ASSETCHAINS_ALGO];
                     }
                 }
 
@@ -1465,9 +1485,9 @@ void static BitcoinMiner_noeq()
                 }
 
 #ifdef _WIN32
-                printf("%llu mega hashes complete - working\n", (ASSETCHAINS_NONCEMASK[ASSETCHAINS_ALGO] + 1) / 1048576);
+                printf("%llu mega hashes complete - working\n", count / 1048576);
 #else
-                printf("%lu mega hashes complete - working\n", (ASSETCHAINS_NONCEMASK[ASSETCHAINS_ALGO] + 1) / 1048576);
+                printf("%lu mega hashes complete - working\n", count / 1048576);
 #endif
                 break;
 
@@ -1974,7 +1994,7 @@ void static BitcoinMiner()
             {
             }
         }
-        if (VERUS_CHEATCATCHER.size() > 0)
+        if (fGenerate == true && VERUS_CHEATCATCHER.size() > 0)
         {
             if (cheatCatcher == boost::none)
             {
@@ -1983,8 +2003,8 @@ void static BitcoinMiner()
             }
             else
             {
-                LogPrintf("Cheat Catcher active on %s\n", VERUS_CHEATCATCHER.c_str());
-                fprintf(stderr, "Cheat Catcher active on %s\n", VERUS_CHEATCATCHER.c_str());
+                LogPrintf("StakeGuard searching for double stakes on %s\n", VERUS_CHEATCATCHER.c_str());
+                fprintf(stderr, "StakeGuard searching for double stakes on %s\n", VERUS_CHEATCATCHER.c_str());
             }
         }
 

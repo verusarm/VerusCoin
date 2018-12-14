@@ -33,14 +33,15 @@ extern "C" {
 
 enum {
     // Verus Key size must include an extra 128 bytes from what is divisible by 8
-    VERUSKEYSIZE=1024 * 16 + 256
+    VERUSKEYSIZE=1024 * 4 + (16 * 40)
 };
 
 extern thread_local void *verusclhasher_random_data_;
+extern thread_local void *verusclhasherkey;
 extern thread_local int64_t verusclhasher_keySizeInBytes;
 extern thread_local uint256 verusclhasher_seed;
 
-uint64_t verusclhash(const void * random, const unsigned char buf[64], uint64_t keyMask);
+uint64_t verusclhash(void * random, const unsigned char buf[64], uint64_t keyMask);
 
 void *alloc_aligned_buffer(uint64_t bufSize);
 
@@ -61,12 +62,14 @@ struct verusclhasher {
     // align on 128 byte boundary at end
     verusclhasher(uint64_t keysize=VERUSKEYSIZE) : keySizeIn64BitWords((keysize >> 4) << 1)
     {
+        // align to 128 bits
         int64_t newKeySize = (keysize >> 4) << 4;
         if (verusclhasher_random_data_ && newKeySize != verusclhasher_keySizeInBytes)
         {
             std::free((void *)verusclhasher_random_data_);
             verusclhasher_random_data_ = NULL;
             verusclhasher_keySizeInBytes = 0;
+            verusclhasherkey = NULL;
         }
         if (verusclhasher_random_data_)
         {
@@ -79,9 +82,11 @@ struct verusclhasher {
         }
         else
         {
-            if (verusclhasher_random_data_ = alloc_aligned_buffer(newKeySize))
+            // make space for two keys, since the active one gets mutated for each hash
+            if (verusclhasher_random_data_ = alloc_aligned_buffer(newKeySize << 1))
             {
                 verusclhasher_keySizeInBytes = newKeySize;
+                verusclhasherkey = ((char *)verusclhasher_random_data_) + newKeySize;
 
                 int i = 0;
                 while (newKeySize >>= 1)
@@ -95,6 +100,14 @@ struct verusclhasher {
                 keyMask = 0;
             }
         }
+    }
+
+    // this prepares a key for hashing and mutation by copying it from the original key for this block
+    // WARNING!! this does not check for NULL ptr, so make sure the buffer is allocated
+    inline void *gethashkey()
+    {
+        memcpy(verusclhasher_random_data_, verusclhasherkey, verusclhasher_keySizeInBytes);
+        return verusclhasherkey;
     }
 
     uint64_t operator()(const unsigned char buf[64]) const {
