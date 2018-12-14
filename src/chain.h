@@ -323,7 +323,6 @@ public:
 
     CBlockIndex(const CBlockHeader& block)
     {
-        printf("New block Index from block. nVersion: %x, nTime: %d, nBits: %d, nNonce: %s\n", block.nVersion, block.nTime, block.nBits, block.nNonce.GetHex().c_str());
         SetNull();
 
         nVersion       = block.nVersion;
@@ -543,7 +542,7 @@ public:
     std::string ToString() const
     {
         std::string str = "CDiskBlockIndex(";
-        str += strprintf("CBlockIndex(nVersion=%x, pprev=%p, nHeight=%d, merkle=%s, hashBlock=%s, hashPrev=%s)\n",
+        str += strprintf("nVersion=%x, pprev=%p, nHeight=%d, merkle=%s\nhashBlock=%s, hashPrev=%s)\n",
             this->nVersion, pprev, this->chainPower.nHeight, hashMerkleRoot.ToString(), GetBlockHash().ToString(), hashPrev.ToString());
         return str;
     }

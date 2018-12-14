@@ -1409,6 +1409,9 @@ void static BitcoinMiner_noeq()
                     }
                     else
                     {
+                        // Check for stop or if block needs to be rebuilt
+                        boost::this_thread::interruption_point();
+
                         if (pblock->nSolution.size() != 1344)
                         {
                             LogPrintf("ERROR: Block solution is not 1344 bytes as it should be");

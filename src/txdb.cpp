@@ -671,8 +671,6 @@ bool CBlockTreeDB::LoadBlockIndexGuts()
                 pindexNew->nTx            = diskindex.nTx;
                 pindexNew->nSproutValue   = diskindex.nSproutValue;
 
-
-
                 // Consistency checks
                 auto header = pindexNew->GetBlockHeader();
                 uint256 hash = header.GetHash();

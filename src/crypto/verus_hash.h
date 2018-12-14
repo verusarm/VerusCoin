@@ -147,7 +147,7 @@ class CVerusHashV2
             {
                 // generate a new key by chain hashing with Haraka256 from the last curbuf
                 int n256blks = verusclhasher_keySizeInBytes >> 5;
-                int nbytesExtra = verusclhasher_keySizeInBytes & 0xff;
+                int nbytesExtra = verusclhasher_keySizeInBytes & 0x1f;
                 unsigned char *pkey = (unsigned char *)verusclhasher_random_data_;
                 unsigned char *psrc = seedBytes32;
                 for (int i = 0; i < n256blks; i++)
@@ -162,7 +162,7 @@ class CVerusHashV2
                     (*haraka256Function)(buf, psrc);
                     memcpy(pkey, buf, nbytesExtra);
                 }
-                memcpy(verusclhasherkey, verusclhasher_random_data_, verusclhasher_keySizeInBytes);
+                memcpy(verusclhasherrefresh, verusclhasher_random_data_, verusclhasher_keySizeInBytes);
                 verusclhasher_seed = *((uint256 *)seedBytes32);
                 //uint256 *bhalf1 = (uint256 *)verusclhasher_random_data_;
                 //uint256 *bhalf2 = bhalf1 + 1;
@@ -176,11 +176,8 @@ class CVerusHashV2
             // the mask is where we wrap
             uint64_t mask = vclh.keyMask >> 4;
             uint64_t offset = intermediate & mask;
-            if (offset + 40 > mask)
-            {
-                return 0;
-            }
-            return offset;
+            int64_t wrap = (offset + 39) - mask;
+            return wrap > 0 ? wrap : offset;
         }
 
         void Finalize2b(unsigned char hash[32])
@@ -205,7 +202,7 @@ class CVerusHashV2
             //printf("Curbuf: %s%s\n", bhalf1->GetHex().c_str(), bhalf2->GetHex().c_str());
 
             // get the final hash with a mutated dynamic key for each hash result
-            (*haraka512KeyedFunction)(hash, curBuf, (u128 *)verusclhasherkey + IntermediateTo128Offset(intermediate));
+            (*haraka512KeyedFunction)(hash, curBuf, (u128 *)verusclhasher_random_data_ + IntermediateTo128Offset(intermediate));
         }
 
         inline unsigned char *CurBuffer()
