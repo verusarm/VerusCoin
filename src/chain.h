@@ -471,7 +471,8 @@ public:
 
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action) {
-        int nVersion = s.GetVersion(); if (!ser_action.ForRead()) printf("Serializing block index %s, stream version: %x\n", ToString().c_str(), nVersion);
+        int nVersion = s.GetVersion();
+        //if (!ser_action.ForRead()) printf("Serializing block index %s, stream version: %x\n", ToString().c_str(), nVersion);
         if (!(s.GetType() & SER_GETHASH))
             READWRITE(VARINT(nVersion));
 
@@ -526,10 +527,6 @@ public:
 
     uint256 GetBlockHash() const
     {
-        if (nVersion == CBlockHeader::VERUS_V2)
-        {
-            printf("CBlockIndex(nVersion=%x, pprev=%p, nHeight=%d, merkle=%s, ", this->nVersion, pprev, this->chainPower.nHeight, hashMerkleRoot.ToString().c_str());
-        }
         CBlockHeader block;
         block.nVersion        = nVersion;
         block.hashPrevBlock   = hashPrev;
