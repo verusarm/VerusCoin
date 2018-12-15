@@ -1038,6 +1038,8 @@ void static VerusStaker(CWallet *pwallet)
     } while (pindexPrev != pindexCur);
 
     try {
+        static int32_t lastStakingHeight = 0;
+
         while (true)
         {
             waitForPeers(chainparams);
@@ -1045,11 +1047,17 @@ void static VerusStaker(CWallet *pwallet)
 
             // Create new block
             unsigned int nTransactionsUpdatedLast = mempool.GetTransactionsUpdated();
+
             if ( Mining_height != pindexPrev->GetHeight()+1 )
             {
-                printf("Staking height %d for %s\n", pindexPrev->GetHeight() + 1, ASSETCHAINS_SYMBOL);
                 Mining_height = pindexPrev->GetHeight()+1;
                 Mining_start = (uint32_t)time(NULL);
+            }
+
+            if ( Mining_height != lastStakingHeight )
+            {
+                printf("Staking height %d for %s\n", Mining_height, ASSETCHAINS_SYMBOL);
+                lastStakingHeight = Mining_height;
             }
 
             // Check for stop or if block needs to be rebuilt
