@@ -1042,12 +1042,12 @@ void static VerusStaker(CWallet *pwallet)
         {
             waitForPeers(chainparams);
             CBlockIndex* pindexPrev = chainActive.LastTip();
-            printf("Staking height %d for %s\n", pindexPrev->GetHeight() + 1, ASSETCHAINS_SYMBOL);
 
             // Create new block
             unsigned int nTransactionsUpdatedLast = mempool.GetTransactionsUpdated();
             if ( Mining_height != pindexPrev->GetHeight()+1 )
             {
+                printf("Staking height %d for %s\n", pindexPrev->GetHeight() + 1, ASSETCHAINS_SYMBOL);
                 Mining_height = pindexPrev->GetHeight()+1;
                 Mining_start = (uint32_t)time(NULL);
             }
@@ -1203,6 +1203,7 @@ void static BitcoinMiner_noeq()
     // this will not stop printing more than once in all cases, but it will allow us to print in all cases
     // and print duplicates rarely without having to synchronize
     static CBlockIndex *lastChainTipPrinted;
+    static int32_t lastMiningHeight = 0;
 
     miningTimer.start();
 
@@ -1230,13 +1231,12 @@ void static BitcoinMiner_noeq()
             if ( Mining_height != pindexPrev->GetHeight()+1 )
             {
                 Mining_height = pindexPrev->GetHeight()+1;
+                if (lastMiningHeight != Mining_height)
+                {
+                    lastMiningHeight = Mining_height;
+                    printf("Mining height %d\n", Mining_height);
+                }
                 Mining_start = (uint32_t)time(NULL);
-            }
-
-            if (lastChainTipPrinted != pindexPrev)
-            {
-                printf("Mining height %d\n", Mining_height);
-                lastChainTipPrinted = pindexPrev;
             }
 
             miningTimer.start();
@@ -1442,9 +1442,9 @@ void static BitcoinMiner_noeq()
                         printf("mining reward %.8f %s!\n", (double)subsidy / (double)COIN, ASSETCHAINS_SYMBOL);
                         //printf("  hash: %s\n   val: %s  \ntarget: %s\n\n", hashStr.c_str(), validateStr.c_str(), hashTarget.GetHex().c_str());
                         //printf("intermediate %lx\n", intermediate);
-                        printf("  hash: %s\ntarget: %s\n\n", hashStr.c_str(), hashTarget.GetHex().c_str());
+                        printf("  hash: %s\ntarget: %s", hashStr.c_str(), hashTarget.GetHex().c_str());
                         if (unlockTime > Mining_height && subsidy >= ASSETCHAINS_TIMELOCKGTE)
-                            printf("- timelocked until block %i\n", unlockTime);
+                            printf(" - timelocked until block %i\n", unlockTime);
                         else
                             printf("\n");
 #ifdef ENABLE_WALLET
@@ -1485,7 +1485,7 @@ void static BitcoinMiner_noeq()
                     if (lastChainTipPrinted != chainActive.LastTip())
                     {
                         lastChainTipPrinted = chainActive.LastTip();
-                        printf("Block %d added to chain\n", lastChainTipPrinted->GetHeight());
+                        printf("Block %d added to chain\n\n", lastChainTipPrinted->GetHeight());
                     }
                     break;
                 }

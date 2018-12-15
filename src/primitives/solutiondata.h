@@ -15,6 +15,7 @@ class CActivationHeight
         static const int32_t MAX_HEIGHT = 0x7fffffff;
         static const int32_t DEFAULT_UPGRADE_HEIGHT = MAX_HEIGHT;
         static const int32_t NUM_VERSIONS = 2;
+        static const int32_t SOLUTION_VERUSV2 = 1;
         bool active;
         int32_t heights[NUM_VERSIONS];
         CActivationHeight() : heights{0, DEFAULT_UPGRADE_HEIGHT}, active(true) {}
@@ -27,6 +28,12 @@ class CActivationHeight
                 active = true;
             }
             heights[version] = height;
+        }
+
+        bool IsActivationHeight(int32_t version, int32_t height)
+        {
+            assert(version < NUM_VERSIONS && version > 0);
+            return active && heights[version] == height;
         }
 
         int32_t ActiveVersion(int32_t height)
