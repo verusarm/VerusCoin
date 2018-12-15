@@ -1418,7 +1418,6 @@ void static BitcoinMiner_noeq()
                         if (pblock->nSolution.size() != 1344)
                         {
                             LogPrintf("ERROR: Block solution is not 1344 bytes as it should be");
-                            sleep(5);
                             break;
                         }
 

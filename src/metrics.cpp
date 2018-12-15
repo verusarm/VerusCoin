@@ -122,7 +122,7 @@ int64_t GetUptime()
 
 double GetLocalSolPS()
 {
-    if (ASSETCHAINS_ALGO != ASSETCHAINS_VERUSHASH)
+    if (ASSETCHAINS_ALGO == ASSETCHAINS_VERUSHASH)
     {
         return miningTimer.rate(nHashCount);
     }
