@@ -1072,7 +1072,7 @@ void static VerusStaker(CWallet *pwallet)
             {
                 // wait to try another staking block until after the tip moves again
                 while ( chainActive.LastTip() == pindexPrev )
-                    sleep(1);
+                    MilliSleep(100);
                 continue;
             }
 

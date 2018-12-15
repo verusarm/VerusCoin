@@ -114,11 +114,13 @@ unsigned int lwmaCalculateNextWorkRequired(const CBlockIndex* pindexLast, const 
 {
     arith_uint256 nextTarget {0}, sumTarget {0}, bnTmp, bnLimit;
     if (ASSETCHAINS_ALGO == ASSETCHAINS_EQUIHASH)
+    {
         bnLimit = UintToArith256(params.powLimit);
+    }
     else
+    {
         bnLimit = UintToArith256(params.powAlternate);
-
-    unsigned int nProofOfWorkLimit = bnLimit.GetCompact();
+    }
 
     // Find the first block in the averaging interval as we total the linearly weighted average
     const CBlockIndex* pindexFirst = pindexLast;
@@ -157,7 +159,7 @@ unsigned int lwmaCalculateNextWorkRequired(const CBlockIndex* pindexLast, const 
 
     // Check we have enough blocks
     if (!pindexFirst)
-        return nProofOfWorkLimit;
+        return bnLimit.GetCompact();
 
     // Keep t reasonable in case strange solvetimes occurred.
     if (t < N * k / 3)
@@ -175,7 +177,7 @@ bool DoesHashQualify(const CBlockIndex *pbindex)
 {
     // if it fails hash test and PoW validation, consider it POS. it could also be invalid
     arith_uint256 hash = UintToArith256(pbindex->GetBlockHash());
-    // to be considered POS, we first can't qualify as POW
+    // to be considered POS in Komodo POS, non VerusPoS, we first can't qualify as POW
     if (hash > hash.SetCompact(pbindex->nBits))
     {
         return false;
