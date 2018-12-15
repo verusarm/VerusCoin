@@ -3506,9 +3506,7 @@ UniValue z_getnewaddress(const UniValue& params, bool fHelp)
     if (!EnsureWalletIsAvailable(fHelp))
         return NullUniValue;
 
-    bool allowSapling = (Params().GetConsensus().vUpgrades[Consensus::UPGRADE_SAPLING].nActivationHeight <= chainActive.LastTip()->GetHeight());
-
-    std::string defaultType = ADDR_TYPE_SPROUT;
+    std::string defaultType = ADDR_TYPE_SAPLING;
 
     if (fHelp || params.size() > 1)
         throw runtime_error(
