@@ -4078,7 +4078,7 @@ bool ActivateBestChain(CValidationState &state, CBlock *pblock) {
             // printf("mostwork: %lx, chaintip: %p\n", pindexMostWork, chainActive.Tip());
             if (pindexMostWork == NULL || pindexMostWork == chainActive.Tip())
                 return true;
-            
+
             if (!ActivateBestChainStep(state, pindexMostWork, pblock && pblock->GetHash() == pindexMostWork->GetBlockHash() ? pblock : NULL))
                 return false;
             pindexNewTip = chainActive.Tip();

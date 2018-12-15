@@ -1327,25 +1327,27 @@ void static BitcoinMiner_noeq()
                 count = ASSETCHAINS_NONCEMASK[ASSETCHAINS_ALGO] + 1;
             }
 
+            CVerusHash *vh;
+            CVerusHashV2 *vh2;
+
+            // v1 hash writer
+            CVerusHashWriter ss = CVerusHashWriter(SER_GETHASH, PROTOCOL_VERSION);
+
+            // v2 hash writer
+            CVerusHashV2bWriter ss2 = CVerusHashV2bWriter(SER_GETHASH, PROTOCOL_VERSION);
+
             while (true)
             {
                 arith_uint256 arNonce = UintToArith256(pblock->nNonce);
 
                 int64_t *extraPtr;
-                CVerusHash *vh;
-                CVerusHashV2 *vh2;
                 uint256 hashResult = uint256();
 
                 hashesToGo = ASSETCHAINS_HASHESPERROUND[ASSETCHAINS_ALGO];
 
-                // v1 hash writer
-                CVerusHashWriter ss = CVerusHashWriter(SER_GETHASH, PROTOCOL_VERSION);
-
-                // v2 hash writer
-                CVerusHashV2bWriter ss2 = CVerusHashV2bWriter(SER_GETHASH, PROTOCOL_VERSION);
-
                 if (verusHashV2)
                 {
+                    vh2->Reset();
                     ss2 << *((CBlockHeader *)pblock);
                     vh2 = &ss2.GetState();
                     extraPtr = ss2.xI64p();
@@ -1353,6 +1355,7 @@ void static BitcoinMiner_noeq()
                 }
                 else
                 {
+                    vh->Reset();
                     ss << *((CBlockHeader *)pblock);
                     vh = &ss.GetState();
                     extraPtr = ss.xI64p();

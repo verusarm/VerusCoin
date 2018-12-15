@@ -652,6 +652,10 @@ bool CBlockTreeDB::LoadBlockIndexGuts()
             CDiskBlockIndex diskindex;
             if (pcursor->GetValue(diskindex)) {
                 // Construct block index object
+                //if (diskindex.nVersion == CBlockHeader::VERUS_V2)
+                //{
+                //    printf("VerusHash 2.0 block header: %s\n", diskindex.ToString().c_str());
+                //}
                 CBlockIndex* pindexNew    = InsertBlockIndex(diskindex.GetBlockHash());
                 pindexNew->pprev          = InsertBlockIndex(diskindex.hashPrev);
                 pindexNew->SetHeight(diskindex.GetHeight());

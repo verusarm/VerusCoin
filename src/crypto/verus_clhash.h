@@ -77,18 +77,29 @@ struct verusclhasher {
         int64_t newKeySize = keySizeIn64BitWords << 3;
         if (verusclhasher_random_data_ && newKeySize != verusclhasher_keySizeInBytes)
         {
+            freehashkey();
+        }
+        // get buffer space for 2 keys
+        if (verusclhasher_random_data_ || (verusclhasher_random_data_ = alloc_aligned_buffer(newKeySize << 1)))
+        {
+            verusclhasherrefresh = ((char *)verusclhasher_random_data_) + newKeySize;
+            verusclhasher_keySizeInBytes = newKeySize;
+            keyMask = keymask(newKeySize);
+        }
+    }
+
+    void freehashkey()
+    {
+        // no chance for double free
+        if (verusclhasher_random_data_)
+        {
             std::free((void *)verusclhasher_random_data_);
             verusclhasher_random_data_ = NULL;
             verusclhasherrefresh = NULL;
-            verusclhasher_keySizeInBytes = 0;
         }
-        // get buffer space for 2 keys
-        if (!verusclhasher_random_data_ && (verusclhasher_random_data_ = alloc_aligned_buffer(newKeySize << 1)))
-        {
-            verusclhasher_keySizeInBytes = newKeySize;
-            verusclhasherrefresh = ((char *)verusclhasher_random_data_) + newKeySize;
-        }
-        keyMask = keymask(verusclhasher_keySizeInBytes);
+        verusclhasher_keySizeInBytes = 0;
+        keySizeIn64BitWords = 0;
+        keyMask = 0;
     }
 
     // this prepares a key for hashing and mutation by copying it from the original key for this block

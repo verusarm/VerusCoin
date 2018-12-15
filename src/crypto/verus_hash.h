@@ -148,7 +148,7 @@ class CVerusHashV2
                 // generate a new key by chain hashing with Haraka256 from the last curbuf
                 int n256blks = verusclhasher_keySizeInBytes >> 5;
                 int nbytesExtra = verusclhasher_keySizeInBytes & 0x1f;
-                unsigned char *pkey = (unsigned char *)verusclhasher_random_data_;
+                unsigned char *pkey = (unsigned char *)verusclhasherrefresh;
                 unsigned char *psrc = seedBytes32;
                 for (int i = 0; i < n256blks; i++)
                 {
@@ -162,13 +162,10 @@ class CVerusHashV2
                     (*haraka256Function)(buf, psrc);
                     memcpy(pkey, buf, nbytesExtra);
                 }
-                memcpy(verusclhasherrefresh, verusclhasher_random_data_, verusclhasher_keySizeInBytes);
                 verusclhasher_seed = *((uint256 *)seedBytes32);
-                //uint256 *bhalf1 = (uint256 *)verusclhasher_random_data_;
-                //uint256 *bhalf2 = bhalf1 + 1;
-                //printf("New CL key: %s%s\n", bhalf1->GetHex().c_str(), bhalf2->GetHex().c_str());
             }
-            return (u128 *)vclh.gethashkey();
+            memcpy(verusclhasher_random_data_, verusclhasherrefresh, vclh.keySizeIn64BitWords << 3);
+            return (u128 *)verusclhasher_random_data_;
         }
 
         inline uint64_t IntermediateTo128Offset(uint64_t intermediate)
