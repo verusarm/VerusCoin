@@ -1368,13 +1368,16 @@ void static BitcoinMiner_noeq()
 
                 hashesToGo = ASSETCHAINS_HASHESPERROUND[ASSETCHAINS_ALGO];
 
+                unsigned char *curBuf;
+
                 if (verusHashV2)
                 {
                     vh2->Reset();
                     ss2 << *((CBlockHeader *)pblock);
                     vh2 = &ss2.GetState();
                     extraPtr = ss2.xI64p();
-                    vh2->GenNewCLKey(vh2->CurBuffer());
+                    curBuf = vh2->CurBuffer();
+                    vh2->GenNewCLKey(curBuf);
                 }
                 else
                 {
@@ -1395,13 +1398,13 @@ void static BitcoinMiner_noeq()
                     if (verusHashV2)
                     {
                         // prepare the buffer
-                        vh2->ClearExtra();
+                        vh2->FillExtra((u128 *)curBuf);
 
                         // refresh the key and get a reference
                         u128 *hashKey = (u128 *)vh2->vclh.gethashkey();
 
                         // run verusclhash on the buffer
-                        intermediate = vh2->vclh(vh2->CurBuffer());
+                        intermediate = vh2->vclh(curBuf);
 
                         // fill buffer to the end with the result and final hash
                         vh2->FillExtra(&intermediate);

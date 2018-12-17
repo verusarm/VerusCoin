@@ -115,13 +115,13 @@ class CVerusHashV2
         template <typename T>
         void FillExtra(const T *_data)
         {
-            int len = sizeof(T);
             unsigned char *data = (unsigned char *)_data;
             int pos = curPos;
             int left = 32 - pos;
             do
             {
-                std::memcpy(curBuf + 32 + pos, data, left > len ? len : left);
+                int len = left > sizeof(T) ? sizeof(T) : left;
+                std::memcpy(curBuf + 32 + pos, data, len);
                 pos += len;
                 left -= len;
             } while (left > 0);
@@ -186,7 +186,9 @@ class CVerusHashV2
 
         void Finalize2b(unsigned char hash[32])
         {
-            ClearExtra();
+            // fill buffer to the end with the beginning of it to prevent any foreknowledge of
+            // bits that may contain zero
+            FillExtra((u128 *)curBuf);
 
 #ifdef VERUSHASHDEBUG
             uint256 *bhalf1 = (uint256 *)curBuf;

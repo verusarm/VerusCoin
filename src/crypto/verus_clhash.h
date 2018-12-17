@@ -44,15 +44,24 @@ extern thread_local void *verusclhasherrefresh;
 extern thread_local int64_t verusclhasher_keySizeInBytes;
 extern thread_local uint256 verusclhasher_seed;
 
+static int __cpuverusoptimized = 0x80;
+
 inline bool IsCPUVerusOptimized()
 {
-    unsigned int eax,ebx,ecx,edx;
-
-    if (!__get_cpuid(1,&eax,&ebx,&ecx,&edx))
+    if (__cpuverusoptimized & 0x80)
     {
-        return false;
+        unsigned int eax,ebx,ecx,edx;
+
+        if (!__get_cpuid(1,&eax,&ebx,&ecx,&edx))
+        {
+            __cpuverusoptimized = false;
+        }
+        else
+        {
+            __cpuverusoptimized = ((ecx & (bit_AVX | bit_AES | bit_PCLMUL)) == (bit_AVX | bit_AES | bit_PCLMUL));
+        }
     }
-    return ((ecx & (bit_AVX | bit_AES | bit_PCLMUL)) == (bit_AVX | bit_AES | bit_PCLMUL));
+    return __cpuverusoptimized;
 };
 
 uint64_t verusclhash(void * random, const unsigned char buf[64], uint64_t keyMask);
