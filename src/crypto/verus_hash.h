@@ -11,8 +11,6 @@ This provides the PoW hash function for Verus, enabling CPU mining.
 #include <cstring>
 #include <vector>
 
-#include <cpuid.h>
-
 #include "uint256.h"
 #include "crypto/verus_clhash.h"
 
@@ -21,6 +19,9 @@ extern "C"
 #include "crypto/haraka.h"
 #include "crypto/haraka_portable.h"
 }
+
+// verbose output when defined
+#define VERUSHASHDEBUG 1
 
 class CVerusHash
 {
@@ -216,16 +217,5 @@ class CVerusHashV2
 
 extern void verus_hash(void *result, const void *data, size_t len);
 extern void verus_hash_v2(void *result, const void *data, size_t len);
-
-inline bool IsCPUVerusOptimized()
-{
-    unsigned int eax,ebx,ecx,edx;
-
-    if (!__get_cpuid(1,&eax,&ebx,&ecx,&edx))
-    {
-        return false;
-    }
-    return ((ecx & (bit_AVX | bit_AES | bit_PCLMUL)) == (bit_AVX | bit_AES | bit_PCLMUL));
-};
 
 #endif

@@ -22,6 +22,8 @@
 
 #include "clhash.h"
 
+#include <cpuid.h>
+
 #include <stdlib.h>
 #include <stdint.h>
 #include <stddef.h>
@@ -42,7 +44,19 @@ extern thread_local void *verusclhasherrefresh;
 extern thread_local int64_t verusclhasher_keySizeInBytes;
 extern thread_local uint256 verusclhasher_seed;
 
+inline bool IsCPUVerusOptimized()
+{
+    unsigned int eax,ebx,ecx,edx;
+
+    if (!__get_cpuid(1,&eax,&ebx,&ecx,&edx))
+    {
+        return false;
+    }
+    return ((ecx & (bit_AVX | bit_AES | bit_PCLMUL)) == (bit_AVX | bit_AES | bit_PCLMUL));
+};
+
 uint64_t verusclhash(void * random, const unsigned char buf[64], uint64_t keyMask);
+uint64_t verusclhash_port(void * random, const unsigned char buf[64], uint64_t keyMask);
 
 void *alloc_aligned_buffer(uint64_t bufSize);
 
@@ -59,6 +73,7 @@ void *alloc_aligned_buffer(uint64_t bufSize);
 struct verusclhasher {
     int64_t keySizeIn64BitWords;
     int64_t keyMask;
+    uint64_t (*verusclhashfunction)(void * random, const unsigned char buf[64], uint64_t keyMask);
 
     inline uint64_t keymask(uint64_t keysize)
     {
@@ -73,6 +88,15 @@ struct verusclhasher {
     // align on 128 byte boundary at end
     verusclhasher(uint64_t keysize=VERUSKEYSIZE) : keySizeIn64BitWords((keysize >> 5) << 2)
     {
+        if (IsCPUVerusOptimized())
+        {
+            verusclhashfunction = &verusclhash;
+        }
+        else
+        {
+            verusclhashfunction = &verusclhash_port;
+        }
+
         // align to 128 bits
         int64_t newKeySize = keySizeIn64BitWords << 3;
         if (verusclhasher_random_data_ && newKeySize != verusclhasher_keySizeInBytes)
@@ -110,8 +134,8 @@ struct verusclhasher {
         return verusclhasher_random_data_;
     }
 
-    uint64_t operator()(const unsigned char buf[64]) const {
-        return verusclhash(verusclhasher_random_data_, buf, keyMask);
+    inline uint64_t operator()(const unsigned char buf[64]) const {
+        return (*verusclhashfunction)(verusclhasher_random_data_, buf, keyMask);
     }
 };
 

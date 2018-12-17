@@ -471,7 +471,9 @@ public:
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action) {
         int nVersion = s.GetVersion();
-        //if (!ser_action.ForRead()) printf("Serializing block index %s, stream version: %x\n", ToString().c_str(), nVersion);
+#ifdef VERUSHASHDEBUG
+        if (!ser_action.ForRead()) printf("Serializing block index %s, stream version: %x\n", ToString().c_str(), nVersion);
+#endif
         if (!(s.GetType() & SER_GETHASH))
             READWRITE(VARINT(nVersion));
 

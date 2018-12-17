@@ -939,6 +939,7 @@ int32_t FOUND_BLOCK,KOMODO_MAYBEMINED;
 extern int32_t KOMODO_LASTMINED,KOMODO_INSYNC;
 int32_t roundrobin_delay;
 arith_uint256 HASHTarget,HASHTarget_POW;
+int32_t komodo_longestchain();
 
 // wait for peers to connect
 void waitForPeers(const CChainParams &chainparams)
@@ -951,7 +952,9 @@ void waitForPeers(const CChainParams &chainparams)
             LOCK(cs_vNodes);
             fvNodesEmpty = vNodes.empty();
         }
-        if (fvNodesEmpty || IsNotInSync())
+        int longestchain = komodo_longestchain();
+        int lastlongest = 0;
+        if (fvNodesEmpty || IsNotInSync() || (longestchain != 0 && longestchain > chainActive.LastTip()->GetHeight()))
         {
             int loops = 0, blockDiff = 0, newDiff = 0;
             
@@ -964,8 +967,9 @@ void waitForPeers(const CChainParams &chainparams)
                     fvNodesEmpty = vNodes.empty();
                     loops = 0;
                     blockDiff = 0;
+                    lastlongest = 0;
                 }
-                if ((newDiff = IsNotInSync()) > 1)
+                else if ((newDiff = IsNotInSync()) > 0)
                 {
                     if (blockDiff != newDiff)
                     {
@@ -973,11 +977,22 @@ void waitForPeers(const CChainParams &chainparams)
                     }
                     else
                     {
-                        if (++loops <= 10)
+                        if (++loops <= 5)
                         {
                             MilliSleep(1000);
                         }
                         else break;
+                    }
+                    lastlongest = 0;
+                }
+                else if (!fvNodesEmpty && !IsNotInSync() && longestchain > chainActive.LastTip()->GetHeight())
+                {
+                    // the only thing may be that we are seeing a long chain that we'll never get
+                    // don't wait forever
+                    if (lastlongest == 0)
+                    {
+                        MilliSleep(3000);
+                        lastlongest = longestchain;
                     }
                 }
             } while (fvNodesEmpty || IsNotInSync());
@@ -1436,20 +1451,24 @@ void static BitcoinMiner_noeq()
                         int32_t unlockTime = komodo_block_unlocktime(Mining_height);
                         int64_t subsidy = (int64_t)(pblock->vtx[0].vout[0].nValue);
 
-
+#ifdef VERUSHASHDEBUG
+                        std::string validateStr = hashResult.GetHex();
+                        std::string hashStr = pblock->GetHash().GetHex();
+                        uint256 *bhalf1 = (uint256 *)vh2->CurBuffer();
+                        uint256 *bhalf2 = bhalf1 + 1;
+#else
                         std::string hashStr = hashResult.GetHex();
-                        //std::string validateStr = hashResult.GetHex();
-                        //std::string hashStr = pblock->GetHash().GetHex();
-                        //uint256 *bhalf1 = (uint256 *)vh2->CurBuffer();
-                        //uint256 *bhalf2 = bhalf1 + 1;
-
+#endif
                         LogPrintf("Using %s algorithm:\n", ASSETCHAINS_ALGORITHMS[ASSETCHAINS_ALGO]);
                         LogPrintf("proof-of-work found  \n  hash: %s  \ntarget: %s\n", hashStr, hashTarget.GetHex());
                         printf("Found block %d \n", Mining_height );
                         printf("mining reward %.8f %s!\n", (double)subsidy / (double)COIN, ASSETCHAINS_SYMBOL);
-                        //printf("  hash: %s\n   val: %s  \ntarget: %s\n\n", hashStr.c_str(), validateStr.c_str(), hashTarget.GetHex().c_str());
-                        //printf("intermediate %lx\n", intermediate);
+#ifdef VERUSHASHDEBUG
+                        printf("  hash: %s\n   val: %s  \ntarget: %s\n\n", hashStr.c_str(), validateStr.c_str(), hashTarget.GetHex().c_str());
+                        printf("intermediate %lx\n", intermediate);
+#else
                         printf("  hash: %s\ntarget: %s", hashStr.c_str(), hashTarget.GetHex().c_str());
+#endif
                         if (unlockTime > Mining_height && subsidy >= ASSETCHAINS_TIMELOCKGTE)
                             printf(" - timelocked until block %i\n", unlockTime);
                         else

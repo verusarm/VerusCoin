@@ -2194,33 +2194,29 @@ int IsNotInSync()
 {
     const CChainParams& chainParams = Params();
 
-    LOCK(cs_main);
     if (fImporting || fReindex)
     {
         //fprintf(stderr,"IsNotInSync: fImporting %d || %d fReindex\n",(int32_t)fImporting,(int32_t)fReindex);
         return true;
     }
-    if (fCheckpointsEnabled)
-    {
-        if (fCheckpointsEnabled && chainActive.Height() < Checkpoints::GetTotalBlocksEstimate(chainParams.Checkpoints()))
-        {
-            //fprintf(stderr,"IsNotInSync: checkpoint -> initialdownload chainActive.Height().%d GetTotalBlocksEstimate(chainParams.Checkpoints().%d\n", chainActive.Height(), Checkpoints::GetTotalBlocksEstimate(chainParams.Checkpoints()));
-            return true;
-        }
-    }
+    //if (fCheckpointsEnabled)
+    //{
+    //    if (fCheckpointsEnabled && chainActive.Height() < Checkpoints::GetTotalBlocksEstimate(chainParams.Checkpoints()))
+    //    {
+    //        //fprintf(stderr,"IsNotInSync: checkpoint -> initialdownload chainActive.Height().%d GetTotalBlocksEstimate(chainParams.Checkpoints().%d\n", chainActive.Height(), Checkpoints::GetTotalBlocksEstimate(chainParams.Checkpoints()));
+    //        return true;
+    //    }
+    //}
 
-    CBlockIndex *pbi = chainActive.Tip();
-    int longestchain = komodo_longestchain();
+    CBlockIndex *pbi = chainActive.LastTip();
     if ( !pbi || 
          (pindexBestHeader == 0) || 
-         ((pindexBestHeader->GetHeight() - 1) > pbi->GetHeight()) || 
-         (longestchain != 0 && longestchain > pbi->GetHeight()) )
+         ((pindexBestHeader->GetHeight() - 1) > pbi->GetHeight()))
     {
         return (pbi && pindexBestHeader && (pindexBestHeader->GetHeight() - 1) > pbi->GetHeight()) ?
                 pindexBestHeader->GetHeight() - pbi->GetHeight() :
                 true;
     }
-
     return false;
 }
 
@@ -6417,7 +6413,10 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
         if (nVersion == 10300)
             nVersion = 300;
 
-        if (nVersion < MIN_PEER_PROTO_VERSION)
+        int nHeight = GetHeight();
+
+        if (CConstVerusSolutionVector::activationHeight.ActiveVersion(nHeight) ? nVersion < MIN_VERUSHASHV2_VERSION : 
+                                                                                 nVersion < MIN_PEER_PROTO_VERSION)
         {
             // disconnect from peers older than this proto version
             LogPrintf("peer=%d using obsolete version %i; disconnecting\n", pfrom->id, pfrom->nVersion);
