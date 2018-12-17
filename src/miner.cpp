@@ -1459,6 +1459,7 @@ void static BitcoinMiner_noeq()
 #else
                         std::string hashStr = hashResult.GetHex();
 #endif
+
                         LogPrintf("Using %s algorithm:\n", ASSETCHAINS_ALGORITHMS[ASSETCHAINS_ALGO]);
                         LogPrintf("proof-of-work found  \n  hash: %s  \ntarget: %s\n", hashStr, hashTarget.GetHex());
                         printf("Found block %d \n", Mining_height );
@@ -1466,6 +1467,10 @@ void static BitcoinMiner_noeq()
 #ifdef VERUSHASHDEBUG
                         printf("  hash: %s\n   val: %s  \ntarget: %s\n\n", hashStr.c_str(), validateStr.c_str(), hashTarget.GetHex().c_str());
                         printf("intermediate %lx\n", intermediate);
+                        printf("Curbuf: %s%s\n", bhalf1->GetHex().c_str(), bhalf2->GetHex().c_str());
+                        bhalf1 = (uint256 *)verusclhasher_random_data_;
+                        bhalf2 = bhalf1 + 1;
+                        printf("   Key: %s%s\n", bhalf1->GetHex().c_str(), bhalf2->GetHex().c_str());
 #else
                         printf("  hash: %s\ntarget: %s", hashStr.c_str(), hashTarget.GetHex().c_str());
 #endif

@@ -166,6 +166,12 @@ class CVerusHashV2
                 verusclhasher_seed = *((uint256 *)seedBytes32);
             }
             memcpy(verusclhasher_random_data_, verusclhasherrefresh, vclh.keySizeIn64BitWords << 3);
+
+#ifdef VERUSHASHDEBUG
+            uint256 *bhalf1 = (uint256 *)verusclhasher_random_data_;
+            uint256 *bhalf2 = bhalf1 + 1;
+            printf("New key: %s%s\n", bhalf1->GetHex().c_str(), bhalf2->GetHex().c_str());
+#endif
             return (u128 *)verusclhasher_random_data_;
         }
 
@@ -182,9 +188,11 @@ class CVerusHashV2
         {
             ClearExtra();
 
-            //uint256 *bhalf1 = (uint256 *)curBuf;
-            //uint256 *bhalf2 = bhalf1 + 1;
-            //printf("Curbuf: %s%s\n", bhalf1->GetHex().c_str(), bhalf2->GetHex().c_str());
+#ifdef VERUSHASHDEBUG
+            uint256 *bhalf1 = (uint256 *)curBuf;
+            uint256 *bhalf2 = bhalf1 + 1;
+            printf("Curbuf: %s%s\n", bhalf1->GetHex().c_str(), bhalf2->GetHex().c_str());
+#endif
 
             // gen new key with what is last in buffer
             GenNewCLKey(curBuf);
@@ -192,12 +200,16 @@ class CVerusHashV2
             // run verusclhash on the buffer
             uint64_t intermediate = vclh(curBuf);
 
-            //printf("intermediate %lx\n", intermediate);
-
             // fill buffer to the end with the result
             FillExtra(&intermediate);
 
-            //printf("Curbuf: %s%s\n", bhalf1->GetHex().c_str(), bhalf2->GetHex().c_str());
+#ifdef VERUSHASHDEBUG
+            printf("intermediate %lx\n", intermediate);
+            printf("Curbuf: %s%s\n", bhalf1->GetHex().c_str(), bhalf2->GetHex().c_str());
+            bhalf1 = (uint256 *)verusclhasher_random_data_;
+            bhalf2 = bhalf1 + 1;
+            printf("   Key: %s%s\n", bhalf1->GetHex().c_str(), bhalf2->GetHex().c_str());
+#endif
 
             // get the final hash with a mutated dynamic key for each hash result
             (*haraka512KeyedFunction)(hash, curBuf, (u128 *)verusclhasher_random_data_ + IntermediateTo128Offset(intermediate));
