@@ -24,6 +24,10 @@
 #include <string.h>
 #include <x86intrin.h>
 
+#ifdef __WIN32
+#pragma warning (disable : 4146)
+#endif
+
 void clmul64(uint64_t a, uint64_t b, uint64_t* r)
 {
     uint8_t s = 4,i; //window size
