@@ -215,6 +215,7 @@ class CVerusHashV2
             (*haraka512KeyedFunction)(hash, curBuf, ((u128 *)verusclhasher_random_data_) + IntermediateTo128Offset(intermediate));
 
             /*
+            // TEST BEGIN
             // test against the portable version
             uint256 testHash1 = *(uint256 *)hash, testHash2;
             FillExtra((u128 *)curBuf);
@@ -230,6 +231,7 @@ class CVerusHashV2
             {
                 printf("Portable version failed! intermediate1: %lx, intermediate2: %lx\n", intermediate, temp);
             }
+            // END TEST
             */
         }
 
