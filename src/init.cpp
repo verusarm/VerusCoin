@@ -1172,7 +1172,7 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
         }
         else
         {
-            CConstVerusSolutionVector::activationHeight.SetActivationHeight(1, 160);
+            CConstVerusSolutionVector::activationHeight.SetActivationHeight(1, 1);
         }
     }
 

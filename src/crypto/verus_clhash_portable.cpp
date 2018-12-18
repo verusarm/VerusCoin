@@ -201,15 +201,15 @@ static inline uint64_t precompReduction64_port( __m128i A) {
 // verus intermediate hash extra
 static __m128i __verusclmulwithoutreduction64alignedrepeat_port(__m128i *randomsource, const __m128i buf[4], uint64_t keyMask)
 {
+    __m128i const *pbuf;
+
+    // divide key mask by 16 from bytes to __m128i
+    keyMask >>= 4;
+
     // the random buffer must have at least 32 16 byte dwords after the keymask to work with this
     // algorithm. we take the value from the last element inside the keyMask + 2, as that will never
     // be used to xor into the accumulator before it is hashed with other values first
-    __m128i acc = _mm_load_si128_emu(randomsource + keyMask + 2);
-
-    __m128i const *pbuf = buf;
-
-    // divide key mask by 32 from bytes to __m128i
-    keyMask >>= 5;
+    __m128i acc = _mm_load_si128_emu(randomsource + (keyMask + 2));
 
     for (int64_t i = 0; i < 32; i++)
     {
@@ -305,7 +305,7 @@ static __m128i __verusclmulwithoutreduction64alignedrepeat_port(__m128i *randoms
                 const __m128i add1 = _mm_xor_si128_emu(temp1, temp2);
 
                 // cannot be zero here
-                const int32_t divisor = _mm_cvtsi128_si32_emu(acc);
+                const int32_t divisor = (uint32_t)selector;
 
                 acc = _mm_xor_si128(add1, acc);
 
@@ -377,7 +377,7 @@ static __m128i __verusclmulwithoutreduction64alignedrepeat_port(__m128i *randoms
                 __m128i tmp; // used by MIX2
 
                 uint64_t rounds = selector >> 61; // loop randomly between 1 and 8 times
-                __m128i *pkey = prand;
+                __m128i *rc = prand;
                 uint64_t aesround = 0;
                 __m128i onekey;
 
@@ -385,7 +385,7 @@ static __m128i __verusclmulwithoutreduction64alignedrepeat_port(__m128i *randoms
                 {
                     if (selector & (0x10000000 << rounds))
                     {
-                        onekey = _mm_load_si128_emu(pkey++);
+                        onekey = _mm_load_si128_emu(rc++);
                         const __m128i temp2 = _mm_load_si128_emu(rounds & 1 ? pbuf : buftmp);
                         const __m128i add1 = _mm_xor_si128_emu(onekey, temp2);
                         const __m128i clprod1 = _mm_clmulepi64_si128_emu(add1, add1, 0x10);
@@ -393,8 +393,7 @@ static __m128i __verusclmulwithoutreduction64alignedrepeat_port(__m128i *randoms
                     }
                     else
                     {
-                        const __m128i *rc = pkey++; 
-                        onekey = _mm_load_si128_emu(rc);
+                        onekey = _mm_load_si128_emu(rc++);
                         __m128i temp2 = _mm_load_si128_emu(rounds & 1 ? buftmp : pbuf);
                         AES2_EMU(onekey, temp2, aesround++ << 2);
                         MIX2_EMU(onekey, temp2);

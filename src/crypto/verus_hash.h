@@ -8,6 +8,9 @@ This provides the PoW hash function for Verus, enabling CPU mining.
 #ifndef VERUS_HASH_H_
 #define VERUS_HASH_H_
 
+// verbose output when defined
+//#define VERUSHASHDEBUG 1
+
 #include <cstring>
 #include <vector>
 
@@ -19,9 +22,6 @@ extern "C"
 #include "crypto/haraka.h"
 #include "crypto/haraka_portable.h"
 }
-
-// verbose output when defined
-#define VERUSHASHDEBUG 1
 
 class CVerusHash
 {
@@ -169,7 +169,7 @@ class CVerusHashV2
 
 #ifdef VERUSHASHDEBUG
             uint256 *bhalf1 = (uint256 *)verusclhasher_random_data_;
-            uint256 *bhalf2 = bhalf1 + 1;
+            uint256 *bhalf2 = bhalf1 + ((vclh.keyMask + 1) >> 5);
             printf("New key: %s%s\n", bhalf1->GetHex().c_str(), bhalf2->GetHex().c_str());
 #endif
             return (u128 *)verusclhasher_random_data_;
@@ -179,9 +179,7 @@ class CVerusHashV2
         {
             // the mask is where we wrap
             uint64_t mask = vclh.keyMask >> 4;
-            uint64_t offset = intermediate & mask;
-            int64_t wrap = (offset + 39) - mask;
-            return wrap > 0 ? wrap : offset;
+            return intermediate & mask;
         }
 
         void Finalize2b(unsigned char hash[32])
@@ -209,12 +207,12 @@ class CVerusHashV2
             printf("intermediate %lx\n", intermediate);
             printf("Curbuf: %s%s\n", bhalf1->GetHex().c_str(), bhalf2->GetHex().c_str());
             bhalf1 = (uint256 *)verusclhasher_random_data_;
-            bhalf2 = bhalf1 + 1;
+            bhalf2 = bhalf1 + ((vclh.keyMask + 1) >> 5);
             printf("   Key: %s%s\n", bhalf1->GetHex().c_str(), bhalf2->GetHex().c_str());
 #endif
 
             // get the final hash with a mutated dynamic key for each hash result
-            (*haraka512KeyedFunction)(hash, curBuf, (u128 *)verusclhasher_random_data_ + IntermediateTo128Offset(intermediate));
+            (*haraka512KeyedFunction)(hash, curBuf, ((u128 *)verusclhasher_random_data_) + IntermediateTo128Offset(intermediate));
         }
 
         inline unsigned char *CurBuffer()

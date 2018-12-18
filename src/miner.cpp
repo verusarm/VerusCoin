@@ -1232,6 +1232,13 @@ void static BitcoinMiner_noeq()
 
     try {
         printf("Mining %s with %s\n", ASSETCHAINS_SYMBOL, ASSETCHAINS_ALGORITHMS[ASSETCHAINS_ALGO]);
+
+        // v1 hash writer
+        CVerusHashWriter ss = CVerusHashWriter(SER_GETHASH, PROTOCOL_VERSION);
+
+        // v2 hash writer
+        CVerusHashV2bWriter ss2 = CVerusHashV2bWriter(SER_GETHASH, PROTOCOL_VERSION);
+
         while (true)
         {
             miningTimer.stop();
@@ -1353,12 +1360,6 @@ void static BitcoinMiner_noeq()
             CVerusHash *vh;
             CVerusHashV2 *vh2;
 
-            // v1 hash writer
-            CVerusHashWriter ss = CVerusHashWriter(SER_GETHASH, PROTOCOL_VERSION);
-
-            // v2 hash writer
-            CVerusHashV2bWriter ss2 = CVerusHashV2bWriter(SER_GETHASH, PROTOCOL_VERSION);
-
             while (true)
             {
                 arith_uint256 arNonce = UintToArith256(pblock->nNonce);
@@ -1472,7 +1473,7 @@ void static BitcoinMiner_noeq()
                         printf("intermediate %lx\n", intermediate);
                         printf("Curbuf: %s%s\n", bhalf1->GetHex().c_str(), bhalf2->GetHex().c_str());
                         bhalf1 = (uint256 *)verusclhasher_random_data_;
-                        bhalf2 = bhalf1 + 1;
+                        bhalf2 = bhalf1 + ((vh2->vclh.keyMask + 1) >> 5);
                         printf("   Key: %s%s\n", bhalf1->GetHex().c_str(), bhalf2->GetHex().c_str());
 #else
                         printf("  hash: %s\ntarget: %s", hashStr.c_str(), hashTarget.GetHex().c_str());

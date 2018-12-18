@@ -182,7 +182,6 @@ BITCOIN_CORE_H = \
   consensus/validation.h \
   core_io.h \
   core_memusage.h \
-  crypto/clhash.h \
   crypto/haraka.h \
   crypto/haraka_portable.h \
   crypto/verus_clhash.h \
@@ -317,7 +316,6 @@ libbitcoin_server_a_SOURCES = \
   cheatcatcher.cpp \
   checkpoints.cpp \
   crosschain.cpp \
-  crypto/clhash.h \
   crypto/haraka.h \
   crypto/haraka_portable.h \
   crypto/verus_clhash.h \
@@ -445,8 +443,6 @@ endif
 crypto_libverus_crypto_a_CPPFLAGS = -O3 -Wint-conversion -march=x86-64 -mpclmul -msse4 -msse4.1 -msse4.2 -mssse3 -mavx -maes -g -funroll-loops -fomit-frame-pointer -fPIC $(AM_CPPFLAGS)
 crypto_libverus_crypto_a_CXXFLAGS = -O3 -Wint-conversion -march=x86-64 -mpclmul -msse4 -msse4.1 -msse4.2 -mssse3 -mavx -maes -g -funroll-loops -fomit-frame-pointer -fPIC $(AM_CXXFLAGS)
 crypto_libverus_crypto_a_SOURCES = \
-  crypto/clhash.h \
-  crypto/clhash.c \
   crypto/haraka.h \
   crypto/haraka.c \
   crypto/verus_clhash.h \
@@ -475,7 +471,6 @@ libbitcoin_common_a_SOURCES = \
   consensus/upgrades.cpp \
   core_read.cpp \
   core_write.cpp \
-  crypto/clhash.h \
   crypto/haraka.h \
   crypto/haraka_portable.h \
   crypto/verus_clhash.h \
