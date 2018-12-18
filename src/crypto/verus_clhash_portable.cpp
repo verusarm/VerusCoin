@@ -395,7 +395,8 @@ static __m128i __verusclmulwithoutreduction64alignedrepeat_port(__m128i *randoms
                     {
                         onekey = _mm_load_si128_emu(rc++);
                         __m128i temp2 = _mm_load_si128_emu(rounds & 1 ? buftmp : pbuf);
-                        AES2_EMU(onekey, temp2, aesround++ << 2);
+                        const uint64_t roundidx = aesround++ << 2;
+                        AES2_EMU(onekey, temp2, roundidx);
                         MIX2_EMU(onekey, temp2);
                         acc = _mm_xor_si128_emu(onekey, acc);
                         acc = _mm_xor_si128_emu(temp2, acc);
