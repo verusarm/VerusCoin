@@ -24,10 +24,6 @@
 #include <string.h>
 #include <x86intrin.h>
 
-#ifdef __WIN32
-#define posix_memalign(p, a, s) (((*(p)) = _aligned_malloc((s), (a))), *(p) ?0 :errno)
-#endif
-
 thread_local void *verusclhasher_random_data_;
 thread_local void *verusclhasherrefresh;
 thread_local int64_t verusclhasher_keySizeInBytes;
@@ -324,10 +320,6 @@ uint64_t verusclhash(void * random, const unsigned char buf[64], uint64_t keyMas
     acc = _mm_xor_si128(acc, lazyLengthHash(1024, 64));
     return precompReduction64(acc);
 }
-
-#ifdef __WIN32
-#define posix_memalign(p, a, s) (((*(p)) = _aligned_malloc((s), (a))), *(p) ?0 :errno)
-#endif
 
 void *alloc_aligned_buffer(uint64_t bufSize)
 {
