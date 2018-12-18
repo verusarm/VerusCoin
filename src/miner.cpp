@@ -1357,8 +1357,8 @@ void static BitcoinMiner_noeq()
                 count = ASSETCHAINS_NONCEMASK[ASSETCHAINS_ALGO] + 1;
             }
 
-            CVerusHash *vh;
-            CVerusHashV2 *vh2;
+            CVerusHash *vh = &ss.GetState();;
+            CVerusHashV2 *vh2 = &ss2.GetState();
 
             while (true)
             {
@@ -1375,7 +1375,6 @@ void static BitcoinMiner_noeq()
                 {
                     vh2->Reset();
                     ss2 << *((CBlockHeader *)pblock);
-                    vh2 = &ss2.GetState();
                     extraPtr = ss2.xI64p();
                     curBuf = vh2->CurBuffer();
                     vh2->GenNewCLKey(curBuf);
@@ -1384,7 +1383,6 @@ void static BitcoinMiner_noeq()
                 {
                     vh->Reset();
                     ss << *((CBlockHeader *)pblock);
-                    vh = &ss.GetState();
                     extraPtr = ss.xI64p();
                     vh->ClearExtra();
                 }
