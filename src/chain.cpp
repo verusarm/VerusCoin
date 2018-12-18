@@ -161,7 +161,7 @@ void CBlockIndex::BuildSkip()
 {
     if (pprev)
     {
-        printf("building skip - current:\n%s\nprev:\n%s\n", ToString().c_str(), pprev->ToString().c_str());
+        //printf("building skip - current:\n%s\nprev:\n%s\n", ToString().c_str(), pprev->ToString().c_str());
         pskip = pprev->GetAncestor(GetSkipHeight(GetHeight()));
     }
 }
