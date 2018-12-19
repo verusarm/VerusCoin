@@ -1470,7 +1470,7 @@ void static BitcoinMiner_noeq()
                         printf("  hash: %s\n   val: %s  \ntarget: %s\n\n", hashStr.c_str(), validateStr.c_str(), hashTarget.GetHex().c_str());
                         printf("intermediate %lx\n", intermediate);
                         printf("Curbuf: %s%s\n", bhalf1->GetHex().c_str(), bhalf2->GetHex().c_str());
-                        bhalf1 = (uint256 *)verusclhasher_random_data_;
+                        bhalf1 = (uint256 *)verusclhasher_key.pKey;
                         bhalf2 = bhalf1 + ((vh2->vclh.keyMask + 1) >> 5);
                         printf("   Key: %s%s\n", bhalf1->GetHex().c_str(), bhalf2->GetHex().c_str());
 #else

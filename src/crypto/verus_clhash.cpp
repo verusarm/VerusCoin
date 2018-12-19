@@ -24,7 +24,7 @@
 #include <string.h>
 #include <x86intrin.h>
 
-thread_local void *verusclhasher_random_data_;
+thread_local threadLocalKey verusclhasher_key;
 thread_local void *verusclhasherrefresh;
 thread_local int64_t verusclhasher_keySizeInBytes;
 thread_local uint256 verusclhasher_seed;
