@@ -86,7 +86,7 @@ class CVerusHashV2
 
         CVerusHashV2() : vclh() {
             // we must have allocated key space, or can't run
-            if (verusclhasher_keySizeInBytes == 0)
+            if (!verusclhasher_key.get())
             {
                 printf("ERROR: failed to allocate hash buffer - terminating\n");
                 assert(false);
@@ -143,13 +143,15 @@ class CVerusHashV2
         // chains Haraka256 from 32 bytes to fill the key
         u128 *GenNewCLKey(unsigned char *seedBytes32)
         {
+            unsigned char *key = verusclhasher_key.get();
+            verusclhash_descr *pdesc = verusclhasher_descr.get();
             // skip keygen if it is the current key
-            if (verusclhasher_seed != *((uint256 *)seedBytes32))
+            if (pdesc->seed != *((uint256 *)seedBytes32))
             {
                 // generate a new key by chain hashing with Haraka256 from the last curbuf
-                int n256blks = verusclhasher_keySizeInBytes >> 5;
-                int nbytesExtra = verusclhasher_keySizeInBytes & 0x1f;
-                unsigned char *pkey = (unsigned char *)verusclhasherrefresh;
+                int n256blks = pdesc->keySizeInBytes >> 5;
+                int nbytesExtra = pdesc->keySizeInBytes & 0x1f;
+                unsigned char *pkey = key + pdesc->keySizeInBytes;
                 unsigned char *psrc = seedBytes32;
                 for (int i = 0; i < n256blks; i++)
                 {
@@ -163,10 +165,9 @@ class CVerusHashV2
                     (*haraka256Function)(buf, psrc);
                     memcpy(pkey, buf, nbytesExtra);
                 }
-                verusclhasher_seed = *((uint256 *)seedBytes32);
+                pdesc->seed = *((uint256 *)seedBytes32);
             }
-            unsigned char *key = verusclhasher_key.get();
-            memcpy(key, verusclhasherrefresh, vclh.keySizeIn64BitWords << 3);
+            memcpy(key, key + pdesc->keySizeInBytes, pdesc->keySizeInBytes);
 
 #ifdef VERUSHASHDEBUG
             uint256 *bhalf1 = (uint256 *)key;
@@ -199,7 +200,7 @@ class CVerusHashV2
             u128 *key = GenNewCLKey(curBuf);
 
             // run verusclhash on the buffer
-            uint64_t intermediate = vclh(key, curBuf);
+            uint64_t intermediate = vclh(curBuf, key);
 
             // fill buffer to the end with the result
             FillExtra(&intermediate);

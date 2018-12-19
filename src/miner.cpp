@@ -1359,6 +1359,8 @@ void static BitcoinMiner_noeq()
 
             CVerusHash *vh = &ss.GetState();;
             CVerusHashV2 *vh2 = &ss2.GetState();
+            u128 *hashKey;
+            verusclhasher &vclh = vh2->vclh;
 
             while (true)
             {
@@ -1377,7 +1379,7 @@ void static BitcoinMiner_noeq()
                     ss2 << *((CBlockHeader *)pblock);
                     extraPtr = ss2.xI64p();
                     curBuf = vh2->CurBuffer();
-                    vh2->GenNewCLKey(curBuf);
+                    hashKey = vh2->GenNewCLKey(curBuf);
                 }
                 else
                 {
@@ -1400,10 +1402,10 @@ void static BitcoinMiner_noeq()
                         vh2->FillExtra((u128 *)curBuf);
 
                         // refresh the key and get a reference
-                        u128 *hashKey = (u128 *)vh2->vclh.gethashkey();
+                        memcpy(hashKey, vclh.gethasherrefresh(), vclh.keyrefreshsize());
 
                         // run verusclhash on the buffer
-                        intermediate = vh2->vclh(hashKey, curBuf);
+                        intermediate = vh2->vclh(curBuf, hashKey);
 
                         // fill buffer to the end with the result and final hash
                         vh2->FillExtra(&intermediate);
