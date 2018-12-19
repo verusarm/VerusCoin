@@ -19,6 +19,9 @@
 
 
 #include "verus_hash.h"
+#ifdef _WIN32
+#undef __cpuid
+#endif
 #include <boost/thread.hpp>
 
 #include <assert.h>

@@ -21,6 +21,9 @@
 #define INCLUDE_VERUS_CLHASH_H
 
 #include <cpuid.h>
+#ifdef _WIN32
+#undef __cpuid
+#endif
 #include <boost/thread.hpp>
 
 #include <stdlib.h>
