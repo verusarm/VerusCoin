@@ -1168,11 +1168,11 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
         CBlockHeader::SetVerusV2Hash();
         if (strcmp(ASSETCHAINS_SYMBOL,"VRSC") == 0)
         {
-            CConstVerusSolutionVector::activationHeight.SetActivationHeight(1, 303000);
+            CConstVerusSolutionVector::activationHeight.SetActivationHeight(1, 308500);
         }
         else
         {
-            CConstVerusSolutionVector::activationHeight.SetActivationHeight(1, 160);
+            CConstVerusSolutionVector::activationHeight.SetActivationHeight(1, 1);
         }
     }
 
