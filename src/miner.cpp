@@ -1403,7 +1403,7 @@ void static BitcoinMiner_noeq()
                         u128 *hashKey = (u128 *)vh2->vclh.gethashkey();
 
                         // run verusclhash on the buffer
-                        intermediate = vh2->vclh(curBuf);
+                        intermediate = vh2->vclh(hashKey, curBuf);
 
                         // fill buffer to the end with the result and final hash
                         vh2->FillExtra(&intermediate);
@@ -1470,7 +1470,7 @@ void static BitcoinMiner_noeq()
                         printf("  hash: %s\n   val: %s  \ntarget: %s\n\n", hashStr.c_str(), validateStr.c_str(), hashTarget.GetHex().c_str());
                         printf("intermediate %lx\n", intermediate);
                         printf("Curbuf: %s%s\n", bhalf1->GetHex().c_str(), bhalf2->GetHex().c_str());
-                        bhalf1 = (uint256 *)verusclhasher_key.pKey;
+                        bhalf1 = (uint256 *)verusclhasher_key.get();
                         bhalf2 = bhalf1 + ((vh2->vclh.keyMask + 1) >> 5);
                         printf("   Key: %s%s\n", bhalf1->GetHex().c_str(), bhalf2->GetHex().c_str());
 #else

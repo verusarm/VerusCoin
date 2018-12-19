@@ -19,12 +19,13 @@
 
 
 #include "verus_hash.h"
+#include <boost/thread.hpp>
 
 #include <assert.h>
 #include <string.h>
 #include <x86intrin.h>
 
-thread_local threadLocalKey verusclhasher_key;
+boost::thread_specific_ptr<unsigned char> verusclhasher_key;
 thread_local void *verusclhasherrefresh;
 thread_local int64_t verusclhasher_keySizeInBytes;
 thread_local uint256 verusclhasher_seed;
