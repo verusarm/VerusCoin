@@ -26,7 +26,7 @@
 #ifdef __APPLE__
 #include <sys/types.h>
 #endif
-#ifdef __WIN32
+#ifdef _WIN32
 #pragma warning (disable : 4146)
 #endif
 
