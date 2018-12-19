@@ -471,6 +471,9 @@ public:
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action) {
         int nVersion = s.GetVersion();
+#ifdef VERUSHASHDEBUG
+        if (!ser_action.ForRead()) printf("Serializing block index %s, stream version: %x\n", ToString().c_str(), nVersion);
+#endif
         if (!(s.GetType() & SER_GETHASH))
             READWRITE(VARINT(nVersion));
 
@@ -541,10 +544,8 @@ public:
     std::string ToString() const
     {
         std::string str = "CDiskBlockIndex(";
-        str += CBlockIndex::ToString();
-        str += strprintf("\n                hashBlock=%s, hashPrev=%s)",
-            GetBlockHash().ToString(),
-            hashPrev.ToString());
+        str += strprintf("nVersion=%x, pprev=%p, nHeight=%d, merkle=%s\nhashBlock=%s, hashPrev=%s)\n",
+            this->nVersion, pprev, this->chainPower.nHeight, hashMerkleRoot.ToString(), GetBlockHash().ToString(), hashPrev.ToString());
         return str;
     }
 };

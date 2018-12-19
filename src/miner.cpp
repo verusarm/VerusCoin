@@ -165,7 +165,20 @@ CBlockTemplate* CreateNewBlock(const CScript& _scriptPubKeyIn, int32_t gpucount,
         return NULL;
     }
     CBlock *pblock = &pblocktemplate->block; // pointer for convenience
-     // -regtest only: allow overriding block.nVersion with
+
+    // set version according to the current tip height, add solution if it is
+    // VerusHash
+    if (ASSETCHAINS_ALGO == ASSETCHAINS_VERUSHASH)
+    {
+        pblock->nSolution.resize(Eh200_9.SolutionWidth);
+    }
+    else
+    {
+        pblock->nSolution.clear();
+    }
+    pblock->SetVersionByHeight(chainActive.LastTip()->GetHeight() + 1);
+
+    // -regtest only: allow overriding block.nVersion with
     // -blockversion=N to test forking scenarios
     if (Params().MineBlocksOnDemand())
         pblock->nVersion = GetArg("-blockversion", pblock->nVersion);
@@ -686,7 +699,7 @@ CBlockTemplate* CreateNewBlock(const CScript& _scriptPubKeyIn, int32_t gpucount,
             UpdateTime(pblock, Params().GetConsensus(), pindexPrev);
             pblock->nBits = GetNextWorkRequired(pindexPrev, pblock, Params().GetConsensus());
         }
-        pblock->nSolution.clear();
+
         pblocktemplate->vTxSigOps[0] = GetLegacySigOpCount(pblock->vtx[0]);
         if ( ASSETCHAINS_SYMBOL[0] == 0 && IS_KOMODO_NOTARY != 0 && My_notaryid >= 0 )
         {
@@ -926,9 +939,10 @@ int32_t FOUND_BLOCK,KOMODO_MAYBEMINED;
 extern int32_t KOMODO_LASTMINED,KOMODO_INSYNC;
 int32_t roundrobin_delay;
 arith_uint256 HASHTarget,HASHTarget_POW;
+int32_t komodo_longestchain();
 
 // wait for peers to connect
-int32_t waitForPeers(const CChainParams &chainparams)
+void waitForPeers(const CChainParams &chainparams)
 {
     if (chainparams.MiningRequiresPeers())
     {
@@ -938,7 +952,9 @@ int32_t waitForPeers(const CChainParams &chainparams)
             LOCK(cs_vNodes);
             fvNodesEmpty = vNodes.empty();
         }
-        if (fvNodesEmpty || IsNotInSync())
+        int longestchain = komodo_longestchain();
+        int lastlongest = 0;
+        if (fvNodesEmpty || IsNotInSync() || (longestchain != 0 && longestchain > chainActive.LastTip()->GetHeight()))
         {
             int loops = 0, blockDiff = 0, newDiff = 0;
             
@@ -951,8 +967,9 @@ int32_t waitForPeers(const CChainParams &chainparams)
                     fvNodesEmpty = vNodes.empty();
                     loops = 0;
                     blockDiff = 0;
+                    lastlongest = 0;
                 }
-                if ((newDiff = IsNotInSync()) > 1)
+                else if ((newDiff = IsNotInSync()) > 0)
                 {
                     if (blockDiff != newDiff)
                     {
@@ -960,11 +977,22 @@ int32_t waitForPeers(const CChainParams &chainparams)
                     }
                     else
                     {
-                        if (++loops <= 10)
+                        if (++loops <= 5)
                         {
                             MilliSleep(1000);
                         }
                         else break;
+                    }
+                    lastlongest = 0;
+                }
+                else if (!fvNodesEmpty && !IsNotInSync() && longestchain > chainActive.LastTip()->GetHeight())
+                {
+                    // the only thing may be that we are seeing a long chain that we'll never get
+                    // don't wait forever
+                    if (lastlongest == 0)
+                    {
+                        MilliSleep(3000);
+                        lastlongest = longestchain;
                     }
                 }
             } while (fvNodesEmpty || IsNotInSync());
@@ -1005,8 +1033,7 @@ void static VerusStaker(CWallet *pwallet)
 
     // Each thread has its own counter
     unsigned int nExtraNonce = 0;
-    std::vector<unsigned char> solnPlaceholder = std::vector<unsigned char>();
-    solnPlaceholder.resize(Eh200_9.SolutionWidth);
+
     uint8_t *script; uint64_t total,checktoshis; int32_t i,j;
 
     while ( (ASSETCHAIN_INIT == 0 || KOMODO_INITDONE == 0) ) //chainActive.Tip()->GetHeight() != 235300 &&
@@ -1026,18 +1053,26 @@ void static VerusStaker(CWallet *pwallet)
     } while (pindexPrev != pindexCur);
 
     try {
+        static int32_t lastStakingHeight = 0;
+
         while (true)
         {
             waitForPeers(chainparams);
             CBlockIndex* pindexPrev = chainActive.LastTip();
-            printf("Staking height %d for %s\n", pindexPrev->GetHeight() + 1, ASSETCHAINS_SYMBOL);
 
             // Create new block
             unsigned int nTransactionsUpdatedLast = mempool.GetTransactionsUpdated();
+
             if ( Mining_height != pindexPrev->GetHeight()+1 )
             {
                 Mining_height = pindexPrev->GetHeight()+1;
                 Mining_start = (uint32_t)time(NULL);
+            }
+
+            if ( Mining_height != lastStakingHeight )
+            {
+                printf("Staking height %d for %s\n", Mining_height, ASSETCHAINS_SYMBOL);
+                lastStakingHeight = Mining_height;
             }
 
             // Check for stop or if block needs to be rebuilt
@@ -1052,7 +1087,7 @@ void static VerusStaker(CWallet *pwallet)
             {
                 // wait to try another staking block until after the tip moves again
                 while ( chainActive.LastTip() == pindexPrev )
-                    sleep(1);
+                    MilliSleep(100);
                 continue;
             }
 
@@ -1075,9 +1110,6 @@ void static VerusStaker(CWallet *pwallet)
             // Search
             //
             int64_t nStart = GetTime();
-
-            // take up the necessary space for alignment
-            pblock->nSolution = solnPlaceholder;
 
             // we don't use this, but IncrementExtraNonce is the function that builds the merkle tree
             unsigned int nExtraNonce = 0;
@@ -1170,8 +1202,7 @@ void static BitcoinMiner_noeq()
     const CChainParams& chainparams = Params();
     // Each thread has its own counter
     unsigned int nExtraNonce = 0;
-    std::vector<unsigned char> solnPlaceholder = std::vector<unsigned char>();
-    solnPlaceholder.resize(Eh200_9.SolutionWidth);
+
     uint8_t *script; uint64_t total,checktoshis; int32_t i,j;
 
     while ( (ASSETCHAIN_INIT == 0 || KOMODO_INITDONE == 0) ) //chainActive.Tip()->GetHeight() != 235300 &&
@@ -1195,21 +1226,29 @@ void static BitcoinMiner_noeq()
     // this will not stop printing more than once in all cases, but it will allow us to print in all cases
     // and print duplicates rarely without having to synchronize
     static CBlockIndex *lastChainTipPrinted;
+    static int32_t lastMiningHeight = 0;
 
     miningTimer.start();
 
     try {
         printf("Mining %s with %s\n", ASSETCHAINS_SYMBOL, ASSETCHAINS_ALGORITHMS[ASSETCHAINS_ALGO]);
+
+        // v1 hash writer
+        CVerusHashWriter ss = CVerusHashWriter(SER_GETHASH, PROTOCOL_VERSION);
+
+        // v2 hash writer
+        CVerusHashV2bWriter ss2 = CVerusHashV2bWriter(SER_GETHASH, PROTOCOL_VERSION);
+
         while (true)
         {
             miningTimer.stop();
             waitForPeers(chainparams);
 
             pindexPrev = chainActive.LastTip();
-            sleep(1);
+            MilliSleep(100);
 
             // prevent forking on startup before the diff algorithm kicks in
-            if (pindexPrev->GetHeight() < 50 || pindexPrev != chainActive.LastTip())
+            if (chainparams.MiningRequiresPeers() && (pindexPrev->GetHeight() < 50 || pindexPrev != chainActive.LastTip()))
             {
                 do {
                     pindexPrev = chainActive.LastTip();
@@ -1222,13 +1261,12 @@ void static BitcoinMiner_noeq()
             if ( Mining_height != pindexPrev->GetHeight()+1 )
             {
                 Mining_height = pindexPrev->GetHeight()+1;
+                if (lastMiningHeight != Mining_height)
+                {
+                    lastMiningHeight = Mining_height;
+                    printf("Mining height %d\n", Mining_height);
+                }
                 Mining_start = (uint32_t)time(NULL);
-            }
-
-            if (lastChainTipPrinted != pindexPrev)
-            {
-                printf("Mining height %d\n", Mining_height);
-                lastChainTipPrinted = pindexPrev;
             }
 
             miningTimer.start();
@@ -1281,7 +1319,6 @@ void static BitcoinMiner_noeq()
             //
             uint32_t savebits; int64_t nStart = GetTime();
 
-            pblock->nSolution = solnPlaceholder;
             savebits = pblock->nBits;
             arith_uint256 hashTarget = arith_uint256().SetCompact(pblock->nBits);
             arith_uint256 mask(ASSETCHAINS_NONCEMASK[ASSETCHAINS_ALGO]);
@@ -1308,31 +1345,106 @@ void static BitcoinMiner_noeq()
                 fprintf(stderr," PoW for staked coin PoS %d%% vs target %d%%\n",percPoS,(int32_t)ASSETCHAINS_STAKED);
             }
 
+            int64_t i, count, hashesToGo;
+            bool verusHashV2 = pblock->nVersion == CBlockHeader::VERUS_V2;
+
+            if (verusHashV2)
+            {
+                count = (ASSETCHAINS_NONCEMASK[ASSETCHAINS_ALGO] >> 3) + 1;
+            }
+            else
+            {
+                count = ASSETCHAINS_NONCEMASK[ASSETCHAINS_ALGO] + 1;
+            }
+
+            CVerusHash *vh = &ss.GetState();;
+            CVerusHashV2 *vh2 = &ss2.GetState();
+            u128 *hashKey;
+            verusclhasher &vclh = vh2->vclh;
+
             while (true)
             {
                 arith_uint256 arNonce = UintToArith256(pblock->nNonce);
 
-                CVerusHashWriter ss = CVerusHashWriter(SER_GETHASH, PROTOCOL_VERSION);
-                ss << *((CBlockHeader *)pblock);
-                int64_t *extraPtr = ss.xI64p();
-                CVerusHash &vh = ss.GetState();
+                int64_t *extraPtr;
                 uint256 hashResult = uint256();
-                vh.ClearExtra();
-                int64_t i, count = ASSETCHAINS_NONCEMASK[ASSETCHAINS_ALGO] + 1;
-                int64_t hashesToGo = ASSETCHAINS_HASHESPERROUND[ASSETCHAINS_ALGO];
+
+                hashesToGo = ASSETCHAINS_HASHESPERROUND[ASSETCHAINS_ALGO];
+
+                unsigned char *curBuf;
+
+                if (verusHashV2)
+                {
+                    vh2->Reset();
+                    ss2 << *((CBlockHeader *)pblock);
+                    extraPtr = ss2.xI64p();
+                    curBuf = vh2->CurBuffer();
+                    hashKey = vh2->GenNewCLKey(curBuf);
+                }
+                else
+                {
+                    vh->Reset();
+                    ss << *((CBlockHeader *)pblock);
+                    extraPtr = ss.xI64p();
+                    vh->ClearExtra();
+                }
 
                 // for speed check NONCEMASK at a time
                 for (i = 0; i < count; i++)
                 {
                     *extraPtr = i;
-                    vh.ExtraHash((unsigned char *)&hashResult);
 
-                    if ( UintToArith256(hashResult) <= hashTarget )
+                    uint64_t intermediate;
+
+                    if (verusHashV2)
                     {
+                        // prepare the buffer
+                        vh2->FillExtra((u128 *)curBuf);
+
+                        // refresh the key and get a reference
+                        memcpy(hashKey, vclh.gethasherrefresh(), vclh.keyrefreshsize());
+
+                        // run verusclhash on the buffer
+                        intermediate = vh2->vclh(curBuf, hashKey);
+
+                        // fill buffer to the end with the result and final hash
+                        vh2->FillExtra(&intermediate);
+                        vh2->ExtraHashKeyed((unsigned char *)&hashResult, hashKey + vh2->IntermediateTo128Offset(intermediate));
+                    }
+                    else
+                    {
+                        vh->ExtraHash((unsigned char *)&hashResult);
+                    }
+
+                    if ( UintToArith256(hashResult) > hashTarget )
+                    {
+                        // check periodically if we're stale
+                        if (--hashesToGo)
+                        {
+                            continue;
+                        }
+                        else
+                        {
+                            if ( pindexPrev != chainActive.LastTip() )
+                            {
+                                if (lastChainTipPrinted != chainActive.LastTip())
+                                {
+                                    lastChainTipPrinted = chainActive.LastTip();
+                                    printf("Block %d added to chain\n", lastChainTipPrinted->GetHeight());
+                                }
+                                break;
+                            }
+                            hashesToGo = ASSETCHAINS_HASHESPERROUND[ASSETCHAINS_ALGO];
+                        }
+                    }
+                    else
+                    {
+                        // Check for stop or if block needs to be rebuilt
+                        boost::this_thread::interruption_point();
+
                         if (pblock->nSolution.size() != 1344)
                         {
                             LogPrintf("ERROR: Block solution is not 1344 bytes as it should be");
-                            sleep(5);
                             break;
                         }
 
@@ -1343,13 +1455,31 @@ void static BitcoinMiner_noeq()
                         int32_t unlockTime = komodo_block_unlocktime(Mining_height);
                         int64_t subsidy = (int64_t)(pblock->vtx[0].vout[0].nValue);
 
+#ifdef VERUSHASHDEBUG
+                        std::string validateStr = hashResult.GetHex();
+                        std::string hashStr = pblock->GetHash().GetHex();
+                        uint256 *bhalf1 = (uint256 *)vh2->CurBuffer();
+                        uint256 *bhalf2 = bhalf1 + 1;
+#else
+                        std::string hashStr = hashResult.GetHex();
+#endif
+
                         LogPrintf("Using %s algorithm:\n", ASSETCHAINS_ALGORITHMS[ASSETCHAINS_ALGO]);
-                        LogPrintf("proof-of-work found  \n  hash: %s  \ntarget: %s\n", pblock->GetHash().GetHex(), hashTarget.GetHex());
+                        LogPrintf("proof-of-work found  \n  hash: %s  \ntarget: %s\n", hashStr, hashTarget.GetHex());
                         printf("Found block %d \n", Mining_height );
                         printf("mining reward %.8f %s!\n", (double)subsidy / (double)COIN, ASSETCHAINS_SYMBOL);
-                        printf("  hash: %s  \ntarget: %s\n", pblock->GetHash().GetHex().c_str(), hashTarget.GetHex().c_str());
+#ifdef VERUSHASHDEBUG
+                        printf("  hash: %s\n   val: %s  \ntarget: %s\n\n", hashStr.c_str(), validateStr.c_str(), hashTarget.GetHex().c_str());
+                        printf("intermediate %lx\n", intermediate);
+                        printf("Curbuf: %s%s\n", bhalf1->GetHex().c_str(), bhalf2->GetHex().c_str());
+                        bhalf1 = (uint256 *)verusclhasher_key.get();
+                        bhalf2 = bhalf1 + ((vh2->vclh.keyMask + 1) >> 5);
+                        printf("   Key: %s%s\n", bhalf1->GetHex().c_str(), bhalf2->GetHex().c_str());
+#else
+                        printf("  hash: %s\ntarget: %s", hashStr.c_str(), hashTarget.GetHex().c_str());
+#endif
                         if (unlockTime > Mining_height && subsidy >= ASSETCHAINS_TIMELOCKGTE)
-                            printf("- timelocked until block %i\n", unlockTime);
+                            printf(" - timelocked until block %i\n", unlockTime);
                         else
                             printf("\n");
 #ifdef ENABLE_WALLET
@@ -1359,20 +1489,6 @@ void static BitcoinMiner_noeq()
 #endif
                         SetThreadPriority(THREAD_PRIORITY_LOWEST);
                         break;
-                    }
-                    // check periodically if we're stale
-                    if (!--hashesToGo)
-                    {
-                        if ( pindexPrev != chainActive.LastTip() )
-                        {
-                            if (lastChainTipPrinted != chainActive.LastTip())
-                            {
-                                lastChainTipPrinted = chainActive.LastTip();
-                                printf("Block %d added to chain\n", lastChainTipPrinted->GetHeight());
-                            }
-                            break;
-                        }
-                        hashesToGo = ASSETCHAINS_HASHESPERROUND[ASSETCHAINS_ALGO];
                     }
                 }
 
@@ -1404,15 +1520,15 @@ void static BitcoinMiner_noeq()
                     if (lastChainTipPrinted != chainActive.LastTip())
                     {
                         lastChainTipPrinted = chainActive.LastTip();
-                        printf("Block %d added to chain\n", lastChainTipPrinted->GetHeight());
+                        printf("Block %d added to chain\n\n", lastChainTipPrinted->GetHeight());
                     }
                     break;
                 }
 
 #ifdef _WIN32
-                printf("%llu mega hashes complete - working\n", (ASSETCHAINS_NONCEMASK[ASSETCHAINS_ALGO] + 1) / 1048576);
+                printf("%llu mega hashes complete - working\n", count / 1048576);
 #else
-                printf("%lu mega hashes complete - working\n", (ASSETCHAINS_NONCEMASK[ASSETCHAINS_ALGO] + 1) / 1048576);
+                printf("%lu mega hashes complete - working\n", count / 1048576);
 #endif
                 break;
 
@@ -1919,7 +2035,7 @@ void static BitcoinMiner()
             {
             }
         }
-        if (VERUS_CHEATCATCHER.size() > 0)
+        if (fGenerate == true && VERUS_CHEATCATCHER.size() > 0)
         {
             if (cheatCatcher == boost::none)
             {
@@ -1928,8 +2044,8 @@ void static BitcoinMiner()
             }
             else
             {
-                LogPrintf("Cheat Catcher active on %s\n", VERUS_CHEATCATCHER.c_str());
-                fprintf(stderr, "Cheat Catcher active on %s\n", VERUS_CHEATCATCHER.c_str());
+                LogPrintf("StakeGuard searching for double stakes on %s\n", VERUS_CHEATCATCHER.c_str());
+                fprintf(stderr, "StakeGuard searching for double stakes on %s\n", VERUS_CHEATCATCHER.c_str());
             }
         }
 
