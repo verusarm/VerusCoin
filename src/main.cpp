@@ -2194,33 +2194,29 @@ int IsNotInSync()
 {
     const CChainParams& chainParams = Params();
 
-    LOCK(cs_main);
     if (fImporting || fReindex)
     {
         //fprintf(stderr,"IsNotInSync: fImporting %d || %d fReindex\n",(int32_t)fImporting,(int32_t)fReindex);
         return true;
     }
-    if (fCheckpointsEnabled)
-    {
-        if (fCheckpointsEnabled && chainActive.Height() < Checkpoints::GetTotalBlocksEstimate(chainParams.Checkpoints()))
-        {
-            //fprintf(stderr,"IsNotInSync: checkpoint -> initialdownload chainActive.Height().%d GetTotalBlocksEstimate(chainParams.Checkpoints().%d\n", chainActive.Height(), Checkpoints::GetTotalBlocksEstimate(chainParams.Checkpoints()));
-            return true;
-        }
-    }
+    //if (fCheckpointsEnabled)
+    //{
+    //    if (fCheckpointsEnabled && chainActive.Height() < Checkpoints::GetTotalBlocksEstimate(chainParams.Checkpoints()))
+    //    {
+    //        //fprintf(stderr,"IsNotInSync: checkpoint -> initialdownload chainActive.Height().%d GetTotalBlocksEstimate(chainParams.Checkpoints().%d\n", chainActive.Height(), Checkpoints::GetTotalBlocksEstimate(chainParams.Checkpoints()));
+    //        return true;
+    //    }
+    //}
 
-    CBlockIndex *pbi = chainActive.Tip();
-    int longestchain = komodo_longestchain();
+    CBlockIndex *pbi = chainActive.LastTip();
     if ( !pbi || 
          (pindexBestHeader == 0) || 
-         ((pindexBestHeader->GetHeight() - 1) > pbi->GetHeight()) || 
-         (longestchain != 0 && longestchain > pbi->GetHeight()) )
+         ((pindexBestHeader->GetHeight() - 1) > pbi->GetHeight()))
     {
         return (pbi && pindexBestHeader && (pindexBestHeader->GetHeight() - 1) > pbi->GetHeight()) ?
                 pindexBestHeader->GetHeight() - pbi->GetHeight() :
                 true;
     }
-
     return false;
 }
 
@@ -3109,6 +3105,7 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
     
     // verify that the view's current state corresponds to the previous block
     uint256 hashPrevBlock = pindex->pprev == NULL ? uint256() : pindex->pprev->GetBlockHash();
+
     if ( hashPrevBlock != view.GetBestBlock() )
     {
         fprintf(stderr,"ConnectBlock(): hashPrevBlock != view.GetBestBlock()\n");
@@ -3582,7 +3579,7 @@ bool static FlushStateToDisk(CValidationState &state, FlushStateMode mode) {
                     setDirtyBlockIndex.erase(it++);
                 }
                 if (!pblocktree->WriteBatchSync(vFiles, nLastBlockFile, vBlocks)) {
-                    return AbortNode(state, "Files to write to block index database");
+                    return AbortNode(state, "Failed to write to block index database");
                 }
             }
             // Finally remove any pruned files
@@ -3661,12 +3658,12 @@ void static UpdateTip(CBlockIndex *pindexNew) {
         const CBlockIndex* pindex = chainActive.Tip();
         for (int i = 0; i < 100 && pindex != NULL; i++)
         {
-            if (pindex->nVersion > CBlock::CURRENT_VERSION)
+            if (pindex->nVersion > CBlockHeader::GetVersionByHeight(pindex->GetHeight()))
                 ++nUpgraded;
             pindex = pindex->pprev;
         }
         if (nUpgraded > 0)
-            LogPrintf("%s: %d of last 100 blocks above version %d\n", __func__, nUpgraded, (int)CBlock::CURRENT_VERSION);
+            LogPrintf("%s: %d of last 100 blocks above version %d\n", __func__, nUpgraded, (int)CBlock::VERUS_V2);
         if (nUpgraded > 100/2)
         {
             // strMiscWarning is read by GetWarnings(), called by the JSON-RPC code to warn the user:
@@ -4014,7 +4011,7 @@ static bool ActivateBestChainStep(CValidationState &state, CBlockIndex *pindexMo
         }
         nHeight = nTargetHeight;
         
-        // Connect new blocks.
+        // Connect new blocks
         BOOST_REVERSE_FOREACH(CBlockIndex *pindexConnect, vpindexToConnect) {
             if (!ConnectTip(state, pindexConnect, pindexConnect == pindexMostWork ? pblock : NULL)) {
                 if (state.IsInvalid()) {
@@ -4074,9 +4071,10 @@ bool ActivateBestChain(CValidationState &state, CBlock *pblock) {
             pindexMostWork = FindMostWorkChain();
             
             // Whether we have anything to do at all.
+            // printf("mostwork: %lx, chaintip: %p\n", pindexMostWork, chainActive.Tip());
             if (pindexMostWork == NULL || pindexMostWork == chainActive.Tip())
                 return true;
-            
+
             if (!ActivateBestChainStep(state, pindexMostWork, pblock && pblock->GetHash() == pindexMostWork->GetBlockHash() ? pblock : NULL))
                 return false;
             pindexNewTip = chainActive.Tip();
@@ -4192,6 +4190,8 @@ CBlockIndex* AddToBlockIndex(const CBlockHeader& block)
 {
     // Check for duplicate
     uint256 hash = block.GetHash();
+    //printf("Hash of new index entry: %s\n\n", hash.GetHex().c_str());
+
     BlockMap::iterator it = mapBlockIndex.find(hash);
     BlockMap::iterator miPrev = mapBlockIndex.find(block.hashPrevBlock);
 
@@ -4208,6 +4208,10 @@ CBlockIndex* AddToBlockIndex(const CBlockHeader& block)
         printf("found %d NULL blocks in mapBlockIndex\n", vrit.size());
     }
     */
+    if (block.hashPrevBlock.IsNull() && hash != Params().consensus.hashGenesisBlock)
+    {
+        printf("Found prior null block on add that isn't the genesis block: %s\n", hash.GetHex().c_str());
+    }
 
     if (it != mapBlockIndex.end())
     {
@@ -4701,6 +4705,21 @@ bool ContextualCheckBlock(const CBlock& block, CValidationState& state, CBlockIn
     const int nHeight = pindexPrev == NULL ? 0 : pindexPrev->GetHeight() + 1;
     const Consensus::Params& consensusParams = Params().GetConsensus();
     bool sapling = NetworkUpgradeActive(nHeight, consensusParams, Consensus::UPGRADE_SAPLING);
+
+    if (block.nVersion != CBlockHeader::GetVersionByHeight(nHeight))
+    {
+        printf("ERROR: block rejected as wrong version, version should be %d for block height %d\n", CBlockHeader::GetVersionByHeight(nHeight), nHeight);
+        return state.DoS(10, error("%s: block header has incorrect version", __func__), REJECT_INVALID, "incorrect-block-version");
+    }
+
+    if (block.nVersion == CBlockHeader::VERUS_V2 && ASSETCHAINS_ALGO == ASSETCHAINS_VERUSHASH)
+    {
+        std::vector<unsigned char> vch = block.nSolution;
+        if (CVerusSolutionVector(vch).Version() != 1)
+        {
+            return state.DoS(10, error("%s: block header has incorrect version", __func__), REJECT_INVALID, "incorrect-block-version");
+        }
+    }
 
     // Check that all transactions are finalized
     for (uint32_t i = 0; i < block.vtx.size(); i++) {
@@ -5266,9 +5285,11 @@ CBlockIndex * InsertBlockIndex(uint256 hash)
     // Create new
     CBlockIndex* pindexNew = new CBlockIndex();
     if (!pindexNew)
-        throw runtime_error("LoadBlockIndex(): new CBlockIndex failed");
+        throw runtime_error("LoadBlockIndex(): new CBlockIndex failed\n");
     mi = mapBlockIndex.insert(make_pair(hash, pindexNew)).first;
     pindexNew->phashBlock = &((*mi).first);
+
+    //printf("Hash of new index entry: %s\n\n", hash.GetHex().c_str());
     //fprintf(stderr,"inserted to block index %s\n",hash.ToString().c_str());
 
     return pindexNew;
@@ -6392,7 +6413,10 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
         if (nVersion == 10300)
             nVersion = 300;
 
-        if (nVersion < MIN_PEER_PROTO_VERSION)
+        int nHeight = GetHeight();
+
+        if (CConstVerusSolutionVector::activationHeight.ActiveVersion(nHeight) ? nVersion < MIN_VERUSHASHV2_VERSION : 
+                                                                                 nVersion < MIN_PEER_PROTO_VERSION)
         {
             // disconnect from peers older than this proto version
             LogPrintf("peer=%d using obsolete version %i; disconnecting\n", pfrom->id, pfrom->nVersion);

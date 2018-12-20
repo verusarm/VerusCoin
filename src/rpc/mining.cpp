@@ -614,37 +614,6 @@ UniValue getblocktemplate(const UniValue& params, bool fHelp)
     }
     if (Params().MiningRequiresPeers() && (IsNotInSync() || fvNodesEmpty))
     {
-        /*
-        int loops = 0, blockDiff = 0, newDiff = 0;
-        const int delay = 15;
-        do {
-            if (fvNodesEmpty)
-            {
-                MilliSleep(1000 + rand() % 4000);
-                LOCK(cs_vNodes);
-                fvNodesEmpty = vNodes.empty();
-                loops = 0;
-                blockDiff = 0;
-            }
-            if ((newDiff = IsNotInSync()) > 1)
-            {
-                if (blockDiff != newDiff)
-                {
-                    blockDiff = newDiff;
-                }
-                else
-                {
-                    if (++loops <= delay)
-                    {
-                        MilliSleep(1000);
-                    }
-                    else break;
-                }
-            }
-        } while (fvNodesEmpty || IsNotInSync());
-        if (loops > delay)
-            throw JSONRPCError(RPC_CLIENT_NOT_CONNECTED, "Cannot get a block template while no peers are connected or chain not in sync!");
-        */
         throw JSONRPCError(RPC_CLIENT_NOT_CONNECTED, "Cannot get a block template while no peers are connected or chain not in sync!");
     }
 
