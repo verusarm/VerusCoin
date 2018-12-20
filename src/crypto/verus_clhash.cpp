@@ -32,6 +32,19 @@
 thread_local thread_specific_ptr verusclhasher_key;
 thread_local thread_specific_ptr verusclhasher_descr;
 
+thread_specific_ptr::~thread_specific_ptr() {
+    if (verusclhasher_key.ptr)
+    {
+        verusclhasher_key.reset();
+        verusclhasher_key.ptr = NULL;
+    }
+    if (verusclhasher_descr.ptr)
+    {
+        verusclhasher_descr.reset();
+        verusclhasher_descr.ptr = NULL;
+    }
+}
+
 // multiply the length and the some key, no modulo
 static inline __m128i lazyLengthHash(uint64_t keylength, uint64_t length) {
     const __m128i lengthvector = _mm_set_epi64x(keylength,length);
