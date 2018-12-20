@@ -66,8 +66,22 @@ struct thread_specific_ptr {
         ptr = newptr;
     }
     void *get() { return ptr; }
-    ~thread_specific_ptr() { this->reset(); }
-};
+    ~thread_specific_ptr() {
+#ifdef _WIN32 // horrible MingW and gcc thread local storage bug workaround
+        if (verusclhasher_key.ptr)
+       {
+           verusclhasher_key.reset();
+           verusclhasher_key.ptr = NULL;
+       }
+       if (verusclhasher_descr.ptr)
+       {
+           verusclhasher_descr.reset();
+           verusclhasher_descr.ptr = NULL;
+       }
+#else
+        this->reset();
+#endif
+    }};
 
 extern thread_local thread_specific_ptr verusclhasher_key;
 extern thread_local thread_specific_ptr verusclhasher_descr;
