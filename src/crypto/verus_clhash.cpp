@@ -33,16 +33,17 @@ thread_local thread_specific_ptr verusclhasher_key;
 thread_local thread_specific_ptr verusclhasher_descr;
 
 #ifdef _WIN32
+// attempt to workaround horrible mingw/gcc destructor bug on Windows, which passes garbage in the this pointer
+// we use the opportunity of control here to clean up all of our tls variables. we could keep a list, but this is a safe, 
+// functional hack
 thread_specific_ptr::~thread_specific_ptr() {
     if (verusclhasher_key.ptr)
     {
         verusclhasher_key.reset();
-        verusclhasher_key.ptr = NULL;
     }
     if (verusclhasher_descr.ptr)
     {
         verusclhasher_descr.reset();
-        verusclhasher_descr.ptr = NULL;
     }
 }
 #endif

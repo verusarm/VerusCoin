@@ -142,7 +142,7 @@ class CVerusHashV2
         }
 
         // chains Haraka256 from 32 bytes to fill the key
-        u128 *GenNewCLKey(unsigned char *seedBytes32)
+        static u128 *GenNewCLKey(unsigned char *seedBytes32)
         {
             unsigned char *key = (unsigned char *)verusclhasher_key.get();
             verusclhash_descr *pdesc = (verusclhash_descr *)verusclhasher_descr.get();
@@ -169,12 +169,6 @@ class CVerusHashV2
                 pdesc->seed = *((uint256 *)seedBytes32);
             }
             memcpy(key, key + pdesc->keySizeInBytes, pdesc->keySizeInBytes);
-
-#ifdef VERUSHASHDEBUG
-            uint256 *bhalf1 = (uint256 *)key;
-            uint256 *bhalf2 = bhalf1 + ((vclh.keyMask + 1) >> 5);
-            printf("New key: %s%s\n", bhalf1->GetHex().c_str(), bhalf2->GetHex().c_str());
-#endif
             return (u128 *)key;
         }
 
