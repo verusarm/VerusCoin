@@ -56,7 +56,7 @@ struct thread_specific_ptr {
     thread_specific_ptr() { ptr = NULL; }
     void reset(void *newptr = NULL)
     {
-        if (ptr)
+        if (ptr || ptr != newptr)
         {
             std::free(ptr);
         }
