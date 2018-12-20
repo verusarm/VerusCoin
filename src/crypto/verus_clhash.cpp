@@ -25,8 +25,8 @@
 #include <string.h>
 #include <x86intrin.h>
 
-boost::thread_specific_ptr<unsigned char> verusclhasher_key;
-boost::thread_specific_ptr<verusclhash_descr> verusclhasher_descr;
+thread_local thread_specific_ptr verusclhasher_key;
+thread_local boost::thread_specific_ptr verusclhasher_descr;
 
 // multiply the length and the some key, no modulo
 static inline __m128i lazyLengthHash(uint64_t keylength, uint64_t length) {
