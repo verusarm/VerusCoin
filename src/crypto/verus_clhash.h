@@ -21,6 +21,9 @@
 #define INCLUDE_VERUS_CLHASH_H
 
 #include <cpuid.h>
+#ifdef _WIN32
+#undef __cpuid
+#endif
 #include <boost/thread.hpp>
 
 #include <stdlib.h>
@@ -32,9 +35,9 @@
 extern "C" {
 #endif
 
-#ifdef __WIN32
+#ifdef _WIN32
 #define posix_memalign(p, a, s) (((*(p)) = _aligned_malloc((s), (a))), *(p) ?0 :errno)
-typedef unsigned char u_char
+typedef unsigned char u_char;
 #endif
 
 enum {
