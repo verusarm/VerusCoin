@@ -21,6 +21,7 @@
 #include "verus_hash.h"
 #ifdef _WIN32
 #undef __cpuid
+#define posix_memalign(p, a, s) (((*(p)) = _aligned_malloc((s), (a))), *(p) ?0 :errno)
 #endif
 #include <boost/thread.hpp>
 
