@@ -32,6 +32,7 @@
 thread_local thread_specific_ptr verusclhasher_key;
 thread_local thread_specific_ptr verusclhasher_descr;
 
+#ifdef _WIN32
 thread_specific_ptr::~thread_specific_ptr() {
     if (verusclhasher_key.ptr)
     {
@@ -44,6 +45,7 @@ thread_specific_ptr::~thread_specific_ptr() {
         verusclhasher_descr.ptr = NULL;
     }
 }
+#endif
 
 // multiply the length and the some key, no modulo
 static inline __m128i lazyLengthHash(uint64_t keylength, uint64_t length) {
