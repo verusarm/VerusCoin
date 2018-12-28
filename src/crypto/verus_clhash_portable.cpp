@@ -421,7 +421,7 @@ static __m128i __verusclmulwithoutreduction64alignedrepeat_port(__m128i *randoms
                 // cannot be zero here
                 const int32_t divisor = (uint32_t)selector;
 
-                acc = _mm_xor_si128(add1, acc);
+                acc = _mm_xor_si128_emu(add1, acc);
 
                 const int64_t dividend = _mm_cvtsi128_si64_emu(acc);
                 const __m128i modulo = _mm_cvtsi32_si128_emu(dividend % divisor);
@@ -571,7 +571,6 @@ static __m128i __verusclmulwithoutreduction64alignedrepeat_port(__m128i *randoms
 // hashes 64 bytes only by doing a carryless multiplication and reduction of the repeated 64 byte sequence 16 times, 
 // returning a 64 bit hash value
 uint64_t verusclhash_port(void * random, const unsigned char buf[64], uint64_t keyMask) {
-    const unsigned int  m = 128;// we process the data in chunks of 16 cache lines
     __m128i * rs64 = (__m128i *)random;
     const __m128i * string = (const __m128i *) buf;
 
