@@ -33,16 +33,17 @@ thread_local thread_specific_ptr verusclhasher_key;
 thread_local thread_specific_ptr verusclhasher_descr;
 
 #ifdef _WIN32
+// attempt to workaround horrible mingw/gcc destructor bug on Windows, which passes garbage in the this pointer
+// we use the opportunity of control here to clean up all of our tls variables. we could keep a list, but this is a safe, 
+// functional hack
 thread_specific_ptr::~thread_specific_ptr() {
     if (verusclhasher_key.ptr)
     {
         verusclhasher_key.reset();
-        verusclhasher_key.ptr = NULL;
     }
     if (verusclhasher_descr.ptr)
     {
         verusclhasher_descr.reset();
-        verusclhasher_descr.ptr = NULL;
     }
 }
 #endif
@@ -79,7 +80,7 @@ static __m128i __verusclmulwithoutreduction64alignedrepeat(__m128i *randomsource
     // divide key mask by 16 from bytes to __m128i
     keyMask >>= 4;
 
-    // the random buffer must have at least 32 16 byte dwords after the keymask to work with this
+    // the random buffer must have at least 40 16 byte dwords (size of a Haraka key) after the keymask to work with this
     // algorithm. we take the value from the last element inside the keyMask + 2, as that will never
     // be used to xor into the accumulator before it is hashed with other values first
     __m128i acc = _mm_load_si128(randomsource + (keyMask + 2));
@@ -330,11 +331,7 @@ static __m128i __verusclmulwithoutreduction64alignedrepeat(__m128i *randomsource
 // hashes 64 bytes only by doing a carryless multiplication and reduction of the repeated 64 byte sequence 16 times, 
 // returning a 64 bit hash value
 uint64_t verusclhash(void * random, const unsigned char buf[64], uint64_t keyMask) {
-    const unsigned int  m = 128;// we process the data in chunks of 16 cache lines
-    __m128i * rs64 = (__m128i *)random;
-    const __m128i * string = (const __m128i *) buf;
-
-    __m128i  acc = __verusclmulwithoutreduction64alignedrepeat(rs64, string, keyMask);
+    __m128i  acc = __verusclmulwithoutreduction64alignedrepeat((__m128i *)random, (const __m128i *)buf, keyMask);
     acc = _mm_xor_si128(acc, lazyLengthHash(1024, 64));
     return precompReduction64(acc);
 }
