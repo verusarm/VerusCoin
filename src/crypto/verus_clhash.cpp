@@ -51,7 +51,7 @@ thread_specific_ptr::~thread_specific_ptr() {
     }
 }
 #endif
-
+int __cpuverusoptimized = 0x80;
 // multiply the length and the some key, no modulo
     static inline __attribute__((always_inline)) __m128i lazyLengthHash(uint64_t keylength, uint64_t length) {
 

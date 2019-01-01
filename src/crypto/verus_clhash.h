@@ -79,7 +79,7 @@ struct thread_specific_ptr {
 extern thread_local thread_specific_ptr verusclhasher_key;
 extern thread_local thread_specific_ptr verusclhasher_descr;
 
-extern int __cpuverusoptimized;
+int __cpuverusoptimized;
 
 inline bool IsCPUVerusOptimized()
 {
