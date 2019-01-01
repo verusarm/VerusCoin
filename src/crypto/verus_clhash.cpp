@@ -36,22 +36,21 @@
 thread_local thread_specific_ptr verusclhasher_key;
 thread_local thread_specific_ptr verusclhasher_descr;
 
-//#ifdef _WIN32
+#ifdef _WIN32
 // attempt to workaround horrible mingw/gcc destructor bug on Windows, which passes garbage in the this pointer
-// we use the opportunity of control here to clean up all of our tls variables. we could keep a list, but this is a quick hack
-//thread_specific_ptr::~thread_specific_ptr() {
-//    if (verusclhasher_key.ptr)
-//    {
-//        verusclhasher_key.reset();
-//    }
-//    if (verusclhasher_descr.ptr)
- //   {
- //       verusclhasher_descr.reset();
- //   }
-//}
-//#endif
-
-int __cpuverusoptimized = 0x80;
+// we use the opportunity of control here to clean up all of our tls variables. we could keep a list, but this is a safe,
+// functional hack
+thread_specific_ptr::~thread_specific_ptr() {
+    if (verusclhasher_key.ptr)
+    {
+        verusclhasher_key.reset();
+    }
+    if (verusclhasher_descr.ptr)
+    {
+        verusclhasher_descr.reset();
+    }
+}
+#endif
 
 // multiply the length and the some key, no modulo
     static inline __attribute__((always_inline)) __m128i lazyLengthHash(uint64_t keylength, uint64_t length) {
@@ -544,10 +543,6 @@ uint64_t verusclhash(void * random, const unsigned char buf[64], uint64_t keyMas
     acc = _mm_xor_si128(acc, lazyLengthHash(1024, 64));
     return precompReduction64(acc);
 }
-
-#ifdef __WIN32
-#define posix_memalign(p, a, s) (((*(p)) = _aligned_malloc((s), (a))), *(p) ?0 :errno)
-#endif
 
 void *alloc_aligned_buffer(uint64_t bufSize)
 {
