@@ -11,3 +11,5 @@ The first time on a new system you will need to run ./fetch-params before using 
 Run ./verusd to launch komodod, and use verus to run commands such as:
 ./verus stop
 Which signals komodod (if it is running) to stop running.
+
+To upgrade your Verus Enhanced Agama Wallet, run upgrade-agama.sh and enter the directory to your agama app
