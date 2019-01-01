@@ -33,9 +33,6 @@
 #include <assert.h>
 #include <boost/thread.hpp>
 #include "tinyformat.h"
-#ifdef __APPLE__
-void __tls_init();
-#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -91,17 +88,7 @@ inline bool IsCPUVerusOptimized()
 {
     if (__cpuverusoptimized & 0x80)
     {
-#ifdef _WIN32
-        #define bit_AVX		(1 << 28)
-        #define bit_AES		(1 << 25)
-        #define bit_PCLMUL  (1 << 1)
-        // https://insufficientlycomplicated.wordpress.com/2011/11/07/detecting-intel-advanced-vector-extensions-avx-in-visual-studio/
-        // bool cpuAVXSuport = cpuInfo[2] & (1 << 28) || false;
 
-        int cpuInfo[4];
-		__cpuid(cpuInfo, 1);
-        __cpuverusoptimized = ((cpuInfo[2] & (bit_AVX | bit_AES | bit_PCLMUL)) == (bit_AVX | bit_AES | bit_PCLMUL));
-#else
         unsigned int eax,ebx,ecx,edx;
 
         if (!__get_cpuid(1,&eax,&ebx,&ecx,&edx))
@@ -112,7 +99,6 @@ inline bool IsCPUVerusOptimized()
         {
             __cpuverusoptimized = ((ecx & (bit_AVX | bit_AES | bit_PCLMUL)) == (bit_AVX | bit_AES | bit_PCLMUL));
         }
-#endif //WIN32
     }
     return __cpuverusoptimized;
 };
@@ -176,9 +162,7 @@ struct verusclhasher {
     // align on 256 bit boundary at end
     verusclhasher(uint64_t keysize=VERUSKEYSIZE) : keySizeInBytes((keysize >> 5) << 5)
     {
-#ifdef __APPLE__
-        __tls_init();
-#endif
+
         if (IsCPUVerusOptimized())
         {
             verusclhashfunction = &verusclhash;
