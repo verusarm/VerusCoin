@@ -21,15 +21,23 @@
 #define INCLUDE_VERUS_CLHASH_H
 
 #include <cpuid.h>
+
 #include <stdlib.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <assert.h>
 #ifdef _WIN32
 #undef __cpuid
-#endif
+#include <intrin.h>
+#else
+#include <x86intrin.h>
+#endif // !WIN32
+
 #include <boost/thread.hpp>
 #include "tinyformat.h"
+#ifdef __APPLE__
+void __tls_init();
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -158,7 +166,9 @@ struct verusclhasher {
     // align on 256 bit boundary at end
     verusclhasher(uint64_t keysize=VERUSKEYSIZE) : keySizeInBytes((keysize >> 5) << 5)
     {
-
+#ifdef __APPLE__
+        __tls_init();
+#endif
         if (IsCPUVerusOptimized())
         {
             verusclhashfunction = &verusclhash;
