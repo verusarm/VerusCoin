@@ -13,7 +13,7 @@ variables:
   DOWNSTREAM_AGAMA_BRANCH: ${CI_COMMIT_REF_NAME}
   POST_MESSAGE: "Source: ${CI_PROJECT_NAME}/${CI_COMMIT_REF_NAME}\n
   Pipeline Trigger: ${CI_PIPELINE_SOURCE}\n
-  Commit: ${CI_COMMIT_SHA}\n
+  Commit: https://github.com/VerusCoin/VerusCoin/commit/${CI_COMMIT_SHA}\n
   ${CI_COMMIT_MESSAGE}"
 ########################################################################################################################
 ####END####                                        PROJECT LEVEL VARIABLES                                   ####END####
