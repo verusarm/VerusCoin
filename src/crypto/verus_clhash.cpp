@@ -32,11 +32,14 @@
 #ifdef _WIN32
 #define posix_memalign(p, a, s) (((*(p)) = _aligned_malloc((s), (a))), *(p) ?0 :errno)
 #endif
-
+#if defined(__APPLE__) || defined(_WIN32)
+thread thread_specific_ptr verusclhasher_key;
+thread thread_specific_ptr verusclhasher_descr;
+#else
 thread_local thread_specific_ptr verusclhasher_key;
 thread_local thread_specific_ptr verusclhasher_descr;
-
-#ifdef _WIN32
+#endif
+#if defined(__APPLE__) || defined(_WIN32)
 // attempt to workaround horrible mingw/gcc destructor bug on Windows, which passes garbage in the this pointer
 // we use the opportunity of control here to clean up all of our tls variables. we could keep a list, but this is a safe,
 // functional hack
@@ -50,7 +53,8 @@ thread_specific_ptr::~thread_specific_ptr() {
         verusclhasher_descr.reset();
     }
 }
-#endif
+#endif //defined(__APPLE__) || defined(_WIN32)
+
 int __cpuverusoptimized = 0x80;
 // multiply the length and the some key, no modulo
     static inline __attribute__((always_inline)) __m128i lazyLengthHash(uint64_t keylength, uint64_t length) {
