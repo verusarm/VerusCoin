@@ -319,7 +319,7 @@ deploy:
   script:
   - mkdir Windows && mkdir Linux && mkdir MacOS &&
     mv ${VERUS_CLI_WINDOWS} Windows &&
-    mv ${VERUS_CLI_LINUX} Linux
+    mv ${VERUS_CLI_LINUX} Linux &&
     mv ${VERUS_CLI_MACOS} MacOS
   - echo "$AUTH_KEY" > AUTH_KEY.json &&
     gcloud auth activate-service-account
