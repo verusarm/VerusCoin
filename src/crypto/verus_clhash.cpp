@@ -36,42 +36,33 @@
 thread_local thread_specific_ptr verusclhasher_key;
 thread_local thread_specific_ptr verusclhasher_descr;
 
-//#ifdef _WIN32
-// attempt to workaround horrible mingw/gcc destructor bug on Windows, which passes garbage in the this pointer
-// we use the opportunity of control here to clean up all of our tls variables. we could keep a list, but this is a quick hack
-//thread_specific_ptr::~thread_specific_ptr() {
-//    if (verusclhasher_key.ptr)
-//    {
-//        verusclhasher_key.reset();
-//    }
-//    if (verusclhasher_descr.ptr)
- //   {
- //       verusclhasher_descr.reset();
- //   }
-//}
-//#endif
+#if defined(__APPLE__) || defined(_WIN32)
+// attempt to workaround horrible mingw/gcc destructor bug on Windows and Mac, which passes garbage in the this pointer
+// we use the opportunity of control here to clean up all of our tls variables. we could keep a list, but this is a safe,
+// functional hack
+thread_specific_ptr::~thread_specific_ptr() {
+    if (verusclhasher_key.ptr)
+    {
+        verusclhasher_key.reset();
+    }
+    if (verusclhasher_descr.ptr)
+    {
+        verusclhasher_descr.reset();
+    }
+}
+#endif // defined(__APPLE__) || defined(_WIN32)
 
 int __cpuverusoptimized = 0x80;
-
 // multiply the length and the some key, no modulo
-#ifdef _WIN32
-    static __forceinline  __m128i lazyLengthHash(uint64_t keylength, uint64_t length) {
-#else
     static inline __attribute__((always_inline)) __m128i lazyLengthHash(uint64_t keylength, uint64_t length) {
-#endif
-    
+
     const __m128i lengthvector = _mm_set_epi64x(keylength,length);
     const __m128i clprod1 = _mm_clmulepi64_si128( lengthvector, lengthvector, 0x10);
     return clprod1;
 }
 
 // modulo reduction to 64-bit value. The high 64 bits contain garbage, see precompReduction64
-#ifdef _WIN32
-  static __forceinline  __m128i precompReduction64_si128( __m128i A) {
-#else
   static inline __attribute__((always_inline)) __m128i precompReduction64_si128( __m128i A) {
-#endif
-
     //const __m128i C = _mm_set_epi64x(1U,(1U<<4)+(1U<<3)+(1U<<1)+(1U<<0)); // C is the irreducible poly. (64,4,3,1,0)
     const __m128i C = _mm_cvtsi64_si128((1U<<4)+(1U<<3)+(1U<<1)+(1U<<0));
     __m128i Q2 = _mm_clmulepi64_si128( A, C, 0x01);
@@ -82,19 +73,11 @@ int __cpuverusoptimized = 0x80;
     return final;/// WARNING: HIGH 64 BITS CONTAIN GARBAGE
 }
 
-#ifdef _WIN32
-    static __forceinline uint64_t precompReduction64( __m128i A) {
-#else
     static inline __attribute__((always_inline)) uint64_t precompReduction64( __m128i A) {
-#endif
     return _mm_cvtsi128_si64(precompReduction64_si128(A));
 }
 
-#ifdef _WIN32
-    static __forceinline  void fixupkey(__m128i **pMoveScratch, verusclhash_descr *pdesc) {
-#else
     static inline __attribute__((always_inline)) void fixupkey(__m128i **pMoveScratch, verusclhash_descr *pdesc) {
-#endif
     uint32_t ofs = pdesc->keySizeInBytes >> 4;
     for (__m128i *pfixup = *pMoveScratch; pfixup; pfixup = *++pMoveScratch)
     {
@@ -103,11 +86,7 @@ int __cpuverusoptimized = 0x80;
     }
 }
 
-#ifdef _WIN32
-    static __forceinline void haraka512_keyed_local(unsigned char *out, const unsigned char *in, const u128 *rc) {
-#else
     static inline __attribute__((always_inline)) void haraka512_keyed_local(unsigned char *out, const unsigned char *in, const u128 *rc) {
-#endif
   u128 s[4], tmp;
 
   s[0] = LOAD(in);
@@ -565,10 +544,6 @@ uint64_t verusclhash(void * random, const unsigned char buf[64], uint64_t keyMas
     acc = _mm_xor_si128(acc, lazyLengthHash(1024, 64));
     return precompReduction64(acc);
 }
-
-#ifdef __WIN32
-#define posix_memalign(p, a, s) (((*(p)) = _aligned_malloc((s), (a))), *(p) ?0 :errno)
-#endif
 
 void *alloc_aligned_buffer(uint64_t bufSize)
 {
