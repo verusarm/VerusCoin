@@ -1,5 +1,5 @@
 /*
- * This uses veriations of the clhash algorithm for Verus Coin, licensed
+ * This uses variations of the clhash algorithm for Verus Coin, licensed
  * with the Apache-2.0 open source license.
  * 
  * Copyright (c) 2018 Michael Toutonghi
