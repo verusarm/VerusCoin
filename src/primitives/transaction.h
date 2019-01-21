@@ -668,6 +668,8 @@ public:
 
     // Return sum of txouts, (negative valueBalance or zero) and JoinSplit vpub_old.
     CAmount GetValueOut() const;
+    // Return sum of (negative valueBalance or zero) and JoinSplit vpub_old.
+    CAmount GetShieldedValueOut() const;
     // GetValueIn() is a method on CCoinsViewCache, because
     // inputs must be known to compute value in.
 
