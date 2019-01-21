@@ -48,7 +48,7 @@
 using namespace std;
 
 namespace {
-    const int MAX_OUTBOUND_CONNECTIONS = 4;
+    const int MAX_OUTBOUND_CONNECTIONS = 5;
     const int MAX_INBOUND_FROMIP = 3;
 
     struct ListenSocket {
