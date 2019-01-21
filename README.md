@@ -1,4 +1,4 @@
-## VerusCoin version 0.5.3 with VerusHash 2.0
+## VerusCoin version 0.5.4 with VerusHash 2.0
 
 Arguably the world's most advanced technology, zero knowledge privacy-centric blockchain, Verus Coin brings Sapling performance and zero knowledge features to an intelligent system with interchain smart contracts and a completely original, combined proof of stake/proof of work consensus algorithm that solves the nothing at stake problem. With this and its approach towards CPU mining and ASICs, Verus Coin strives to be one of the most naturally decentralizing and attack resistant blockchains in existence.
 
@@ -7,7 +7,7 @@ We have added a variation of a zawy12, lwma difficulty algorithm, a new CPU-opti
 Also see our [VerusCoin web site](https://veruscoin.io/) and [VerusCoin Explorer](https://explorer.veruscoin.io/).
 
 ## VerusCoin
-This software is the VerusCoin enhanced Komodo client. Generally, you will use this if you want to mine VRSC or setup a full node. When you run the wallet it launches komodod automatically. On first launch it downloads Zcash parameters, roughly 1GB, which is mildly slow.
+This software is the VerusCoin enhanced Komodo client. Generally, you will use this if you want to mine VRSC or setup a full node. When you run the wallet it launches komodod automatically. On first launch it downloads Zcash parameters which is mildly slow.
 
 The wallet downloads and stores the block chain or asset chain of the coin you select. It downloads and stores the entire history of the coins transactions; depending on the speed of your computer and network connection, the synchronization process could take a day or more once the blockchain has reached a significant size.
 
