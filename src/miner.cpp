@@ -1484,9 +1484,9 @@ void static BitcoinMiner_noeq()
                 }
 
 #ifdef _WIN32
-                printf("%llu mega hashes complete - working\n", count / 1048576);
+                printf("%llu mega hashes complete - working\n", ((ASSETCHAINS_NONCEMASK[ASSETCHAINS_ALGO] >> 3) + 1) / 1048576);
 #else
-                printf("%lu mega hashes complete - working\n", count / 1048576);
+                printf("%lu mega hashes complete - working\n", ((ASSETCHAINS_NONCEMASK[ASSETCHAINS_ALGO] >> 3) + 1) / 1048576);
 #endif
                 break;
 
