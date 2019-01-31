@@ -1,5 +1,6 @@
 // Copyright (c) 2010 Satoshi Nakamoto
 // Copyright (c) 2009-2014 The Bitcoin Core developers
+// Copyright (c) 2019 Michael Toutonghi
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -31,346 +32,26 @@
 
 #include <univalue.h>
 
+#include "mergemining.h"
+
 using namespace std;
 
 extern int32_t ASSETCHAINS_ALGO, ASSETCHAINS_EQUIHASH, ASSETCHAINS_LWMAPOS;
 extern uint64_t ASSETCHAINS_STAKED;
 extern int32_t KOMODO_MININGTHREADS;
 extern bool VERUS_MINTBLOCKS;
-arith_uint256 komodo_PoWtarget(int32_t *percPoSp,arith_uint256 target,int32_t height,int32_t goalperc);
-
-/**
- * Return average network hashes per second based on the last 'lookup' blocks,
- * or over the difficulty averaging window if 'lookup' is nonpositive.
- * If 'height' is nonnegative, compute the estimate at the time when a given block was found.
- */
-int64_t GetNetworkHashPS(int lookup, int height) {
-    CBlockIndex *pb = chainActive.LastTip();
-
-    if (height >= 0 && height < chainActive.Height())
-        pb = chainActive[height];
-
-    if (pb == NULL || !pb->GetHeight())
-        return 0;
-
-    // If lookup is nonpositive, then use difficulty averaging window.
-    if (lookup <= 0)
-        lookup = Params().GetConsensus().nPowAveragingWindow;
-
-    // If lookup is larger than chain, then set it to chain length.
-    if (lookup > pb->GetHeight())
-        lookup = pb->GetHeight();
-
-    CBlockIndex *pb0 = pb;
-    int64_t minTime = pb0->GetBlockTime();
-    int64_t maxTime = minTime;
-    for (int i = 0; i < lookup; i++) {
-        pb0 = pb0->pprev;
-        int64_t time = pb0->GetBlockTime();
-        minTime = std::min(time, minTime);
-        maxTime = std::max(time, maxTime);
-    }
-
-    // In case there's a situation where minTime == maxTime, we don't want a divide by zero exception.
-    if (minTime == maxTime)
-        return 0;
-
-    arith_uint256 workDiff = pb->chainPower.chainWork - pb0->chainPower.chainWork;
-    int64_t timeDiff = maxTime - minTime;
-
-    return (int64_t)(workDiff.getdouble() / timeDiff);
-}
-
-UniValue getlocalsolps(const UniValue& params, bool fHelp)
-{
-    if (fHelp)
-        throw runtime_error(
-            "getlocalsolps\n"
-            "\nReturns the average local solutions per second since this node was started.\n"
-            "This is the same information shown on the metrics screen (if enabled).\n"
-            "\nResult:\n"
-            "xxx.xxxxx     (numeric) Solutions per second average\n"
-            "\nExamples:\n"
-            + HelpExampleCli("getlocalsolps", "")
-            + HelpExampleRpc("getlocalsolps", "")
-       );
-
-    LOCK(cs_main);
-    return GetLocalSolPS();
-}
-
-UniValue getnetworksolps(const UniValue& params, bool fHelp)
-{
-    if (fHelp || params.size() > 2)
-        throw runtime_error(
-            "getnetworksolps ( blocks height )\n"
-            "\nReturns the estimated network solutions per second based on the last n blocks.\n"
-            "Pass in [blocks] to override # of blocks, -1 specifies over difficulty averaging window.\n"
-            "Pass in [height] to estimate the network speed at the time when a certain block was found.\n"
-            "\nArguments:\n"
-            "1. blocks     (numeric, optional, default=120) The number of blocks, or -1 for blocks over difficulty averaging window.\n"
-            "2. height     (numeric, optional, default=-1) To estimate at the time of the given height.\n"
-            "\nResult:\n"
-            "x             (numeric) Solutions per second estimated\n"
-            "\nExamples:\n"
-            + HelpExampleCli("getnetworksolps", "")
-            + HelpExampleRpc("getnetworksolps", "")
-       );
-
-    LOCK(cs_main);
-    return GetNetworkHashPS(params.size() > 0 ? params[0].get_int() : 120, params.size() > 1 ? params[1].get_int() : -1);
-}
-
-UniValue getnetworkhashps(const UniValue& params, bool fHelp)
-{
-    if (fHelp || params.size() > 2)
-        throw runtime_error(
-            "getnetworkhashps ( blocks height )\n"
-            "\nDEPRECATED - left for backwards-compatibility. Use getnetworksolps instead.\n"
-            "\nReturns the estimated network solutions per second based on the last n blocks.\n"
-            "Pass in [blocks] to override # of blocks, -1 specifies over difficulty averaging window.\n"
-            "Pass in [height] to estimate the network speed at the time when a certain block was found.\n"
-            "\nArguments:\n"
-            "1. blocks     (numeric, optional, default=120) The number of blocks, or -1 for blocks over difficulty averaging window.\n"
-            "2. height     (numeric, optional, default=-1) To estimate at the time of the given height.\n"
-            "\nResult:\n"
-            "x             (numeric) Solutions per second estimated\n"
-            "\nExamples:\n"
-            + HelpExampleCli("getnetworkhashps", "")
-            + HelpExampleRpc("getnetworkhashps", "")
-       );
-
-    LOCK(cs_main);
-    return GetNetworkHashPS(params.size() > 0 ? params[0].get_int() : 120, params.size() > 1 ? params[1].get_int() : -1);
-}
-
-#ifdef ENABLE_MINING
-extern bool VERUS_MINTBLOCKS;
-UniValue getgenerate(const UniValue& params, bool fHelp)
-{
-    if (fHelp || params.size() != 0)
-        throw runtime_error(
-            "getgenerate\n"
-            "\nReturn if the server is set to mine and/or mint coins or not. The default is false.\n"
-            "It is set with the command line argument -gen (or komodo.conf setting gen) and -mint\n"
-            "It can also be set with the setgenerate call.\n"
-            "\nResult\n"
-            "{\n"
-            "  \"staking\": true|false      (boolean) If staking is on or off (see setgenerate)\n"
-            "  \"generate\": true|false     (boolean) If mining is on or off (see setgenerate)\n"
-            "  \"numthreads\": n            (numeric) The processor limit for mining. (see setgenerate)\n"
-            "}\n"
-            "\nExamples:\n"
-            + HelpExampleCli("getgenerate", "")
-            + HelpExampleRpc("getgenerate", "")
-        );
-
-    LOCK(cs_main);
-    UniValue obj(UniValue::VOBJ);
-    obj.push_back(Pair("staking",          VERUS_MINTBLOCKS));
-    obj.push_back(Pair("generate",         GetBoolArg("-gen", false)));
-    obj.push_back(Pair("numthreads",       (int64_t)KOMODO_MININGTHREADS));
-    return obj;
-}
-
 extern uint8_t NOTARY_PUBKEY33[33];
 
-//Value generate(const Array& params, bool fHelp)
-UniValue generate(const UniValue& params, bool fHelp)
-{
-    if (fHelp || params.size() < 1 || params.size() > 1)
-        throw runtime_error(
-            "generate numblocks\n"
-            "\nMine blocks immediately (before the RPC call returns)\n"
-            "\nNote: this function can only be used on the regtest network\n"
-            "\nArguments:\n"
-            "1. numblocks    (numeric) How many blocks are generated immediately.\n"
-            "\nResult\n"
-            "[ blockhashes ]     (array) hashes of blocks generated\n"
-            "\nExamples:\n"
-            "\nGenerate 11 blocks\n"
-            + HelpExampleCli("generate", "11")
-        );
+arith_uint256 komodo_PoWtarget(int32_t *percPoSp,arith_uint256 target,int32_t height,int32_t goalperc);
 
-    if (GetArg("-mineraddress", "").empty()) {
-#ifdef ENABLE_WALLET
-        if (!pwalletMain) {
-            throw JSONRPCError(RPC_METHOD_NOT_FOUND, "Wallet disabled and -mineraddress not set");
-        }
-#else
-        throw JSONRPCError(RPC_METHOD_NOT_FOUND, "komodod compiled without wallet and -mineraddress not set");
-#endif
-    }
-    if (!Params().MineBlocksOnDemand())
-        throw JSONRPCError(RPC_METHOD_NOT_FOUND, "This method can only be used on regtest");
+std::vector<CMergeMinedBlockData> MergeMinedBlockVec();
 
-    int nHeightStart = 0;
-    int nHeightEnd = 0;
-    int nHeight = 0;
-    int nGenerate = params[0].get_int();
-#ifdef ENABLE_WALLET
-    CReserveKey reservekey(pwalletMain);
-#endif
-
-    {   // Don't keep cs_main locked
-        LOCK(cs_main);
-        nHeightStart = chainActive.Height();
-        nHeight = nHeightStart;
-        nHeightEnd = nHeightStart+nGenerate;
-    }
-    unsigned int nExtraNonce = 0;
-    UniValue blockHashes(UniValue::VARR);
-    unsigned int n = Params().EquihashN();
-    unsigned int k = Params().EquihashK();
-    uint64_t lastTime = 0;
-    while (nHeight < nHeightEnd)
-    {
-        // Validation may fail if block generation is too fast
-        if (GetTime() == lastTime) MilliSleep(1001);
-        lastTime = GetTime();
-
-#ifdef ENABLE_WALLET
-        std::unique_ptr<CBlockTemplate> pblocktemplate(CreateNewBlockWithKey(reservekey,nHeight,KOMODO_MAXGPUCOUNT));
-#else
-        std::unique_ptr<CBlockTemplate> pblocktemplate(CreateNewBlockWithKey());
-#endif
-        if (!pblocktemplate.get())
-            throw JSONRPCError(RPC_INTERNAL_ERROR, "Wallet keypool empty");
-        CBlock *pblock = &pblocktemplate->block;
-        {
-            LOCK(cs_main);
-            IncrementExtraNonce(pblock, chainActive.LastTip(), nExtraNonce);
-        }
-
-        // Hash state
-        crypto_generichash_blake2b_state eh_state;
-        EhInitialiseState(n, k, eh_state);
-
-        // I = the block header minus nonce and solution.
-        CEquihashInput I{*pblock};
-        CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
-        ss << I;
-
-        // H(I||...
-        crypto_generichash_blake2b_update(&eh_state, (unsigned char*)&ss[0], ss.size());
-
-        while (true) {
-            // Yes, there is a chance every nonce could fail to satisfy the -regtest
-            // target -- 1 in 2^(2^256). That ain't gonna happen
-            pblock->nNonce = ArithToUint256(UintToArith256(pblock->nNonce) + 1);
-
-            // H(I||V||...
-            crypto_generichash_blake2b_state curr_state;
-            curr_state = eh_state;
-            crypto_generichash_blake2b_update(&curr_state,
-                                              pblock->nNonce.begin(),
-                                              pblock->nNonce.size());
-
-            // (x_1, x_2, ...) = A(I, V, n, k)
-            std::function<bool(std::vector<unsigned char>)> validBlock =
-                    [&pblock](std::vector<unsigned char> soln)
-            {
-                LOCK(cs_main);
-                pblock->nSolution = soln;
-                solutionTargetChecks.increment();
-                return CheckProofOfWork(*pblock,NOTARY_PUBKEY33,chainActive.Height(),Params().GetConsensus());
-            };
-            bool found = EhBasicSolveUncancellable(n, k, curr_state, validBlock);
-            ehSolverRuns.increment();
-            if (found) {
-                goto endloop;
-            }
-        }
-endloop:
-        CValidationState state;
-        if (!ProcessNewBlock(1,chainActive.LastTip()->GetHeight()+1,state, NULL, pblock, true, NULL))
-            throw JSONRPCError(RPC_INTERNAL_ERROR, "ProcessNewBlock, block not accepted");
-        ++nHeight;
-        blockHashes.push_back(pblock->GetHash().GetHex());
-    }
-    return blockHashes;
-}
-
-
-UniValue setgenerate(const UniValue& params, bool fHelp)
-{
-    if (fHelp || params.size() < 1 || params.size() > 2)
-        throw runtime_error(
-            "setgenerate generate ( genproclimit )\n"
-            "\nSet 'generate' true to turn either mining/generation or minting/staking on and false to turn both off.\n"
-            "Mining is limited to 'genproclimit' processors, -1 is unlimited, setgenerate true with 0 genproclimit turns on staking\n"
-            "See the getgenerate call for the current setting.\n"
-            "\nArguments:\n"
-            "1. generate         (boolean, required) Set to true to turn on generation, off to turn off.\n"
-            "2. genproclimit     (numeric, optional) Set processor limit when generation is on. Can be -1 for unlimited, 0 to turn on staking.\n"
-            "\nExamples:\n"
-            "\nSet the generation on with a limit of one processor\n"
-            + HelpExampleCli("setgenerate", "true 1") +
-            "\nTurn minting/staking on\n"
-            + HelpExampleCli("setgenerate", "true 0") +
-            "\nCheck the setting\n"
-            + HelpExampleCli("getgenerate", "") +
-            "\nTurn off generation and minting\n"
-            + HelpExampleCli("setgenerate", "false") +
-            "\nUsing json rpc\n"
-            + HelpExampleRpc("setgenerate", "true, 1")
-        );
-
-    if (GetArg("-mineraddress", "").empty()) {
-#ifdef ENABLE_WALLET
-        if (!pwalletMain) {
-            throw JSONRPCError(RPC_METHOD_NOT_FOUND, "Wallet disabled and -mineraddress not set");
-        }
-#else
-        throw JSONRPCError(RPC_METHOD_NOT_FOUND, "komodod compiled without wallet and -mineraddress not set");
-#endif
-    }
-    if (Params().MineBlocksOnDemand())
-        throw JSONRPCError(RPC_METHOD_NOT_FOUND, "Use the generate method instead of setgenerate on this network");
-
-    bool fGenerate = true;
-    if (params.size() > 0)
-        fGenerate = params[0].get_bool();
-
-    int nGenProcLimit = GetArg("-genproclimit", -1);;
-    if (params.size() > 1)
-    {
-        nGenProcLimit = params[1].get_int();
-        //if (nGenProcLimit == 0)
-        //    fGenerate = false;
-    }
-
-    if (fGenerate && !nGenProcLimit && params.size() > 1)
-    {
-        VERUS_MINTBLOCKS = 1;
-    }
-    else if (!fGenerate)
-    {
-        VERUS_MINTBLOCKS = 0;
-        KOMODO_MININGTHREADS = 0;
-    }
-    else KOMODO_MININGTHREADS = (int32_t)nGenProcLimit;
-
-    mapArgs["-gen"] = (fGenerate ? "1" : "0");
-    mapArgs ["-genproclimit"] = itostr(KOMODO_MININGTHREADS);
-
-#ifdef ENABLE_WALLET
-    GenerateBitcoins(fGenerate, pwalletMain, nGenProcLimit);
-#else
-    GenerateBitcoins(fGenerate, nGenProcLimit);
-#endif
-
-    return NullUniValue;
-}
-#endif
-
-
-UniValue getmininginfo(const UniValue& params, bool fHelp)
+UniValue getmergedmininginfo(const UniValue& params, bool fHelp)
 {
     if (fHelp || params.size() != 0)
         throw runtime_error(
-            "getmininginfo\n"
-            "\nReturns a json object containing mining-related information."
+            "getmergemininginfo\n"
+            "\nReturns a json object containing merge mining-specific information."
             "\nResult:\n"
             "{\n"
             "  \"blocks\": nnn,             (numeric) The current block\n"
@@ -423,38 +104,6 @@ UniValue getmininginfo(const UniValue& params, bool fHelp)
 }
 
 
-// NOTE: Unlike wallet RPC (which use BTC values), mining RPCs follow GBT (BIP 22) in using satoshi amounts
-UniValue prioritisetransaction(const UniValue& params, bool fHelp)
-{
-    if (fHelp || params.size() != 3)
-        throw runtime_error(
-            "prioritisetransaction <txid> <priority delta> <fee delta>\n"
-            "Accepts the transaction into mined blocks at a higher (or lower) priority\n"
-            "\nArguments:\n"
-            "1. \"txid\"       (string, required) The transaction id.\n"
-            "2. priority delta (numeric, required) The priority to add or subtract.\n"
-            "                  The transaction selection algorithm considers the tx as it would have a higher priority.\n"
-            "                  (priority of a transaction is calculated: coinage * value_in_satoshis / txsize) \n"
-            "3. fee delta      (numeric, required) The fee value (in satoshis) to add (or subtract, if negative).\n"
-            "                  The fee is not actually paid, only the algorithm for selecting transactions into a block\n"
-            "                  considers the transaction as it would have paid a higher (or lower) fee.\n"
-            "\nResult\n"
-            "true              (boolean) Returns true\n"
-            "\nExamples:\n"
-            + HelpExampleCli("prioritisetransaction", "\"txid\" 0.0 10000")
-            + HelpExampleRpc("prioritisetransaction", "\"txid\", 0.0, 10000")
-        );
-
-    LOCK(cs_main);
-
-    uint256 hash = ParseHashStr(params[0].get_str(), "txid");
-    CAmount nAmount = params[2].get_int64();
-
-    mempool.PrioritiseTransaction(hash, params[0].get_str(), params[1].get_real(), nAmount);
-    return true;
-}
-
-
 // NOTE: Assumes a conclusive result; if result is inconclusive, it must be handled by caller
 static UniValue BIP22ValidationResult(const CValidationState& state)
 {
@@ -474,7 +123,7 @@ static UniValue BIP22ValidationResult(const CValidationState& state)
     return "valid?";
 }
 
-UniValue getblocktemplate(const UniValue& params, bool fHelp)
+UniValue getmergedblocktemplate(const UniValue& params, bool fHelp)
 {
     if (fHelp || params.size() > 1)
         throw runtime_error(
@@ -817,12 +466,71 @@ protected:
     };
 };
 
-UniValue submitblock(const UniValue& params, bool fHelp)
+UniValue addmergedblock(const UniValue& params, bool fHelp)
+{
+    if (fHelp || params.size() < 1 || params.size() > 2)
+        throw runtime_error(
+            "addmergedblock \"hexdata\" ( \"jsonparametersobject\" )\n"
+            "\nAdds a fully prepared block and its header to the current merge mining queue of this daemon.\n"
+            "Parameters determine the action to take if adding this block would exceed the available merge mining slots.\n"
+            "Default action to take if adding would exceed available space is to replace the choice with the least ROI if this block provides more.\n"
+
+            "\nArguments\n"
+            "1. \"hexdata\"                     (string, required) the hex-encoded, complete block data to add. nNonce, nTime, and nSolution are unused.\n"
+            "2. \"jsonparametersobject\"        (string, optional) object of optional parameters\n"
+            "    {\n"
+            "      \"chainid\" : \"txid\"       (hex,    required) transaction ID for the defining transaction for this chain, this MUST be present\n"
+            "      \"rpchost\" : \"hostname\"   (string, optional) hostname of the daemon for this block, 127.0.0.1 is default\n"
+            "      \"rpcport\" : \"num\"        (int,    required) port of the daemon for this block, port in defining transaction is default\n"
+            "    }\n"
+
+            "\nResult:\n"
+            "\"duplicate\" - node already has valid copy of block\n"
+            "\"duplicate-invalid\" - node already has block, but it is invalid\n"
+            "\"duplicate-inconclusive\" - node already has block but has not validated it\n"
+            "\"inconclusive\" - node has not validated the block, it may not be on the node's current best chain\n"
+            "\"rejected\" - block was rejected as invalid\n"
+
+            "\nExamples:\n"
+            + HelpExampleCli("addmergedblock", "\"mydata\"")
+            + HelpExampleRpc("addmergedblock", "\"mydata\"")
+        );
+}
+
+UniValue removemergedblock(const UniValue& params, bool fHelp)
+{
+    if (fHelp || params.size() < 1 || params.size() > 2)
+        throw runtime_error(
+            "removemergedblock \"chainid\"\n"
+            "\nRemoves a merge mining block and its information from the mining queue of this daemon.\n"
+
+            "\nArguments\n"
+            "1. \"chainid\"                     (hex,    required) transaction ID for the defining transaction for this chain, this MUST be present\n"
+
+            "\nResult:\n"
+            "\"duplicate\" - node already has valid copy of block\n"
+            "\"duplicate-invalid\" - node already has block, but it is invalid\n"
+            "\"duplicate-inconclusive\" - node already has block but has not validated it\n"
+            "\"inconclusive\" - node has not validated the block, it may not be on the node's current best chain\n"
+            "\"rejected\" - block was rejected as invalid\n"
+
+            "\nExamples:\n"
+            + HelpExampleCli("removemergedblock", "\"chainid\"")
+            + HelpExampleRpc("removemergedblock", "\"chainid\"")
+        );
+}
+
+UniValue submitmergedblock(const UniValue& params, bool fHelp)
 {
     if (fHelp || params.size() < 1 || params.size() > 2)
         throw runtime_error(
             "submitblock \"hexdata\" ( \"jsonparametersobject\" )\n"
-            "\nAttempts to submit new block to network.\n"
+            "\nAttempts to submit one more more new blocks to one or more networks.\n"
+            "Each merged block submission may be valid for Verus and/or up to 8 merge mined chains.\n"
+            "The submitted block consists of a valid block for this chain, along with embedded headers of up to 8 other chains.\n"
+            "If the hash for this header meets targets of other chains that have been added with 'addmergedblock', this API will\n"
+            "submit those blocks to the specified URL endpoints with an RPC 'submitblock' request."
+            "\nAttempts to submit one more more new blocks to one or more networks.\n"
             "The 'jsonparametersobject' parameter is currently ignored.\n"
             "See https://en.bitcoin.it/wiki/BIP_0022 for full specification.\n"
 
@@ -889,118 +597,17 @@ UniValue submitblock(const UniValue& params, bool fHelp)
     return BIP22ValidationResult(state);
 }
 
-UniValue estimatefee(const UniValue& params, bool fHelp)
-{
-    if (fHelp || params.size() != 1)
-        throw runtime_error(
-            "estimatefee nblocks\n"
-            "\nEstimates the approximate fee per kilobyte\n"
-            "needed for a transaction to begin confirmation\n"
-            "within nblocks blocks.\n"
-            "\nArguments:\n"
-            "1. nblocks     (numeric)\n"
-            "\nResult:\n"
-            "n :    (numeric) estimated fee-per-kilobyte\n"
-            "\n"
-            "-1.0 is returned if not enough transactions and\n"
-            "blocks have been observed to make an estimate.\n"
-            "\nExample:\n"
-            + HelpExampleCli("estimatefee", "6")
-            );
-
-    RPCTypeCheck(params, boost::assign::list_of(UniValue::VNUM));
-
-    int nBlocks = params[0].get_int();
-    if (nBlocks < 1)
-        nBlocks = 1;
-
-    CFeeRate feeRate = mempool.estimateFee(nBlocks);
-    if (feeRate == CFeeRate(0))
-        return -1.0;
-
-    return ValueFromAmount(feeRate.GetFeePerK());
-}
-
-UniValue estimatepriority(const UniValue& params, bool fHelp)
-{
-    if (fHelp || params.size() != 1)
-        throw runtime_error(
-            "estimatepriority nblocks\n"
-            "\nEstimates the approximate priority\n"
-            "a zero-fee transaction needs to begin confirmation\n"
-            "within nblocks blocks.\n"
-            "\nArguments:\n"
-            "1. nblocks     (numeric)\n"
-            "\nResult:\n"
-            "n :    (numeric) estimated priority\n"
-            "\n"
-            "-1.0 is returned if not enough transactions and\n"
-            "blocks have been observed to make an estimate.\n"
-            "\nExample:\n"
-            + HelpExampleCli("estimatepriority", "6")
-            );
-
-    RPCTypeCheck(params, boost::assign::list_of(UniValue::VNUM));
-
-    int nBlocks = params[0].get_int();
-    if (nBlocks < 1)
-        nBlocks = 1;
-
-    return mempool.estimatePriority(nBlocks);
-}
-
-UniValue getblocksubsidy(const UniValue& params, bool fHelp)
-{
-    if (fHelp || params.size() > 1)
-        throw runtime_error(
-            "getblocksubsidy height\n"
-            "\nReturns block subsidy reward, taking into account the mining slow start and the founders reward, of block at index provided.\n"
-            "\nArguments:\n"
-            "1. height         (numeric, optional) The block height.  If not provided, defaults to the current height of the chain.\n"
-            "\nResult:\n"
-            "{\n"
-            "  \"miner\" : x.xxx           (numeric) The mining reward amount in KMD.\n"
-            "}\n"
-            "\nExamples:\n"
-            + HelpExampleCli("getblocksubsidy", "1000")
-            + HelpExampleRpc("getblockubsidy", "1000")
-        );
-
-    LOCK(cs_main);
-    int nHeight = (params.size()==1) ? params[0].get_int() : chainActive.Height();
-    if (nHeight < 0)
-        throw JSONRPCError(RPC_INVALID_PARAMETER, "Block height out of range");
-
-    CAmount nReward = GetBlockSubsidy(nHeight, Params().GetConsensus());
-    UniValue result(UniValue::VOBJ);
-    result.push_back(Pair("miner", ValueFromAmount(nReward)));
-    //result.push_back(Pair("founders", ValueFromAmount(nFoundersReward)));
-    return result;
-}
-
 static const CRPCCommand commands[] =
 { //  category              name                      actor (function)         okSafeMode
   //  --------------------- ------------------------  -----------------------  ----------
-    { "mining",             "getlocalsolps",          &getlocalsolps,          true  },
-    { "mining",             "getnetworksolps",        &getnetworksolps,        true  },
-    { "mining",             "getnetworkhashps",       &getnetworkhashps,       true  },
-    { "mining",             "getmininginfo",          &getmininginfo,          true  },
-    { "mining",             "prioritisetransaction",  &prioritisetransaction,  true  },
-    { "mining",             "getblocktemplate",       &getblocktemplate,       true  },
-    { "mining",             "submitblock",            &submitblock,            true  },
-    { "mining",             "getblocksubsidy",        &getblocksubsidy,        true  },
-
-#ifdef ENABLE_MINING
-    { "generating",         "getgenerate",            &getgenerate,            true  },
-    { "generating",         "setgenerate",            &setgenerate,            true  },
-    { "generating",         "generate",               &generate,               true  },
-#endif
-
-    { "util",               "estimatefee",            &estimatefee,            true  },
-    { "util",               "estimatepriority",       &estimatepriority,       true  },
+    { "mergemining",        "getmergemininginfo",     &getmergedmininginfo,    true  },
+    { "mergemining",        "getmergedblocktemplate", &getmergedblocktemplate, true  },
+    { "mergemining",        "addmergedblock",         &addmergedblock,         true  },
+    { "mergemining",        "clearmergedblock",       &removemergedblock,      true  },
+    { "mergemining",        "submitmergedblock",      &submitmergedblock,      true  },
 };
 
-void RegisterMiningRPCCommands(CRPCTable &tableRPC)
+void RegisterMergeMiningRPCCommands(CRPCTable &tableRPC)
 {
     for (unsigned int vcidx = 0; vcidx < ARRAYLEN(commands); vcidx++)
         tableRPC.appendCommand(commands[vcidx].name, &commands[vcidx]);
