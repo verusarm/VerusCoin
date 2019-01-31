@@ -4716,7 +4716,8 @@ bool ContextualCheckBlock(const CBlock& block, CValidationState& state, CBlockIn
     if (block.nVersion == CBlockHeader::VERUS_V2 && ASSETCHAINS_ALGO == ASSETCHAINS_VERUSHASH)
     {
         std::vector<unsigned char> vch = block.nSolution;
-        if (CVerusSolutionVector(vch).Version() != 1)
+        uint32_t ver = CVerusSolutionVector(vch).Version();
+        if (ver != CActivationHeight::SOLUTION_VERUSV2 && ver != CActivationHeight::SOLUTION_VERUSV3)
         {
             return state.DoS(10, error("%s: block header has incorrect version", __func__), REJECT_INVALID, "incorrect-block-version");
         }

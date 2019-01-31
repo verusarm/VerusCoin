@@ -437,7 +437,7 @@ bool CheckProofOfWork(const CBlockHeader &blkHeader, uint8_t *pubkey33, int32_t 
     }
     else if (ASSETCHAINS_ALGO == ASSETCHAINS_VERUSHASH)
     {
-        if (CConstVerusSolutionVector::activationHeight.ActiveVersion(height) == CConstVerusSolutionVector::activationHeight.SOLUTION_VERUSV2)
+        if (CConstVerusSolutionVector::activationHeight.ActiveVersion(height) >= CConstVerusSolutionVector::activationHeight.SOLUTION_VERUSV2)
         {
             bnLimit = UintToArith256(params.powAlternate) << VERUSHASH2_SHIFT;
         }
