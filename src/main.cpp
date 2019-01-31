@@ -1571,13 +1571,6 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState &state, const CTransa
         return state.DoS(0, false, REJECT_NONSTANDARD, "non-final");
     }
 
-    // if this is a valid stake transaction, don't put it in the mempool
-    CStakeParams p;
-    if (ValidateStakeTransaction(tx, p, false))
-    {
-        return state.DoS(0, false, REJECT_INVALID, "staking");
-    }
-
     // is it already in the memory pool?
     uint256 hash = tx.GetHash();
     if (pool.exists(hash))
@@ -1659,6 +1652,7 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState &state, const CTransa
                     return state.Invalid(error("AcceptToMemoryPool: inputs already spent"),REJECT_DUPLICATE, "bad-txns-inputs-spent");
                 }
             }
+
             // are the joinsplit's requirements met?
             if (!view.HaveJoinSplitRequirements(tx))
             {
@@ -1693,6 +1687,13 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState &state, const CTransa
             return state.DoS(1, error("AcceptToMemoryPool: too many sigops %s, %d > %d", hash.ToString(), nSigOps, MAX_STANDARD_TX_SIGOPS),REJECT_NONSTANDARD, "bad-txns-too-many-sigops");
         }
         
+        // if this is a valid stake transaction, don't put it in the mempool
+        CStakeParams p;
+        if (ValidateStakeTransaction(tx, p, false))
+        {
+            return state.DoS(0, false, REJECT_INVALID, "staking");
+        }
+
         CAmount nValueOut = tx.GetValueOut();
         CAmount nFees = nValueIn-nValueOut;
         double dPriority = view.GetPriority(tx, chainActive.Height());

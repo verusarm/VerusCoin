@@ -9,16 +9,23 @@
 #include "uint256.h"
 #include "arith_uint256.h"
 
+enum SolutionConstants
+{
+    SOLUTION_POW = 1,        // if set, this is a PoW solution, otherwise, not
+    SOLUTION_PBAAS_HEADER_SIZE = 4+32+32+32+4+32
+};
+
 class CActivationHeight
 {
     public:
         static const int32_t MAX_HEIGHT = 0x7fffffff;
         static const int32_t DEFAULT_UPGRADE_HEIGHT = MAX_HEIGHT;
-        static const int32_t NUM_VERSIONS = 2;
+        static const int32_t NUM_VERSIONS = 3;
         static const int32_t SOLUTION_VERUSV2 = 1;
+        static const int32_t SOLUTION_VERUSV3 = 2;
         bool active;
         int32_t heights[NUM_VERSIONS];
-        CActivationHeight() : heights{0, DEFAULT_UPGRADE_HEIGHT}, active(true) {}
+        CActivationHeight() : heights{0, DEFAULT_UPGRADE_HEIGHT, DEFAULT_UPGRADE_HEIGHT}, active(true) {}
 
         void SetActivationHeight(int32_t version, int32_t height)
         {
@@ -67,7 +74,7 @@ class CConstVerusSolutionVector
             return activationHeight.ActiveVersion(height);
         }
 
-        uint32_t Version(std::vector<unsigned char> &vch)
+        static uint32_t Version(const std::vector<unsigned char> &vch)
         {
             if (activationHeight.ActiveVersion(0x7fffffff) > 0 && vch.size() >= 4)
             {
@@ -79,7 +86,7 @@ class CConstVerusSolutionVector
             }
         }
 
-        bool SetVersion(std::vector<unsigned char> &vch, uint32_t v)
+        static bool SetVersion(std::vector<unsigned char> &vch, uint32_t v)
         {
             if (activationHeight.active && vch.size() >= 4)
             {
@@ -95,9 +102,47 @@ class CConstVerusSolutionVector
             }
         }
 
-        bool SetVersionByHeight(std::vector<unsigned char> &vch, uint32_t height)
+        static bool SetVersionByHeight(std::vector<unsigned char> &vch, uint32_t height)
         {
             return SetVersion(vch, activationHeight.ActiveVersion(height));
+        }
+
+        static uint32_t Descriptor(const std::vector<unsigned char> &vch)
+        {
+            if (Version(vch) >= CActivationHeight::SOLUTION_VERUSV3 && vch.size() >= 8)
+            {
+                return vch[4] + (vch[5] << 8) + (vch[6] << 16) + (vch[7] << 24);
+            }
+            else
+            {
+                return 0;
+            }
+        }
+
+        static bool SetDescriptor(std::vector<unsigned char> &vch, uint32_t d)
+        {
+            if (Version(vch) >= CActivationHeight::SOLUTION_VERUSV3 && vch.size() >= 8)
+            {
+                vch[0] = d & 0xff;
+                vch[1] = (d >> 8) & 0xff;
+                vch[2] = (d >> 16) & 0xff;
+                vch[3] = (d >> 24) & 0xff;
+                return true;
+            }
+            else
+            {
+                return false;
+            }
+        }
+
+        // returns 0 if not PBaaS, 1 if PBaaS PoW, -1 if PBaaS PoS
+        static int32_t IsPBaaS(const std::vector<unsigned char> &vch)
+        {
+            if (Version(vch) == CActivationHeight::SOLUTION_VERUSV3)
+            {
+                return  (Descriptor(vch) & SOLUTION_POW) ? 1 : -1;
+            }
+            return 0;
         }
 };
 
@@ -109,7 +154,9 @@ class CVerusSolutionVector
 
     public:
         static const bool SOLUTION_SIZE_FIXED = true;
+        static const uint32_t HEADER_BASESIZE = 143;
         static const uint32_t SOLUTION_SIZE = 1344;
+        static const uint32_t OVERHEAD_SIZE = 8;
 
         CVerusSolutionVector(std::vector<unsigned char> &_vch) : vch(_vch) { }
 
@@ -131,6 +178,89 @@ class CVerusSolutionVector
         bool SetVersionByHeight(uint32_t height)
         {
             return activationHeight.SetVersionByHeight(vch, height);
+        }
+
+        uint32_t Descriptor()
+        {
+            return activationHeight.Descriptor(vch);
+        }
+
+        bool SetDescriptor(uint32_t d)
+        {
+            return activationHeight.SetDescriptor(vch, d);
+        }
+
+        // returns 0 if not PBaaS, 1 if PBaaS PoW, -1 if PBaaS PoS
+        int32_t IsPBaaS()
+        {
+            return activationHeight.IsPBaaS(vch);
+        }
+
+        // return a vector of bytes that contains the internal data for this solution vector
+        uint32_t ExtraDataLen()
+        {
+            int len;
+
+            if (Version() < CActivationHeight::SOLUTION_VERUSV3)
+            {
+                len = 0;
+            }
+            else
+            {
+                // calculate number of bytes, minus the OVERHEAD_SIZE byte version and extra nonce at the end of the solution
+                len = (vch.size() - ((HEADER_BASESIZE + vch.size()) % 32)) - OVERHEAD_SIZE;
+            }
+
+            return len < 0 ? 0 : (uint32_t)len;
+        }
+
+        // return a vector of bytes that contains the internal data for this solution vector
+        unsigned char *ExtraDataPtr()
+        {
+            if (ExtraDataLen())
+            {
+                return &(vch.data()[OVERHEAD_SIZE]);
+            }
+            else
+            {
+                return NULL;
+            }
+        }
+
+        // return a vector of bytes that contains the internal data for this solution vector
+        void GetExtraData(std::vector<unsigned char *> &dataVec)
+        {
+            int len = ExtraDataLen();
+
+            if (len > 0)
+            {
+                dataVec.resize(len);
+                std::memcpy(&(dataVec.data()[OVERHEAD_SIZE]), &(vch.data()[OVERHEAD_SIZE]), len);
+            }
+            else
+            {
+                dataVec.clear();
+            }
+        }
+
+        // set the extra data with a pointer to bytes and length
+        bool SetExtraData(const unsigned char *pbegin, uint32_t len)
+        {
+            if (Version() < CActivationHeight::SOLUTION_VERUSV3)
+            {
+                return false;
+            }
+
+            // calculate number of bytes, minus the 4 byte version and extra nonce at the end of the solution
+            int l = (vch.size() - ((HEADER_BASESIZE + vch.size()) % 32)) - OVERHEAD_SIZE;
+            if (len > l)
+            {
+                return false;
+            }
+            else
+            {
+                std::memcpy(&(vch.data()[4]), pbegin, len);
+            }
         }
 };
 
