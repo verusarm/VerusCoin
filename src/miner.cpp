@@ -1993,7 +1993,10 @@ void static BitcoinMiner()
             {
             }
         }
-        if (fGenerate == true && VERUS_CHEATCATCHER.size() > 0)
+
+        VERUS_MINTBLOCKS = (VERUS_MINTBLOCKS && pwallet != NULL && ASSETCHAINS_LWMAPOS != 0);
+
+        if ((fGenerate == true || VERUS_MINTBLOCKS) && VERUS_CHEATCATCHER.size() > 0)
         {
             if (cheatCatcher == boost::none)
             {
@@ -2023,13 +2026,13 @@ void static BitcoinMiner()
         if ( nThreads == 0 && ASSETCHAINS_STAKED )
             nThreads = 1;
 
-        if ((nThreads == 0 || !fGenerate) && (VERUS_MINTBLOCKS == 0 || pwallet == NULL))
+        if (!fGenerate && !VERUS_MINTBLOCKS)
             return;
 
         minerThreads = new boost::thread_group();
 
 #ifdef ENABLE_WALLET
-        if (ASSETCHAINS_LWMAPOS != 0 && VERUS_MINTBLOCKS)
+        if (VERUS_MINTBLOCKS)
         {
             minerThreads->create_thread(boost::bind(&VerusStaker, pwallet));
         }
