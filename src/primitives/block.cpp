@@ -43,9 +43,10 @@ uint256 CBlockHeader::GetVerusV2Hash() const
             if (CConstVerusSolutionVector::IsPBaaS(nSolution) == 1)
             {
                 // hash canonical header if this is merge-mine capable
-                CBlockHeader bh = CBlockHeader(*this);
-                bh.SetCanonicalPBaaSHeader();
-                return SerializeVerusHashV2b(bh);
+                // CBlockHeader bh = CBlockHeader(*this);
+                // bh.SetCanonicalPBaaSHeader();
+                // return SerializeVerusHashV2b(bh);
+                return SerializeVerusHashV2b(*this);
             }
             else
             {
