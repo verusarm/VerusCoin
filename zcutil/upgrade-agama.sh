@@ -18,6 +18,6 @@ else
     echo "Copying files"
     cp ./* ${AGAMA_DIR}/resources/app/assets/bin/linux64/verusd/
     rm ${AGAMA_DIR}/resources/app/assets/bin/linux64/verusd/verusd
-    mv ${AGAMA_DIR}/resources/app/assets/bin/linux64/verus/komodod ${AGAMA_DIR}/resources/app/assets/bin/linux64/verusd/verusd
+    mv ${AGAMA_DIR}/resources/app/assets/bin/linux64/verusd/komodod ${AGAMA_DIR}/resources/app/assets/bin/linux64/verusd/verusd
     echo "Upgrade complete"
 fi
