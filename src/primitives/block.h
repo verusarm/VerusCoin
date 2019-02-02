@@ -152,6 +152,23 @@ public:
         return 0;
     }
 
+    // return a vector of bytes that contains the internal data for this solution vector
+    void GetExtraData(std::vector<unsigned char> &dataVec)
+    {
+        CVerusSolutionVector(nSolution).GetExtraData(dataVec);
+    }
+
+    // set the extra data with a pointer to bytes and length
+    bool SetExtraData(const unsigned char *pbegin, uint32_t len)
+    {
+        return CVerusSolutionVector(nSolution).SetExtraData(pbegin, len);
+    }
+
+    void ResizeExtraData(uint32_t newSize)
+    {
+        CVerusSolutionVector(nSolution).ResizeExtraData(newSize);
+    }
+
     // returns -1 on failure, upon failure, pbbh is undefined and likely corrupted
     int32_t GetPBaaSHeader(CPBaaSBlockHeader &pbh, const uint256 &cID)
     {
@@ -400,7 +417,7 @@ public:
 
     bool IsVerusPOSBlock() const
     {
-        return nNonce.IsPOSNonce(nVersion);
+        return nNonce.IsPOSNonce(nVersion) && GetVerusPOSTarget() != 0;
     }
 
     void SetVerusPOSTarget(uint32_t nBits)
