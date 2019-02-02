@@ -4976,7 +4976,14 @@ CBlockIndex *komodo_ensure(CBlock *pblock, uint256 hash)
 CBlockIndex *oldkomodo_ensure(CBlock *pblock, uint256 hash)
 {
     CBlockIndex *pindex=0,*previndex=0;
-    if ( (pindex = mapBlockIndex[hash]) == 0 )
+
+    BlockMap::iterator mi = mapBlockIndex.find(hash);
+    if (mi != mapBlockIndex.end())
+    {
+        pindex = (*mi).second;
+    }
+
+    if ( pindex == 0 )
     {
         pindex = new CBlockIndex();
         if (!pindex)

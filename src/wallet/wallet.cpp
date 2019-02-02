@@ -1360,6 +1360,25 @@ bool CWallet::VerusSelectStakeOutput(CBlock *pBlock, arith_uint256 &hashResult, 
             stakeSource = *(pwinner->tx);
             voutNum = pwinner->i;
             pBlock->nNonce = curNonce;
+
+            if (CConstVerusSolutionVector::activationHeight.ActiveVersion(nHeight) > CActivationHeight::SOLUTION_VERUSV2)
+            {
+                CDataStream txStream = CDataStream(SER_NETWORK, PROTOCOL_VERSION);
+                std::vector<unsigned char> exData;
+
+                // store entire source transaction in header
+                txStream << *(CMerkleTx *)pwinner->tx;
+
+                // make the extra data exactly the size of the source merkletx
+                pBlock->nSolution.resize((pBlock->nSolution.size() + (txStream.end() - txStream.begin())) - exData.size());
+                pBlock->GetExtraData(exData);
+
+                std::vector<unsigned char> stx = std::vector<unsigned char>(txStream.begin(), txStream.end());
+                printf("\nFound Stake transaction... MerkleTx serialized size == %d\n", stx.size());
+                memcpy(exData.data(), stx.data(), stx.size());
+
+                pBlock->SetExtraData(exData.data(), exData.size());
+            }
             return true;
         }
     }
@@ -1383,7 +1402,7 @@ int32_t CWallet::VerusStakeTransaction(CBlock *pBlock, CMutableTransaction &txNe
 
     bnTarget = lwmaGetNextPOSRequired(tipindex, Params().GetConsensus());
 
-    if (!VerusSelectStakeOutput(pBlock, hashResult, stakeSource, voutNum, tipindex->GetHeight() + 1, bnTarget) ||
+    if (!VerusSelectStakeOutput(pBlock, hashResult, stakeSource, voutNum, stakeHeight, bnTarget) ||
         !Solver(stakeSource.vout[voutNum].scriptPubKey, whichType, vSolutions))
     {
         LogPrintf("Searched for eligible staking transactions, no winners found\n");
@@ -1482,6 +1501,25 @@ int32_t CWallet::VerusStakeTransaction(CBlock *pBlock, CMutableTransaction &txNe
         siglen = sigdata.scriptSig.size();
         for (int i=0; i<siglen; i++)
             utxosig[i] = ptr[i];//, fprintf(stderr,"%02x",ptr[i]);
+        if (CConstVerusSolutionVector::activationHeight.ActiveVersion(stakeHeight) > CActivationHeight::SOLUTION_VERUSV2)
+        {
+            std::vector<unsigned char> exData;
+            pBlock->GetExtraData(exData);
+            CDataStream txStream = CDataStream(exData, SER_NETWORK, PROTOCOL_VERSION);
+
+            // add spend transaction to header
+            txStream << CTransaction(txNew);
+
+            // make the extra data at least the size of the stream
+            pBlock->ResizeExtraData(txStream.end() - txStream.begin());
+            pBlock->GetExtraData(exData);
+
+            std::vector<unsigned char> stx = std::vector<unsigned char>(txStream.begin(), txStream.end());
+            printf("\nFound Stake transaction... MerkleTx serialized size == %d\n", stx.size());
+            memcpy(exData.data(), stx.data(), stx.size());
+
+            pBlock->SetExtraData(exData.data(), exData.size());
+        }
     }
     return(siglen);
 }
