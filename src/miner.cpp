@@ -2014,10 +2014,6 @@ void static BitcoinMiner()
                 }
             }
         }
-        else
-        {
-            mapArgs["-gen"] = "0";
-        }
 
         static boost::thread_group* minerThreads = NULL;
 
