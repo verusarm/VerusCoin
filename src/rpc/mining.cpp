@@ -342,6 +342,11 @@ UniValue setgenerate(const UniValue& params, bool fHelp)
             nGenProcLimit = gpl;
         }
     }
+    else
+    {
+        VERUS_MINTBLOCKS = 1;
+        KOMODO_MININGTHREADS = -1;
+    }
 
     if (fGenerate && !gpl && params.size() > 1)
     {
@@ -352,7 +357,10 @@ UniValue setgenerate(const UniValue& params, bool fHelp)
         VERUS_MINTBLOCKS = 0;
         KOMODO_MININGTHREADS = 0;
     }
-    else KOMODO_MININGTHREADS = (int32_t)nGenProcLimit;
+    else
+    {
+        KOMODO_MININGTHREADS = (int32_t)nGenProcLimit;
+    }
 
     mapArgs["-gen"] = (fGenerate ? "1" : "0");
     mapArgs ["-genproclimit"] = itostr(KOMODO_MININGTHREADS);

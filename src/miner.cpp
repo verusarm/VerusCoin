@@ -2014,13 +2014,9 @@ void static BitcoinMiner()
                 }
             }
         }
-        else
-        {
-            mapArgs["-gen"] = "0";
-        }
 
         static boost::thread_group* minerThreads = NULL;
-        
+
         if (nThreads < 0)
             nThreads = GetNumCores();
         
@@ -2035,7 +2031,7 @@ void static BitcoinMiner()
         if ( nThreads == 0 && ASSETCHAINS_STAKED )
             nThreads = 1;
 
-        if (!fGenerate && !VERUS_MINTBLOCKS)
+        if (!fGenerate)
             return;
 
         minerThreads = new boost::thread_group();

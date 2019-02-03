@@ -1879,16 +1879,19 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
     StartNode(threadGroup, scheduler);
 
     VERUS_CHEATCATCHER = GetArg("-cheatcatcher", "");
+    bool gen = GetBoolArg("-gen", false);
 
 #ifdef ENABLE_MINING
     // Generate coins in the background
  #ifdef ENABLE_WALLET
     VERUS_MINTBLOCKS = GetBoolArg("-mint", false);
+    mapArgs["-gen"] = gen || VERUS_MINTBLOCKS ? "1" : "0";
+    mapArgs["-genproclimit"] = itostr(GetArg("-genproclimit", gen ? -1 : 0));
 
     if (pwalletMain || !GetArg("-mineraddress", "").empty())
-        GenerateBitcoins(GetBoolArg("-gen", false), pwalletMain, GetArg("-genproclimit", 0));
+        GenerateBitcoins(gen || VERUS_MINTBLOCKS, pwalletMain, GetArg("-genproclimit", gen ? -1 : 0));
  #else
-    GenerateBitcoins(GetBoolArg("-gen", false), GetArg("-genproclimit", 0));
+    GenerateBitcoins(gen, GetArg("-genproclimit", -1));
  #endif
 #endif
 
