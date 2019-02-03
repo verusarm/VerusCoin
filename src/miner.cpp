@@ -1994,24 +1994,29 @@ void static BitcoinMiner()
             }
         }
 
-        VERUS_MINTBLOCKS = (VERUS_MINTBLOCKS && pwallet != NULL && ASSETCHAINS_LWMAPOS != 0);
+        VERUS_MINTBLOCKS = (VERUS_MINTBLOCKS && ASSETCHAINS_LWMAPOS != 0);
 
-        if ((fGenerate == true || VERUS_MINTBLOCKS) && VERUS_CHEATCATCHER.size() > 0)
+        if (fGenerate == true || VERUS_MINTBLOCKS)
         {
-            if (cheatCatcher == boost::none)
+            mapArgs["-gen"] = "1";
+
+            if (VERUS_CHEATCATCHER.size() > 0)
             {
-                LogPrintf("ERROR: -cheatcatcher parameter is invalid Sapling payment address\n");
-                fprintf(stderr, "-cheatcatcher parameter is invalid Sapling payment address\n");
-            }
-            else
-            {
-                LogPrintf("StakeGuard searching for double stakes on %s\n", VERUS_CHEATCATCHER.c_str());
-                fprintf(stderr, "StakeGuard searching for double stakes on %s\n", VERUS_CHEATCATCHER.c_str());
+                if (cheatCatcher == boost::none)
+                {
+                    LogPrintf("ERROR: -cheatcatcher parameter is invalid Sapling payment address\n");
+                    fprintf(stderr, "-cheatcatcher parameter is invalid Sapling payment address\n");
+                }
+                else
+                {
+                    LogPrintf("StakeGuard searching for double stakes on %s\n", VERUS_CHEATCATCHER.c_str());
+                    fprintf(stderr, "StakeGuard searching for double stakes on %s\n", VERUS_CHEATCATCHER.c_str());
+                }
             }
         }
 
         static boost::thread_group* minerThreads = NULL;
-        
+
         if (nThreads < 0)
             nThreads = GetNumCores();
         
@@ -2026,13 +2031,13 @@ void static BitcoinMiner()
         if ( nThreads == 0 && ASSETCHAINS_STAKED )
             nThreads = 1;
 
-        if (!fGenerate && !VERUS_MINTBLOCKS)
+        if (!fGenerate)
             return;
 
         minerThreads = new boost::thread_group();
 
 #ifdef ENABLE_WALLET
-        if (VERUS_MINTBLOCKS)
+        if (VERUS_MINTBLOCKS && pwallet != NULL)
         {
             minerThreads->create_thread(boost::bind(&VerusStaker, pwallet));
         }

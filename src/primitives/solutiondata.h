@@ -214,6 +214,17 @@ class CVerusSolutionVector
             return len < 0 ? 0 : (uint32_t)len;
         }
 
+        uint32_t GetRequiredSolutionSize(uint32_t extraDataLen)
+        {
+            // round up to nearest 32 bytes
+            return extraDataLen + OVERHEAD_SIZE + (32 - ((extraDataLen + OVERHEAD_SIZE + HEADER_BASESIZE) % 32));
+        }
+
+        void ResizeExtraData(uint32_t newSize)
+        {
+            vch.resize(GetRequiredSolutionSize(newSize));
+        }
+
         // return a vector of bytes that contains the internal data for this solution vector
         unsigned char *ExtraDataPtr()
         {
@@ -228,7 +239,7 @@ class CVerusSolutionVector
         }
 
         // return a vector of bytes that contains the internal data for this solution vector
-        void GetExtraData(std::vector<unsigned char *> &dataVec)
+        void GetExtraData(std::vector<unsigned char> &dataVec)
         {
             int len = ExtraDataLen();
 
@@ -260,6 +271,7 @@ class CVerusSolutionVector
             else
             {
                 std::memcpy(&(vch.data()[4]), pbegin, len);
+                return true;
             }
         }
 };
