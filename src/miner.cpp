@@ -1996,18 +1996,27 @@ void static BitcoinMiner()
 
         VERUS_MINTBLOCKS = (VERUS_MINTBLOCKS && pwallet != NULL && ASSETCHAINS_LWMAPOS != 0);
 
-        if ((fGenerate == true || VERUS_MINTBLOCKS) && VERUS_CHEATCATCHER.size() > 0)
+        if (fGenerate == true || VERUS_MINTBLOCKS)
         {
-            if (cheatCatcher == boost::none)
+            mapArgs["-gen"] = "1";
+
+            if (VERUS_CHEATCATCHER.size() > 0)
             {
-                LogPrintf("ERROR: -cheatcatcher parameter is invalid Sapling payment address\n");
-                fprintf(stderr, "-cheatcatcher parameter is invalid Sapling payment address\n");
+                if (cheatCatcher == boost::none)
+                {
+                    LogPrintf("ERROR: -cheatcatcher parameter is invalid Sapling payment address\n");
+                    fprintf(stderr, "-cheatcatcher parameter is invalid Sapling payment address\n");
+                }
+                else
+                {
+                    LogPrintf("StakeGuard searching for double stakes on %s\n", VERUS_CHEATCATCHER.c_str());
+                    fprintf(stderr, "StakeGuard searching for double stakes on %s\n", VERUS_CHEATCATCHER.c_str());
+                }
             }
-            else
-            {
-                LogPrintf("StakeGuard searching for double stakes on %s\n", VERUS_CHEATCATCHER.c_str());
-                fprintf(stderr, "StakeGuard searching for double stakes on %s\n", VERUS_CHEATCATCHER.c_str());
-            }
+        }
+        else
+        {
+            mapArgs["-gen"] = "0";
         }
 
         static boost::thread_group* minerThreads = NULL;
