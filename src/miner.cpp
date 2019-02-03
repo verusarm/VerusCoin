@@ -1994,7 +1994,7 @@ void static BitcoinMiner()
             }
         }
 
-        VERUS_MINTBLOCKS = (VERUS_MINTBLOCKS && pwallet != NULL && ASSETCHAINS_LWMAPOS != 0);
+        VERUS_MINTBLOCKS = (VERUS_MINTBLOCKS && ASSETCHAINS_LWMAPOS != 0);
 
         if (fGenerate == true || VERUS_MINTBLOCKS)
         {
@@ -2037,7 +2037,7 @@ void static BitcoinMiner()
         minerThreads = new boost::thread_group();
 
 #ifdef ENABLE_WALLET
-        if (VERUS_MINTBLOCKS)
+        if (VERUS_MINTBLOCKS && pwallet != NULL)
         {
             minerThreads->create_thread(boost::bind(&VerusStaker, pwallet));
         }
