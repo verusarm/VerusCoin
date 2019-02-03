@@ -336,7 +336,7 @@ UniValue setgenerate(const UniValue& params, bool fHelp)
     int gpl = -1;
     if (params.size() > 1)
     {
-        int gpl = params[1].get_int();
+        gpl = params[1].get_int();
         if (gpl != 0)
         {
             nGenProcLimit = gpl;
