@@ -675,7 +675,7 @@ bool mine_verus_v2_port(CBlockHeader &bh, CVerusHashV2bWriter &vhw, uint256 &fin
         unsigned char *psrc = curBuf;
         for (int i = 0; i < n256blks; i++)
         {
-            haraka256(pkey, psrc);
+            haraka256_port(pkey, psrc);
             psrc = pkey;
             pkey += 32;
         }
