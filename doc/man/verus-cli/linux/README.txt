@@ -1,4 +1,4 @@
-VerusCoin Command Line Tools v0.5.5c
+VerusCoin Command Line Tools v0.5.6
 
 Contents:
 komodod - VerusCoin's enhanced Komodo daemon
