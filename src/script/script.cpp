@@ -375,7 +375,40 @@ bool CScript::IsPayToCryptoCondition(CScript *pCCSubScript) const
 
 bool CScript::IsPayToCryptoCondition() const
 {
-    return IsPayToCryptoCondition(NULL);
+    return IsPayToCryptoCondition((CScript *)NULL);
+}
+
+bool CScript::IsInstantSpend() const
+{
+    uint32_t ecode;
+    if (IsPayToCryptoCondition(&ecode))
+    {
+        switch(ecode)
+        {
+            case EVAL_EARNEDNOTARIZATION:
+            case EVAL_FINALIZENOTARIZATION:
+                return true;
+        }
+    }
+    return false;
+}
+
+bool CScript::IsPayToCryptoCondition(uint32_t *ecode) const
+{
+    const_iterator pc = this->begin();
+    vector<unsigned char> data;
+    opcodetype opcode;
+    if (!this->GetOp(pc, opcode, data)) return false;
+    if (!(opcode > OP_0 && opcode < OP_PUSHDATA1)) return false;
+    CC *cond = cc_readConditionBinary(data.data(), data.size());
+    if (!cond) return false;
+
+    if (IsSupportedCryptoCondition(cond) && cond->codeLength > 0)
+    {
+        *ecode = cond->code[0];
+        return true;
+    }
+    return false;
 }
 
 bool CScript::MayAcceptCryptoCondition() const
@@ -388,7 +421,35 @@ bool CScript::MayAcceptCryptoCondition() const
     if (!(opcode > OP_0 && opcode < OP_PUSHDATA1)) return false;
     CC *cond = cc_readConditionBinary(data.data(), data.size());
     if (!cond) return false;
+
     bool out = IsSupportedCryptoCondition(cond);
+
+    if (out && !(cond->codeLength == 0))
+    {
+        uint8_t ecode = cond->code[0];
+        switch(ecode)
+        {
+            case EVAL_STAKEGUARD:
+            case EVAL_PBAASDEFINITION:
+            case EVAL_EARNEDNOTARIZATION:
+            case EVAL_ACCEPTEDNOTARIZATION:
+            case EVAL_FINALIZENOTARIZATION:
+            case EVAL_SERVICEREWARD:
+            case EVAL_RESERVEOUTPUT:
+            case EVAL_RESERVEEXPORT:
+            case EVAL_RESERVEIMPORT:
+                break;
+
+            default:
+                out = false;
+                break;
+        }
+    }
+    else
+    {
+        out = false;
+    }
+    
     cc_free(cond);
     return out;
 }

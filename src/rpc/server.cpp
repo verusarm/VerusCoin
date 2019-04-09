@@ -264,7 +264,7 @@ UniValue stop(const UniValue& params, bool fHelp)
 
     // Shutdown will take long enough that the response should get back
     StartShutdown();
-    sprintf(buf,"%s Komodo server stopping",ASSETCHAINS_SYMBOL);
+    sprintf(buf,"%s server stopping",ASSETCHAINS_SYMBOL);
     return buf;
 }
 

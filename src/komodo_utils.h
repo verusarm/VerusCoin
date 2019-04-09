@@ -14,6 +14,7 @@
  ******************************************************************************/
 #include "komodo_defs.h"
 #include "key_io.h"
+#include "pbaas/crosschainrpc.h"
 #include <string.h>
 
 #ifdef _WIN32
@@ -1424,7 +1425,20 @@ void komodo_configfile(char *symbol,uint16_t rpcport)
 #ifndef FROM_CLI
             if ( (fp= fopen(fname,"wb")) != 0 )
             {
-                fprintf(fp,"rpcuser=user%u\nrpcpassword=pass%s\nrpcport=%u\nserver=1\ntxindex=1\nrpcworkqueue=256\nrpcallowip=127.0.0.1\n",crc,password,rpcport);
+                fprintf(fp,"rpcuser=user%u\nrpcpassword=pass%s\nrpcport=%u\nserver=1\ntxindex=1\nrpcworkqueue=256\nrpcallowip=127.0.0.1\nrpchost=127.0.0.1\n",crc,password,rpcport);
+                // add basic chain parameters for non-VRSC chains
+                if (!_IsVerusActive())
+                {
+                    const char *charPtr;
+                    // all basic coin parameters
+                    fprintf(fp,"ac_algo=verushash\nac_veruspos=50\nac_cc=1\n");
+                    fprintf(fp,"ac_supply=%s\n", (charPtr = mapArgs["-ac_supply"].c_str())[0] == 0 ? "0" : charPtr);
+                    fprintf(fp,"ac_halving=%s\n", (charPtr = mapArgs["-ac_halving"].c_str())[0] == 0 ? "0" : charPtr);
+                    fprintf(fp,"ac_decay=%s\n", (charPtr = mapArgs["-ac_decay"].c_str())[0] == 0 ? "0" : charPtr);
+                    fprintf(fp,"ac_reward=%s\n", (charPtr = mapArgs["-ac_reward"].c_str())[0] == 0 ? "0" : charPtr);
+                    fprintf(fp,"ac_eras=%s\n", (charPtr = mapArgs["-ac_eras"].c_str())[0] == 0 ? "0" : charPtr);
+                    fprintf(fp,"ac_end=%s\n", (charPtr = mapArgs["-ac_end"].c_str())[0] == 0 ? "0" : charPtr);
+                }
                 fclose(fp);
                 printf("Created (%s)\n",fname);
             } else printf("Couldnt create (%s)\n",fname);
@@ -1550,12 +1564,12 @@ int32_t komodo_whoami(char *pubkeystr,int32_t height,uint32_t timestamp)
 
 char *argv0suffix[] =
 {
-    (char *)"mnzd", (char *)"mnz-cli", (char *)"mnzd.exe", (char *)"mnz-cli.exe", (char *)"btchd", (char *)"btch-cli", (char *)"btchd.exe", (char *)"btch-cli.exe"
+    (char *)"verusd", (char *)"verus-cli", (char *)"verusd.exe", (char *)"verus-cli.exe", (char *)"verustestd", (char *)"verustest-cli", (char *)"verustestd.exe", (char *)"verustest-cli.exe"
 };
 
 char *argv0names[] =
 {
-    (char *)"MNZ", (char *)"MNZ", (char *)"MNZ", (char *)"MNZ", (char *)"BTCH", (char *)"BTCH", (char *)"BTCH", (char *)"BTCH"
+    (char *)"VRSC", (char *)"VRSC", (char *)"VRSC", (char *)"VRSC", (char *)"VRSCTEST", (char *)"VRSCTEST", (char *)"VRSCTEST", (char *)"VRSCTEST"
 };
 
 int64_t komodo_max_money()
@@ -1650,10 +1664,11 @@ extern std::string VERUS_CHEATCATCHER;
 void komodo_args(char *argv0)
 {
     extern const char *Notaries_elected1[][2];
+
     std::string name,addn; char *dirname,fname[512],arg0str[64],magicstr[9]; uint8_t magic[4],extrabuf[256],*extraptr=0; FILE *fp; uint64_t val; uint16_t port; int32_t i,baseid,len,n,extralen = 0;
     IS_KOMODO_NOTARY = GetBoolArg("-notary", false);
 
-    if ( GetBoolArg("-gen", false) != 0 )\
+    if ( GetBoolArg("-gen", false) != 0 )
     {
         KOMODO_MININGTHREADS = GetArg("-genproclimit",-1);
         if (KOMODO_MININGTHREADS == 0)
@@ -1680,7 +1695,10 @@ void komodo_args(char *argv0)
         }
         //KOMODO_PAX = 1;
     } //else KOMODO_PAX = GetArg("-pax",0);
-    name = GetArg("-ac_name","");
+
+    // either the testmode parameter or calling this chain VRSCTEST will put us into testmode
+    PBAAS_TESTMODE = GetBoolArg("-testmode", false);
+
     if ( argv0 != 0 )
     {
         len = (int32_t)strlen(argv0);
@@ -1695,27 +1713,126 @@ void komodo_args(char *argv0)
             }
         }
     }
+
+    // setting test mode also prevents the name of this chain from being set to VRSC
+    name = GetArg("-ac_name", name);
+    if (PBAAS_TESTMODE && name == "VRSC")
+    {
+        name = "VRSCTEST";
+    }
+    else if (name == "VRSCTEST" && !PBAAS_TESTMODE)
+    {
+        PBAAS_TESTMODE = true;
+    }
+
+    if (name == "VRSC")
+    {
+        // first setup Verus parameters
+        mapArgs["-ac_algo"] = "verushash";
+        mapArgs["-ac_cc"] = "1";
+        mapArgs["-ac_supply"] = "0";
+        mapArgs["-ac_eras"] = "3";
+        mapArgs["-ac_reward"] = "0,38400000000,2400000000";
+        mapArgs["-ac_halving"] = "1,43200,1051920";
+        mapArgs["-ac_decay"] = "100000000,0,0";
+        mapArgs["-ac_end"] = "10080,226080,0";
+        mapArgs["-ac_timelockgte"] = "19200000000";
+        mapArgs["-ac_timeunlockfrom"] = "129600";
+        mapArgs["-ac_timeunlockto"] = "1180800";
+        mapArgs["-ac_veruspos"] = "50";
+
+        if (!ReadConfigFile("VRSC", mapArgs, mapMultiArgs))
+        {
+            LogPrintf("Config file for %s not found.\n", name.c_str());
+        }
+    }
+    else if (name == "VRSCTEST")
+    {
+        // setup Verus test parameters
+        mapArgs["-ac_algo"] = "verushash";
+        mapArgs["-ac_cc"] = "1";
+        mapArgs["-ac_supply"] = "0";
+        mapArgs["-ac_eras"] = "3";
+        mapArgs["-ac_reward"] = "38400000000,38400000000,38400000000";
+        mapArgs["-ac_halving"] = "1,43200,1051920";
+        mapArgs["-ac_decay"] = "100000000,0,0";
+        mapArgs["-ac_end"] = "10080,226080,0";
+        mapArgs["-ac_veruspos"] = "50";
+
+        if (!ReadConfigFile("VRSCTEST", mapArgs, mapMultiArgs))
+        {
+            LogPrintf("Config file for %s not found.\n", name.c_str());
+        }
+    }
+    else
+    {
+        // this is a PBaaS chain, so look for an installation on the local file system or check the Verus daemon if it's running
+        if (!ReadConfigFile(name, mapArgs, mapMultiArgs) && GetBoolArg("-autochain", false))
+        {
+            map<string, string> settings;
+            map<string, vector<string>> settingsmulti;
+
+            // if we are requested to automatically load the information from the Verus chain, do it if we can find the daemon
+            if (ReadConfigFile(PBAAS_TESTMODE ? "VRSCTEST" : "VRSC", settings, settingsmulti))
+            {
+                PBAAS_USERPASS = settingsmulti.find("-rpcuser")->second[0] + ":" + settingsmulti.find("-rpcpassword")->second[0];
+                PBAAS_PORT = atoi(settingsmulti.find("-rpcport")->second[0]);
+                PBAAS_HOST = settingsmulti.find("-rpchost")->second[0];
+                if (!PBAAS_HOST.size())
+                {
+                    PBAAS_HOST = "127.0.0.1";
+                }
+                UniValue params(UniValue::VARR);
+                params.push_back(UniValue(CrossChainRPCData::GetChainID(name).GetHex()));
+                UniValue result = RPCCall("getchaindefinition", params, PBAAS_USERPASS, PBAAS_PORT, PBAAS_HOST);
+
+                if (result.size() > 0)
+                {
+                    // load the mapArgs from the chain definition
+                    printf("getchaindefinition result:\n");
+                    auto keys = result.getKeys();
+                    auto values = result.getValues();
+                    for (int i = 0; i < keys.size(); i++)
+                    {
+                        printf("%s : %s\n", keys[i].c_str(), values[i].getValStr().c_str());
+                    }
+                }
+            }
+            else
+            {
+                LogPrintf("Config file for %s not found. Cannot load %s information from blockchain.\n", PBAAS_TESTMODE ? "VRSCTEST" : "VRSC", name.c_str());
+            }
+        }
+    }
+
+    VERUS_CHAINID = CrossChainRPCData::GetChainID((PBAAS_TESTMODE ? "VRSCTEST" : "VRSC"));
+
+    /*
     KOMODO_STOPAT = GetArg("-stopat",0);
-    ASSETCHAINS_CC = GetArg("-ac_cc",0);
+    ASSETCHAINS_CC = GetArg("-ac_cc",1);
     KOMODO_CCACTIVATE = GetArg("-ac_ccactivate",0);
     ASSETCHAINS_PUBLIC = GetArg("-ac_public",0);
     ASSETCHAINS_PRIVATE = GetArg("-ac_private",0);
+    */
+    KOMODO_STOPAT = 0;
+    ASSETCHAINS_CC = 1;
+    KOMODO_CCACTIVATE = 0;
+    ASSETCHAINS_PUBLIC = 0;
+    ASSETCHAINS_PRIVATE = 0;
+   
     if ( (KOMODO_REWIND= GetArg("-rewind",0)) != 0 )
     {
         printf("KOMODO_REWIND %d\n",KOMODO_REWIND);
     }
     if ( name.c_str()[0] != 0 )
     {
-        std::string selectedAlgo = GetArg("-ac_algo", std::string(ASSETCHAINS_ALGORITHMS[0]));
+        std::string selectedAlgo = GetArg("-ac_algo", std::string(ASSETCHAINS_ALGORITHMS[1]));
 
         for ( int i = 0; i < ASSETCHAINS_NUMALGOS; i++ )
         {
             if (std::string(ASSETCHAINS_ALGORITHMS[i]) == selectedAlgo)
             {
                 ASSETCHAINS_ALGO = i;
-                // only worth mentioning if it's not equihash
-                if (ASSETCHAINS_ALGO != ASSETCHAINS_EQUIHASH)
-                    printf("ASSETCHAINS_ALGO, algorithm set to %s\n", selectedAlgo.c_str());
                 break;
             }
         }
@@ -1741,6 +1858,7 @@ void komodo_args(char *argv0)
             ASSETCHAINS_TIMELOCKGTE = _ASSETCHAINS_TIMELOCKOFF;
             ASSETCHAINS_TIMEUNLOCKFROM = ASSETCHAINS_TIMEUNLOCKTO = 0;
         }
+        
 
         Split(GetArg("-ac_end",""),  ASSETCHAINS_ENDSUBSIDY, 0);
         Split(GetArg("-ac_reward",""),  ASSETCHAINS_REWARD, 0);
@@ -1770,18 +1888,11 @@ void komodo_args(char *argv0)
 
         // for now, we only support 50% PoS due to other parts of the algorithm needing adjustment for
         // other values
-        if ( (ASSETCHAINS_LWMAPOS = GetArg("-ac_veruspos",0)) != 0 )
+        if ( (ASSETCHAINS_LWMAPOS = GetArg("-ac_veruspos", 50)) != 0 )
             ASSETCHAINS_LWMAPOS = 50;
         
-        ASSETCHAINS_SAPLING = GetArg("-ac_sapling", -1);
-        if (ASSETCHAINS_SAPLING == -1)
-        {
-            ASSETCHAINS_OVERWINTER = GetArg("-ac_overwinter", -1);
-        }
-        else
-        {
-            ASSETCHAINS_OVERWINTER = GetArg("-ac_overwinter", ASSETCHAINS_SAPLING);
-        }
+        ASSETCHAINS_SAPLING = 1;
+        ASSETCHAINS_OVERWINTER = 1;
 
         if ( strlen(ASSETCHAINS_OVERRIDE_PUBKEY.c_str()) == 66 && ASSETCHAINS_COMMISSION > 0 && ASSETCHAINS_COMMISSION <= 100000000 )
             decode_hex(ASSETCHAINS_OVERRIDE_PUBKEY33,33,(char *)ASSETCHAINS_OVERRIDE_PUBKEY.c_str());
@@ -1846,6 +1957,8 @@ void komodo_args(char *argv0)
         if ( strlen(addn.c_str()) > 0 )
             ASSETCHAINS_SEED = 1;
         strncpy(ASSETCHAINS_SYMBOL,name.c_str(),sizeof(ASSETCHAINS_SYMBOL)-1);
+
+        ASSETCHAINS_CHAINID = CrossChainRPCData::GetChainID(std::string(ASSETCHAINS_SYMBOL));
 
         MAX_MONEY = komodo_max_money();
 

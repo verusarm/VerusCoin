@@ -61,6 +61,50 @@ std::string StakeGuardAddr = "RCG8KwJNDVwpUBcdoa6AoHqHVJsA1uMYMR";
 std::string StakeGuardPubKey = "03166b7813a4855a88e9ef7340a692ef3c2decedfdc2c7563ec79537e89667d935";
 std::string StakeGuardWIF = "Uw7vRYHGKjyi1FaJ8Lv1USSuj7ntUti8fAhSDiCdbzuV6yDagaTn";
 
+// defines the currency characteristics of a PBaaS currency that will be the native coins of a PBaaS chain
+std::string PBaaSDefinitionAddr = "";
+std::string PBaaSDefinitionPubKey = "";
+std::string PBaaSDefinitionWIF = "";
+
+// output that provides proof of stake validation as a gate for other crypto conditions
+// some crypto conditions include the condition that a specific PoS selector output is also an input and an output of the
+// transaction with the gated crypto condition output. an output of this type must originate
+// along with an output of the other type of crypto condition as well
+std::string PoSSelectorAddr = "";
+std::string PoSSelectorPubKey = "";
+std::string PoSSelectorWIF = "";
+
+// output that binds an object in the opret of the transaction of the corresponding input to a hash value as
+// the cryptocondition output
+std::string BoundObjectAddr = "";
+std::string BoundObjectPubKey = "";
+std::string BoundObjectWIF = "";
+
+// StakeGuard - nothing at stake
+std::string ServiceRewardAddr = "";
+std::string ServiceRewardPubKey = "";
+std::string ServiceRewardWIF = "";
+
+// StakeGuard - nothing at stake
+std::string PBaaSNotarizationAddr = "";
+std::string PBaaSNotarizationPubKey = "";
+std::string PBaaSNotarizationWIF = "";
+
+// StakeGuard - nothing at stake
+std::string ReserveOutputAddr = "";
+std::string ReserveOutputPubKey = "";
+std::string ReserveOutputWIF = "";
+
+// StakeGuard - nothing at stake
+std::string ReserveExportAddr = "";
+std::string ReserveExportPubKey = "";
+std::string ReserveExportWIF = "";
+
+// StakeGuard - nothing at stake
+std::string ReserveImportAddr = "";
+std::string ReserveImportPubKey = "";
+std::string ReserveImportWIF = "";
+
 // Assets, aka Tokens
 #define FUNCNAME IsAssetsInput
 #define EVALCODE EVAL_ASSETS

@@ -1,4 +1,6 @@
-## VerusCoin version 0.5.3 with VerusHash 2.0
+## VerusCoin version 0.6+ unstable PBaaS branch
+
+This branch cannot yet be expected to work, but it may.
 
 Arguably the world's most advanced technology, zero knowledge privacy-centric blockchain, Verus Coin brings Sapling performance and zero knowledge features to an intelligent system with interchain smart contracts and a completely original, combined proof of stake/proof of work consensus algorithm that solves the nothing at stake problem. With this and its approach towards CPU mining and ASICs, Verus Coin strives to be one of the most naturally decentralizing and attack resistant blockchains in existence.
 

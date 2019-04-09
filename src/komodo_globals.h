@@ -13,7 +13,7 @@
  *                                                                            *
  ******************************************************************************/
 
-#include "komodo_defs.h"
+#include "komodo_structs.h"
 
 void komodo_prefetch(FILE *fp);
 uint32_t komodo_heightstamp(int32_t height);
@@ -51,6 +51,14 @@ uint8_t NOTARY_PUBKEY33[33],ASSETCHAINS_OVERRIDE_PUBKEY33[33],ASSETCHAINS_PUBLIC
 bool VERUS_MINTBLOCKS;
 
 char ASSETCHAINS_SYMBOL[KOMODO_ASSETCHAIN_MAXLEN],ASSETCHAINS_USERPASS[4096];
+
+bool PBAAS_TESTMODE;
+std::string PBAAS_HOST;
+int32_t PBAAS_PORT;
+std::string PBAAS_USERPASS;
+
+uint160 ASSETCHAINS_CHAINID;
+uint160 VERUS_CHAINID;
 uint16_t ASSETCHAINS_P2PPORT,ASSETCHAINS_RPCPORT;
 uint32_t ASSETCHAIN_INIT,ASSETCHAINS_CC,KOMODO_STOPAT;
 uint32_t ASSETCHAINS_MAGIC = 2387029918;

@@ -73,18 +73,16 @@ bool Eval::Dispatch(const CC *cond, const CTransaction &txTo, unsigned int nIn)
     std::vector<uint8_t> vparams(cond->code+1, cond->code+cond->codeLength);
     switch ( ecode )
     {
+        case EVAL_STAKEGUARD:
+            return(ProcessCC(cp,this, vparams, txTo, nIn));
+            break;
+
         case EVAL_IMPORTPAYOUT:
             //return ImportPayout(vparams, txTo, nIn);
             break;
             
         case EVAL_IMPORTCOIN:
             //return ImportCoin(vparams, txTo, nIn);
-            break;
-            
-        default:
-            // only support coinbase guard for now
-            if (ecode == EVAL_STAKEGUARD)
-                return(ProcessCC(cp,this, vparams, txTo, nIn));
             break;
     }
     return Invalid("invalid-code, dont forget to add EVAL_NEWCC to Eval::Dispatch");

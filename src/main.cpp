@@ -20,8 +20,10 @@
 #include "init.h"
 #include "merkleblock.h"
 #include "metrics.h"
+#include "mmr.h"
 #include "notarisationdb.h"
 #include "net.h"
+#include "pbaas/pbaas.h"
 #include "pow.h"
 #include "script/interpreter.h"
 #include "txdb.h"
@@ -1698,19 +1700,19 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState &state, const CTransa
         CAmount nFees = nValueIn-nValueOut;
         double dPriority = view.GetPriority(tx, chainActive.Height());
         
-        // Keep track of transactions that spend a coinbase, which we re-scan
+        // Keep track of transactions that spend a coinbase and are not "InstantSpend:", which we re-scan
         // during reorgs to ensure COINBASE_MATURITY is still met.
         bool fSpendsCoinbase = false;
         if (!tx.IsCoinImport()) {
             BOOST_FOREACH(const CTxIn &txin, tx.vin) {
                 const CCoins *coins = view.AccessCoins(txin.prevout.hash);
-                if (coins->IsCoinBase()) {
+                if (coins->IsCoinBase() && !coins->vout[txin.prevout.n].scriptPubKey.IsInstantSpend()) {
                     fSpendsCoinbase = true;
                     break;
                 }
             }
         }
-        
+
         // Grab the branch ID we expect this transaction to commit to. We don't
         // yet know if it does, but if the entry gets added to the mempool, then
         // it has passed ContextualCheckInputs and therefore this is correct.
@@ -2451,7 +2453,9 @@ namespace Consensus {
                 }
 
                 // Ensure that coinbases are matured, no DoS as retry may work later
-                if (nSpendHeight - coins->nHeight < COINBASE_MATURITY) {
+                // some crypto-condition outputs get around the rules by being used only to create threads
+                // of transactions, such as notarization, rather than being converted to fungible coins
+                if (nSpendHeight - coins->nHeight < COINBASE_MATURITY && !coins->vout[prevout.n].scriptPubKey.IsInstantSpend()) {
                     return state.DoS(0,
                                      error("CheckInputs(): tried to spend coinbase at depth %d", nSpendHeight - coins->nHeight),
                                      REJECT_INVALID, "bad-txns-premature-spend-of-coinbase");
@@ -2578,6 +2582,12 @@ bool ContextualCheckInputs(
                 }
             }
         }
+    }
+
+    // we pre-check cc's on all outputs, including coinbase or mint
+    if (fScriptChecks)
+    {
+        // TODO: cc-precheck to ensure cc integrity on mined transactions
     }
 
     if (tx.IsCoinImport())
@@ -2797,6 +2807,7 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
 
             for (unsigned int k = tx.vout.size(); k-- > 0;) {
                 const CTxOut &out = tx.vout[k];
+                COptCCParams params;
 
                 if (out.scriptPubKey.IsPayToScriptHash()) {
                     vector<unsigned char> hashBytes(out.scriptPubKey.begin()+2, out.scriptPubKey.begin()+22);
@@ -2828,15 +2839,23 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
                     addressUnspentIndex.push_back(make_pair(CAddressUnspentKey(1, Hash160(hashBytes), hash, k), CAddressUnspentValue()));
                     
                 }
-                else if (out.scriptPubKey.IsPayToCryptoCondition()) {
-                    vector<unsigned char> hashBytes(out.scriptPubKey.begin(), out.scriptPubKey.end());
+                else if (IsPayToCryptoCondition(out.scriptPubKey, params)) {
+                    uint160 hashBytes;
+
+                    if (params.IsValid() && !params.vKeys.empty())
+                    {
+                        hashBytes = GetDestinationID(params.vKeys[0]);
+                    }
+                    else
+                    {
+                        hashBytes = Hash160(vector<unsigned char>(out.scriptPubKey.begin(), out.scriptPubKey.end()));
+                    }
                     
                     // undo receiving activity
-                    addressIndex.push_back(make_pair(CAddressIndexKey(1, Hash160(hashBytes), pindex->GetHeight(), i, hash, k, false), out.nValue));
+                    addressIndex.push_back(make_pair(CAddressIndexKey(1, hashBytes, pindex->GetHeight(), i, hash, k, false), out.nValue));
                     
                     // undo unspent index
-                    addressUnspentIndex.push_back(make_pair(CAddressUnspentKey(1, Hash160(hashBytes), hash, k), CAddressUnspentValue()));
-                    
+                    addressUnspentIndex.push_back(make_pair(CAddressUnspentKey(1, hashBytes, hash, k), CAddressUnspentValue()));
                 }
                 else {
                     continue;
@@ -2887,6 +2906,8 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
                 }
 
                 if (fAddressIndex) {
+                    COptCCParams params;
+
                     const CTxOut &prevout = view.GetOutputFor(tx.vin[j]);
                     if (prevout.scriptPubKey.IsPayToScriptHash()) {
                         vector<unsigned char> hashBytes(prevout.scriptPubKey.begin()+2, prevout.scriptPubKey.begin()+22);
@@ -2919,14 +2940,23 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
                         addressUnspentIndex.push_back(make_pair(CAddressUnspentKey(1, Hash160(hashBytes), input.prevout.hash, input.prevout.n), CAddressUnspentValue(prevout.nValue, prevout.scriptPubKey, undo.nHeight)));
                         
                     }
-                    else if (prevout.scriptPubKey.IsPayToCryptoCondition()) {
-                        vector<unsigned char> hashBytes(prevout.scriptPubKey.begin(), prevout.scriptPubKey.end());
-                        
+                    else if (IsPayToCryptoCondition(prevout.scriptPubKey, params)) {
+                        uint160 hashBytes;
+
+                        if (params.IsValid() && !params.vKeys.empty())
+                        {
+                            hashBytes = GetDestinationID(params.vKeys[0]);
+                        }
+                        else
+                        {
+                            hashBytes = Hash160(vector <unsigned char>(prevout.scriptPubKey.begin(), prevout.scriptPubKey.end()));
+                        }
+
                         // undo spending activity
-                        addressIndex.push_back(make_pair(CAddressIndexKey(1, Hash160(hashBytes), pindex->GetHeight(), i, hash, j, true), prevout.nValue * -1));
+                        addressIndex.push_back(make_pair(CAddressIndexKey(1, hashBytes, pindex->GetHeight(), i, hash, j, true), prevout.nValue * -1));
                         
                         // restore unspent index
-                        addressUnspentIndex.push_back(make_pair(CAddressUnspentKey(1, Hash160(hashBytes), input.prevout.hash, input.prevout.n), CAddressUnspentValue(prevout.nValue, prevout.scriptPubKey, undo.nHeight)));
+                        addressUnspentIndex.push_back(make_pair(CAddressUnspentKey(1, hashBytes, input.prevout.hash, input.prevout.n), CAddressUnspentValue(prevout.nValue, prevout.scriptPubKey, undo.nHeight)));
                         
                     }
                     else {
@@ -3226,6 +3256,7 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
                     const CTxOut &prevout = view.GetOutputFor(tx.vin[j]);
                     uint160 hashBytes;
                     int addressType;
+                    COptCCParams params;
 
                     if (prevout.scriptPubKey.IsPayToScriptHash()) {
                         hashBytes = uint160(vector <unsigned char>(prevout.scriptPubKey.begin()+2, prevout.scriptPubKey.begin()+22));
@@ -3239,8 +3270,15 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
                         hashBytes = Hash160(vector <unsigned char>(prevout.scriptPubKey.begin()+1, prevout.scriptPubKey.begin()+34));
                         addressType = 1;
                     }
-                    else if (prevout.scriptPubKey.IsPayToCryptoCondition()) {
-                        hashBytes = Hash160(vector <unsigned char>(prevout.scriptPubKey.begin(), prevout.scriptPubKey.end()));
+                    else if (IsPayToCryptoCondition(prevout.scriptPubKey, params)) {
+                        if (params.IsValid() && !params.vKeys.empty())
+                        {
+                            hashBytes = GetDestinationID(params.vKeys[0]);
+                        }
+                        else
+                        {
+                            hashBytes = Hash160(vector <unsigned char>(prevout.scriptPubKey.begin(), prevout.scriptPubKey.end()));
+                        }
                         addressType = 1;
                     }
                     else {
@@ -3262,7 +3300,6 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
                         spentIndex.push_back(make_pair(CSpentIndexKey(input.prevout.hash, input.prevout.n), CSpentIndexValue(txhash, j, pindex->GetHeight(), prevout.nValue, addressType, hashBytes)));
                     }
                 }
-
             }
             // Add in sigops done by pay-to-script-hash inputs;
             // this is to prevent a "rogue miner" from creating
@@ -3289,7 +3326,8 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
         if (fAddressIndex) {
             for (unsigned int k = 0; k < tx.vout.size(); k++) {
                 const CTxOut &out = tx.vout[k];
-//fprintf(stderr,"add %d vouts\n",(int32_t)tx.vout.size());
+                COptCCParams params;
+
                 if (out.scriptPubKey.IsPayToScriptHash()) {
                     vector<unsigned char> hashBytes(out.scriptPubKey.begin()+2, out.scriptPubKey.begin()+22);
 
@@ -3320,14 +3358,23 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
                     addressUnspentIndex.push_back(make_pair(CAddressUnspentKey(1, Hash160(hashBytes), txhash, k), CAddressUnspentValue(out.nValue, out.scriptPubKey, pindex->GetHeight())));
                     
                 }
-                else if (out.scriptPubKey.IsPayToCryptoCondition()) {
-                    vector<unsigned char> hashBytes(out.scriptPubKey.begin(), out.scriptPubKey.end());
+                else if (IsPayToCryptoCondition(out.scriptPubKey, params)) {
+                    uint160 hashBytes;
+
+                    if (params.IsValid() && !params.vKeys.empty())
+                    {
+                        hashBytes = GetDestinationID(params.vKeys[0]);
+                    }
+                    else
+                    {
+                        hashBytes = Hash160(vector<unsigned char>(out.scriptPubKey.begin(), out.scriptPubKey.end()));
+                    }
                     
                     // record receiving activity
-                    addressIndex.push_back(make_pair(CAddressIndexKey(1, Hash160(hashBytes), pindex->GetHeight(), i, txhash, k, false), out.nValue));
+                    addressIndex.push_back(make_pair(CAddressIndexKey(1, hashBytes, pindex->GetHeight(), i, txhash, k, false), out.nValue));
                     
                     // record unspent output
-                    addressUnspentIndex.push_back(make_pair(CAddressUnspentKey(1, Hash160(hashBytes), txhash, k), CAddressUnspentValue(out.nValue, out.scriptPubKey, pindex->GetHeight())));
+                    addressUnspentIndex.push_back(make_pair(CAddressUnspentKey(1, hashBytes, txhash, k), CAddressUnspentValue(out.nValue, out.scriptPubKey, pindex->GetHeight())));
                     
                 }
                 else {
@@ -6424,7 +6471,8 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
 
         int nHeight = GetHeight();
 
-        if (CConstVerusSolutionVector::activationHeight.ActiveVersion(nHeight) ? nVersion < MIN_VERUSHASHV2_VERSION : 
+        if (CConstVerusSolutionVector::activationHeight.ActiveVersion(nHeight) >= CConstVerusSolutionVector::activationHeight.SOLUTION_VERUSV3 ? 
+                                                                                 nVersion < MIN_PBAAS_VERSION : 
                                                                                  nVersion < MIN_PEER_PROTO_VERSION)
         {
             // disconnect from peers older than this proto version
@@ -6450,6 +6498,15 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
         
         if (!vRecv.empty())
             vRecv >> addrFrom >> nNonce;
+
+        if (nVersion >= MIN_PBAAS_VERSION)
+        {
+            if (!vRecv.empty())
+            {
+                vRecv >> pfrom->hashPaymentAddress;
+            }
+        }
+
         if (!vRecv.empty()) {
             vRecv >> LIMITED_STRING(pfrom->strSubVer, MAX_SUBVERSION_LENGTH);
             pfrom->cleanSubVer = SanitizeString(pfrom->strSubVer);

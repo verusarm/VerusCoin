@@ -124,6 +124,8 @@ extern uint64_t ASSETCHAINS_REWARD[ASSETCHAINS_MAX_ERAS], ASSETCHAINS_TIMELOCKGT
 extern const char *ASSETCHAINS_ALGORITHMS[];
 extern int32_t VERUS_MIN_STAKEAGE, ASSETCHAINS_ALGO, ASSETCHAINS_EQUIHASH, ASSETCHAINS_VERUSHASH, ASSETCHAINS_LASTERA, ASSETCHAINS_LWMAPOS, ASSETCHAINS_NONCESHIFT[], ASSETCHAINS_HASHESPERROUND[];
 extern char ASSETCHAINS_SYMBOL[KOMODO_ASSETCHAIN_MAXLEN];
+extern uint160 ASSETCHAINS_CHAINID;
+extern uint160 VERUS_CHAINID;
 extern std::string NOTARY_PUBKEY,ASSETCHAINS_OVERRIDE_PUBKEY;
 void vcalc_sha256(char deprecated[(256 >> 3) * 2 + 1],uint8_t hash[256 >> 3],uint8_t *src,int32_t len);
 
@@ -1018,6 +1020,16 @@ CBlockIndex *get_chainactive(int32_t height)
 }
 
 /*
+ * When called, this checks to see if Verus daemon is running and available. If so, it calls to get the latest
+ * notarization data and all information necessary to make a notarization transaction for the current chain, or the
+ * Verus chain.
+ */
+void static UpdateNotarizationData()
+{
+
+}
+
+/*
  * A separate thread to stake, while the miner threads mine.
  */
 void static VerusStaker(CWallet *pwallet)
@@ -1059,6 +1071,8 @@ void static VerusStaker(CWallet *pwallet)
         {
             waitForPeers(chainparams);
             CBlockIndex* pindexPrev = chainActive.LastTip();
+
+            // TODO: update notarization data if this is a PBaaS chain, and there is a Verus daemon available
 
             // Create new block
             unsigned int nTransactionsUpdatedLast = mempool.GetTransactionsUpdated();
@@ -1114,6 +1128,19 @@ void static VerusStaker(CWallet *pwallet)
             // we don't use this, but IncrementExtraNonce is the function that builds the merkle tree
             unsigned int nExtraNonce = 0;
             IncrementExtraNonce(pblock, pindexPrev, nExtraNonce);
+
+            // update PBaaS header
+            if (CConstVerusSolutionVector::activationHeight.ActiveVersion(Mining_height) == CActivationHeight::SOLUTION_VERUSV3)
+            {
+                // set the PBaaS header
+                uint256 mmvRoot;
+                {
+                    LOCK(cs_main);
+                    ChainMerkleMountainView mmv(chainActive.GetMMR(), pindexPrev->GetHeight());
+                    mmvRoot = mmv.GetRoot();
+                    pblock->AddUpdatePBaaSHeader(mmvRoot);
+                }
+            }
 
             if (vNodes.empty() && chainparams.MiningRequiresPeers())
             {
@@ -1312,7 +1339,68 @@ void static BitcoinMiner_noeq()
                     } else fprintf(stderr,"%s vouts.%d mining.%d vs %d\n",ASSETCHAINS_SYMBOL,(int32_t)pblock->vtx[0].vout.size(),Mining_height,ASSETCHAINS_MINHEIGHT);
                 }
             }
+
+            // this builds the Merkle tree
             IncrementExtraNonce(pblock, pindexPrev, nExtraNonce);
+
+            // update PBaaS header
+            if (CConstVerusSolutionVector::activationHeight.ActiveVersion(Mining_height) == CActivationHeight::SOLUTION_VERUSV3)
+            {
+                // set the PBaaS header
+                uint256 mmvRoot;
+                {
+                    LOCK(cs_main);
+                    ChainMerkleMountainView mmv(chainActive.GetMMR(), pindexPrev->GetHeight());
+                    mmvRoot = mmv.GetRoot();
+                    pblock->AddUpdatePBaaSHeader(mmvRoot);
+
+                    // tests to validate a few transactions and all past blocks
+                    for (uint32_t i = 1; i <= pindexPrev->GetHeight(); i += 10)
+                    {
+                        CBlockIndex *pindex = chainActive[i - 1];
+                        mmv.resize(i);
+                        uint256 testRoot = mmv.GetRoot();
+                        uint32_t testHeight = ((unsigned char *)&testRoot)[0] < i ? (i - ((unsigned char *)&testRoot)[0]) - 1 : i - 1;
+                        CMerkleBranch branchMerkle, branchBlock;
+                        chainActive.GetBlockProof(mmv, branchBlock, testHeight);
+                        chainActive.GetMerkleProof(mmv, branchMerkle, testHeight);
+                        uint256 merkleAnswer = branchMerkle.SafeCheck(chainActive[testHeight]->hashMerkleRoot);
+                        uint256 blockAnswer = branchBlock.SafeCheck(chainActive[testHeight]->GetBlockHash());
+                        if (merkleAnswer != testRoot)
+                        {
+                            printf("Failed merkle proof at testheight: %u\nexpected:   %s\ncalculated: %s\n", testHeight, testRoot.GetHex().c_str(), merkleAnswer.GetHex().c_str());
+                            printf("Bits for left (0) and right (1): \n");
+                            std::vector<unsigned char> proofBits = ChainMerkleMountainView::GetProofBits(testHeight, i);
+                            printf("right\n");
+                            for (auto bit : proofBits)
+                            {
+                                printf("%s\n", bit ? "left" : "right");
+                            }
+                        }
+                        if (blockAnswer != testRoot)
+                        {
+                            printf("Failed block proof at testheight: %u\nexpected:   %s\ncalculated: %s\n", testHeight, testRoot.GetHex().c_str(), blockAnswer.GetHex().c_str());
+                            printf("Bits for left (0) and right (1): \n");
+                            std::vector<unsigned char> proofBits = ChainMerkleMountainView::GetProofBits(testHeight, i);
+                            printf("left\n");
+                            for (auto bit : proofBits)
+                            {
+                                printf("%s\n", bit ? "left" : "right");
+                            }
+                        }
+                        const CMMRPowerNode *ppower = mmv.GetRootNode();
+                        if (!ppower || ppower->Work() != pindex->chainPower.chainWork)
+                        {
+                            printf("Work did not match:\nexpected:   %s\ncalculated: %s\n", ArithToUint256(pindex->chainPower.chainWork).GetHex().c_str(), ArithToUint256(ppower->Work()).GetHex().c_str());
+                        }
+                        if (!ppower || ppower->Stake() != pindex->chainPower.chainStake)
+                        {
+                            printf("Stake did not match:\nexpected:   %s\ncalculated: %s\n", ArithToUint256(pindex->chainPower.chainStake).GetHex().c_str(), ArithToUint256(ppower->Stake()).GetHex().c_str());
+                        }
+                    }
+                }
+            }
+
             LogPrintf("Running %s miner with %u transactions in block (%u bytes)\n",ASSETCHAINS_ALGORITHMS[ASSETCHAINS_ALGO],
                        pblock->vtx.size(),::GetSerializeSize(*pblock,SER_NETWORK,PROTOCOL_VERSION));
             //
@@ -1345,7 +1433,7 @@ void static BitcoinMiner_noeq()
                 fprintf(stderr," PoW for staked coin PoS %d%% vs target %d%%\n",percPoS,(int32_t)ASSETCHAINS_STAKED);
             }
 
-            uint64_t i, count, hashesToGo;
+            uint64_t count, hashesToGo;
             bool verusHashV2 = pblock->nVersion == CBlockHeader::VERUS_V2;
             if (!verusHashV2)
             {
