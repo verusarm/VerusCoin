@@ -24,4 +24,6 @@ UniValue getcrossnotarization(const UniValue& params, bool fHelp);
 UniValue definepbaaschain(const UniValue& params, bool fHelp);
 UniValue addmergedblock(const UniValue& params, bool fHelp);
 
+void RegisterPBaaSRPCCommands(CRPCTable &tableRPC);
+
 #endif // VERUS_PBAASRPC_H

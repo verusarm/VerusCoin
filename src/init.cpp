@@ -28,6 +28,7 @@
 #include "miner.h"
 #include "net.h"
 #include "rpc/server.h"
+#include "rpc/pbaasrpc.h"
 #include "rpc/register.h"
 #include "script/standard.h"
 #include "scheduler.h"

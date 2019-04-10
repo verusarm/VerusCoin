@@ -89,8 +89,7 @@ public:
 
     COpRetProof opRetProof;                 // hashes and types of all objects in our opret, enabling reconstruction without the opret on notarized chain
 
-    std::vector<CKeyID> nodeKeys;           // payment keys for up to max nodes on alternate blockchain
-    std::vector<std::string> nodeAddresses; // network addresses for same number of nodes
+    std::vector<CNodeData> nodes;           // network nodes
 
     CPBaaSNotarization() : nVersion(PBAAS_VERSION_INVALID) { }
 
@@ -105,8 +104,7 @@ public:
                        uint256 crossnotarization,
                        int32_t crossheight,
                        COpRetProof orp,
-                       std::vector<CKeyID> &rnodekeys,
-                       std::vector<std::string> &rnodeaddresses) : 
+                       std::vector<CNodeData> &Nodes) : 
                        nVersion(version),
                        chainID(chainid),
                        rewardPerBlock(rewardperblock),
@@ -122,8 +120,7 @@ public:
 
                        opRetProof(orp),
 
-                       nodeKeys(rnodekeys),
-                       nodeAddresses(rnodeaddresses)
+                       nodes(Nodes)
     { }
 
     CPBaaSNotarization(const std::vector<unsigned char> &asVector)
@@ -148,8 +145,7 @@ public:
         READWRITE(crossNotarization);
         READWRITE(crossHeight);
         READWRITE(opRetProof);
-        READWRITE(nodeKeys);
-        READWRITE(nodeAddresses);
+        READWRITE(nodes);
     }
 
     std::vector<unsigned char> AsVector()
@@ -176,15 +172,12 @@ public:
         obj.push_back(Pair("prevheight", prevHeight));
         obj.push_back(Pair("crossnotarization", crossNotarization.GetHex()));
         obj.push_back(Pair("crossheight", rewardPerBlock));
-        UniValue nodes(UniValue::VARR);
-        for (int i = 0; i < nodeKeys.size(); i++)
+        UniValue nodesUni(UniValue::VARR);
+        for (auto node : nodes)
         {
-            UniValue node(UniValue::VOBJ);
-            node.push_back(Pair("nodeaddress", nodeAddresses[i]));
-            node.push_back(Pair("paymentaddress", EncodeDestination(CTxDestination(nodeKeys[i]))));
-            nodes.push_back(node);
+            nodesUni.push_back(node.ToUniValue());
         }
-        obj.push_back(Pair("nodes", nodes));
+        obj.push_back(Pair("nodes", nodesUni));
         return obj;
     }
 };
@@ -307,9 +300,5 @@ public:
         return obj;
     }
 };
-
-bool GetLastMatchingNotarization(uint256 &chainID, std::vector<CTransaction> &vNotarizations, uint8_t notarizationType = 0);
-
-bool GetCCParams(const CScript &scr, COptCCParams &ccParams);
 
 #endif

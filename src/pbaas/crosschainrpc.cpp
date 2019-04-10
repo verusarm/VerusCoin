@@ -43,6 +43,10 @@
 
 using namespace std;
 
+extern string PBAAS_HOST;
+extern string PBAAS_USERPASS;
+extern int32_t PBAAS_PORT;
+
 //
 // Exception thrown on connection error.  This error is used to determine
 // when to wait if -rpcwait is given.
@@ -122,9 +126,34 @@ static void http_error_cb(enum evhttp_request_error err, void *ctx)
 }
 #endif
 
-static CrossChainRPCData LoadFromConfig(std::string fPath)
+UniValue CCrossChainRPCData::ToUniValue() const
 {
-    // TODO
+    UniValue obj(UniValue::VOBJ);
+    obj.push_back(Pair("host", host));
+    obj.push_back(Pair("port", port));
+    obj.push_back(Pair("credentials", credentials));
+    return obj;
+}
+
+static CCrossChainRPCData LoadFromConfig(std::string name)
+{
+    map<string, string> settings;
+    map<string, vector<string>> settingsmulti;
+    CCrossChainRPCData ret;
+
+    // if we are requested to automatically load the information from the Verus chain, do it if we can find the daemon
+    if (ReadConfigFile(name, settings, settingsmulti))
+    {
+        auto rpcuser = settings.find("-rpcuser");
+        auto rpcpwd = settings.find("-rpcpassword");
+        auto rpcport = settings.find("-rpcport");
+        auto rpchost = settings.find("-rpchost");
+        ret.credentials = rpcuser != settings.end() ? rpcuser->second + ":" : "";
+        ret.credentials += rpcpwd != settings.end() ? rpcpwd->second : "";
+        ret.port = rpcport != settings.end() ? atoi(rpcport->second) : (name == "VRSC" ? 27486 : 0);
+        ret.host = rpchost != settings.end() ? rpchost->second : "127.0.0.1";
+    }
+    return ret;
 }
 
 // credentials for now are "user:password"
@@ -186,4 +215,29 @@ UniValue RPCCall(const string& strMethod, const UniValue& params, const string c
         throw std::runtime_error("expected reply to have result, error and id properties");
 
     return reply;
+}
+
+UniValue RPCCallRoot(const string& strMethod, const UniValue& params)
+{
+    string host, credentials;
+    int port;
+    map<string, string> settings;
+    map<string, vector<string>> settingsmulti;
+
+    if (PBAAS_HOST != "" && PBAAS_PORT != 0)
+    {
+        return RPCCall(strMethod, params, PBAAS_USERPASS, PBAAS_PORT, PBAAS_HOST);
+    }
+    else if (ReadConfigFile(PBAAS_TESTMODE ? "VRSCTEST" : "VRSC", settings, settingsmulti))
+    {
+        credentials = settingsmulti.find("-rpcuser")->second[0] + ":" + settingsmulti.find("-rpcpassword")->second[0];
+        port = atoi(settingsmulti.find("-rpcport")->second[0]);
+        host = settingsmulti.find("-rpchost")->second[0];
+        if (!host.size())
+        {
+            host = "127.0.0.1";
+        }
+        return RPCCall(strMethod, params, credentials, port, host);
+    }
+    return UniValue(UniValue::VNULL);
 }

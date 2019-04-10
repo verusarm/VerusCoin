@@ -90,7 +90,7 @@ bool GetChainDefinition(string &name, CPBaaSChainDefinition &chainDef)
 {
     uint160 chainID = CPBaaSChainDefinition::GetChainID(name);
 
-    CKeyID keyID(CrossChainRPCData::GetConditionID(chainID, EVAL_PBAASDEFINITION));
+    CKeyID keyID(CCrossChainRPCData::GetConditionID(chainID, EVAL_PBAASDEFINITION));
 
     std::vector<std::pair<CAddressIndexKey, CAmount>> addressIndex;
 
@@ -126,16 +126,16 @@ UniValue getchaindefinition(const UniValue& params, bool fHelp)
 
             "\nResult:\n"
             "  {\n"
-            "    \"version\" : \"n\",           (int) version of this chain definition\n"
-            "    \"name\" : \"string\",         (string) name or symbol of the chain, same as passed\n"
-            "    \"address\" : \"string\",      (string) cryptocurrency address to send fee and non-converted premine\n"
-            "    \"chainid\" : \"hex-string\",  (string) 40 char string that represents the chain ID, calculated from the name\n"
-            "    \"premine\" : \"n\",           (int) amount of currency paid out to the premine address in block #1, may be smart distribution\n"
-            "    \"convertible\" : \"xxxx\"     (bool) if this currency is a fractional reserve currency of Verus\n"
-            "    \"launchfee\" : \"n\",         (int) (launchfee * total converted) / 100000000 sent directly to premine address\n"
-            "    \"startblock\" : \"n\",        (int) block # on this chain, which must be notarized into block one of the chain\n"
-            "    \"endblock\" : \"n\",          (int) block # after which, this chain's useful life is considered to be over\n"
-            "    \"eras\" : \"[obj, ...]\",     (objarray) different chain phases of rewards and convertibility\n"
+            "    \"version\" : \"n\",             (int) version of this chain definition\n"
+            "    \"name\" : \"string\",           (string) name or symbol of the chain, same as passed\n"
+            "    \"address\" : \"string\",        (string) cryptocurrency address to send fee and non-converted premine\n"
+            "    \"chainid\" : \"hex-string\",    (string) 40 char string that represents the chain ID, calculated from the name\n"
+            "    \"premine\" : \"n\",             (int) amount of currency paid out to the premine address in block #1, may be smart distribution\n"
+            "    \"convertible\" : \"xxxx\"       (bool) if this currency is a fractional reserve currency of Verus\n"
+            "    \"launchfee\" : \"n\",           (int) (launchfee * total converted) / 100000000 sent directly to premine address\n"
+            "    \"startblock\" : \"n\",          (int) block # on this chain, which must be notarized into block one of the chain\n"
+            "    \"endblock\" : \"n\",            (int) block # after which, this chain's useful life is considered to be over\n"
+            "    \"eras\" : \"[obj, ...]\",       (objarray) different chain phases of rewards and convertibility\n"
             "    {\n"
             "      \"reward\" : \"[n, ...]\",     (int) reward start for each era in native coin\n"
             "      \"decay\" : \"[n, ...]\",      (int) exponential or linear decay of rewards during each era\n"
@@ -143,6 +143,11 @@ UniValue getchaindefinition(const UniValue& params, bool fHelp)
             "      \"eraend\" : \"[n, ...]\",     (int) block marking the end of each era\n"
             "      \"eraoptions\" : \"[n, ...]\", (int) options for each era (reserved)\n"
             "    }\n"
+            "    \"nodes\"      : \"[obj, ..]\",  (objectarray, optional) up to 2 nodes that can be used to connect to the blockchain"
+            "      [{\n"
+            "         \"nodeaddress\" : \"txid\", (string,  optional) internet, TOR, or other supported address for node\n"
+            "         \"paymentaddress\" : \"n\", (int,     optional) rewards payment address\n"
+            "       }, .. ]\n"
             "  }\n"
 
             "\nExamples:\n"
@@ -169,7 +174,7 @@ UniValue getchaindefinition(const UniValue& params, bool fHelp)
         throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid chainid");
     }
 
-    CKeyID keyID(CrossChainRPCData::GetConditionID(chainID, EVAL_PBAASDEFINITION));
+    CKeyID keyID(CCrossChainRPCData::GetConditionID(chainID, EVAL_PBAASDEFINITION));
     std::vector<std::pair<CAddressIndexKey, CAmount>> addressIndex;
     CPBaaSChainDefinition chainDef;
 
@@ -202,7 +207,7 @@ bool GetNotarizationData(uint160 chainID, uint32_t ecode, CChainNotarizationData
     notarizationData.version = PBAAS_VERSION;
 
     // look for unspent notarization finalization outputs for the requested chain
-    CKeyID keyID(CrossChainRPCData::GetConditionID(chainID, EVAL_FINALIZENOTARIZATION));
+    CKeyID keyID(CCrossChainRPCData::GetConditionID(chainID, EVAL_FINALIZENOTARIZATION));
     std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> > unspentOutputs;
     CPBaaSChainDefinition chainDef;
 
@@ -572,7 +577,7 @@ UniValue getcrossnotarization(const UniValue& params, bool fHelp)
             int32_t prevHeight = pnindex->GetHeight();
 
             // which transaction are we in this block?
-            CKeyID keyID(CrossChainRPCData::GetConditionID(chainID, EVAL_FINALIZENOTARIZATION));
+            CKeyID keyID(CCrossChainRPCData::GetConditionID(chainID, EVAL_FINALIZENOTARIZATION));
             std::vector<std::pair<CAddressIndexKey, CAmount>> addressIndex;
 
             if (!GetAddressIndex(keyID, 1, addressIndex, prevHeight, prevHeight))
@@ -641,8 +646,7 @@ UniValue getcrossnotarization(const UniValue& params, bool fHelp)
             // if we haven't yet, prove a PoS block
 
             // get node keys and addresses
-            vector<CKeyID> nodeIDs;
-            vector<string> nodeAddresses;
+            vector<CNodeData> nodes;
             const static int MAX_NODES = 2;
 
             {
@@ -655,19 +659,17 @@ UniValue getcrossnotarization(const UniValue& params, bool fHelp)
                         vNodes[i]->copyStats(stats);
                         if (vNodes[i]->fSuccessfullyConnected && !vNodes[i]->fInbound)
                         {
-                            nodeIDs.push_back(vNodes[i]->hashPaymentAddress);
-                            nodeAddresses.push_back(vNodes[i]->addr.ToString());
+                            nodes.push_back(CNodeData(vNodes[i]->addr.ToString(), vNodes[i]->hashPaymentAddress));
                         }
                     }
                 }
             }
 
-            // reduce number to max
-            while (nodeIDs.size() > MAX_NODES)
+            // reduce number to max by removing randomly
+            while (nodes.size() > MAX_NODES)
             {
-                int toErase = GetRandInt(nodeIDs.size() - 1);
-                nodeIDs.erase(nodeIDs.begin() + toErase);
-                nodeAddresses.erase(nodeAddresses.begin() + toErase);
+                int toErase = GetRandInt(nodes.size() - 1);
+                nodes.erase(nodes.begin() + toErase);
             }
 
             // get the current block's MMR root and proof height
@@ -680,7 +682,7 @@ UniValue getcrossnotarization(const UniValue& params, bool fHelp)
                                                                  uint256(), 0,
                                                                  tx.GetHash(), prevHeight,
                                                                  orp,
-                                                                 nodeIDs, nodeAddresses);
+                                                                 nodes);
 
             // we now have the chain objects, all associated proofs, and notarization data
             // make a partial transaction and return it
@@ -851,8 +853,6 @@ UniValue definepbaaschain(const UniValue& params, bool fHelp)
     UniValue fbl = find_value(notrewards, "firstblock");
     newChain.firstBlockReward = fbl.isNull() ? newChain.notarizationReward * 8 : fbl.get_int64();
 
-    std::vector<string> nodeaddresses;
-    std::vector<CKeyID> nodekeys;
     param = find_value(params[0], "nodes");
     if (!param.isNull())
     {
@@ -866,8 +866,7 @@ UniValue definepbaaschain(const UniValue& params, bool fHelp)
                 break;
             }
 
-            nodeaddresses.push_back(netaddr.get_str());
-            nodekeys.push_back(GetDestinationID(DecodeDestination(paymentaddr.get_str())));
+            newChain.nodes.push_back(CNodeData(netaddr.get_str(), paymentaddr.get_str()));
         }
     }
 
@@ -939,8 +938,7 @@ UniValue definepbaaschain(const UniValue& params, bool fHelp)
                                                 uint256(), 0,
                                                 uint256(), 0,
                                                 COpRetProof(),
-                                                nodekeys,
-                                                nodeaddresses);
+                                                newChain.nodes);
 
     pk = CPubKey(std::vector<unsigned char>(CC.CChexstr, CC.CChexstr + strlen(CC.CChexstr)));
     dests = std::vector<CTxDestination>({CKeyID(newChain.GetConditionID(EVAL_ACCEPTEDNOTARIZATION))});
@@ -1025,7 +1023,7 @@ UniValue addmergedblock(const UniValue& params, bool fHelp)
 
     ConnectedChains.PruneOldChains(GetAdjustedTime() - 60000);
 
-    uint160 chainID = CrossChainRPCData::GetChainID(name);
+    uint160 chainID = CCrossChainRPCData::GetChainID(name);
 
     // confirm data from blockchain
     CRPCChainData chainData;

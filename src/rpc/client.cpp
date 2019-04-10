@@ -21,9 +21,13 @@ public:
     int paramIdx;                      //! 0-based idx of param to convert
 };
 
-// dummy for use in server
+// dummy for linking - used only in server
 UniValue RPCCall(const string& strMethod, const UniValue& params, const string credentials, int port, const string host, int timeout)
-{}
+{assert(false);}
+UniValue RPCCallRoot(const string& strMethod, const UniValue& params)
+{assert(false);}
+void SetThisChain(UniValue &chainDefinition)
+{assert(false);}
 
 static const CRPCConvertParam vRPCConvertParams[] =
 {

@@ -20,6 +20,7 @@
 #include "streams.h"
 #include "script/script.h"
 #include "amount.h"
+#include "pbaas/crosschainrpc.h"
 
 #include <boost/algorithm/string.hpp>
 
@@ -374,6 +375,35 @@ CScript StoreOpRetArray(std::vector<const CBaseChainObject *> &objPtrs);
 
 std::vector<CBaseChainObject *> RetrieveOpRetArray(const CScript &opRetScript);
 
+class CNodeData
+{
+public:
+    std::string networkAddress;
+    CKeyID paymentAddress;
+
+    CNodeData() {}
+    CNodeData(UniValue &);
+
+    CNodeData(std::string netAddr, CKeyID paymentAddr) :
+        networkAddress(netAddr), paymentAddress(paymentAddr) {}
+    
+    CNodeData(std::string netAddr, std::string destAddr) :
+        networkAddress(netAddr)
+    {
+        CBitcoinAddress(destAddr.c_str()).GetKeyID(paymentAddress);
+    }
+
+    ADD_SERIALIZE_METHODS;
+
+    template <typename Stream, typename Operation>
+    inline void SerializationOp(Stream& s, Operation ser_action) {
+        READWRITE(networkAddress);
+        READWRITE(paymentAddress);        
+    }
+
+    UniValue ToUniValue() const;
+};
+
 // This defines the currency characteristics of a PBaaS currency that will be the native coins of a PBaaS chain
 class CPBaaSChainDefinition
 {
@@ -396,7 +426,11 @@ public:
     uint64_t firstBlockReward;              // payed in notarization currency
     uint64_t notarizationReward;            // default amount per block for notarizations
 
+    std::vector<CNodeData> nodes;           // network nodes
+
     CPBaaSChainDefinition() : nVersion(PBAAS_VERSION_INVALID) {}
+
+    CPBaaSChainDefinition(UniValue &obj);
 
     CPBaaSChainDefinition(const std::vector<unsigned char> &asVector)
     {
@@ -409,7 +443,7 @@ public:
                           const std::vector<uint64_t> &chainRewards, const std::vector<uint64_t> &chainRewardsDecay,
                           const std::vector<uint32_t> &chainHalving, const std::vector<uint32_t> &chainEraEnd, std::vector<uint32_t> &chainCurrencyOptions,
                           uint64_t chainTimeLockGTE, uint32_t chainTimeUnlockFrom, uint32_t chainTimeUnlockTo,
-                          uint64_t FirstBlockReward, uint64_t NotaryReward) :
+                          uint64_t FirstBlockReward, uint64_t NotaryReward, std::vector<CNodeData> &Nodes) :
                             nVersion(PBAAS_VERSION),
                             premine(Premine),
                             eras(chainEras),
@@ -419,7 +453,8 @@ public:
                             eraEnd(chainEraEnd),
                             eraOptions(chainCurrencyOptions),
                             firstBlockReward(FirstBlockReward),
-                            notarizationReward(NotaryReward)
+                            notarizationReward(NotaryReward),
+                            nodes(Nodes)
     {
         if (Name.size() > (KOMODO_ASSETCHAIN_MAXLEN - 1))
         {
@@ -443,6 +478,7 @@ public:
         READWRITE(eraOptions);
         READWRITE(VARINT(firstBlockReward));
         READWRITE(VARINT(notarizationReward));
+        READWRITE(nodes);
     }
 
     std::vector<unsigned char> AsVector()
@@ -464,35 +500,7 @@ public:
         return (nVersion != PBAAS_VERSION_INVALID) && (!name.size() && eras > 0 && eras <= ASSETCHAINS_MAX_ERAS);
     }
 
-    UniValue ToUniValue() const
-    {
-        UniValue obj(UniValue::VOBJ);
-        obj.push_back(Pair("version", (int64_t)nVersion));
-        obj.push_back(Pair("name", name));
-        obj.push_back(Pair("foundersaddress", address));
-        obj.push_back(Pair("premine", (int64_t)premine));
-        obj.push_back(Pair("conversion", (double)conversion / 100000000));
-        obj.push_back(Pair("launchfeepercent", ((double)launchfee / 100000000) * 100));
-        obj.push_back(Pair("startblock", (int64_t)startBlock));
-        obj.push_back(Pair("endblock", (int64_t)endBlock));
-
-        UniValue eraArr(UniValue::VARR);
-        for (int i = 0; i < eras; i++)
-        {
-            UniValue era(UniValue::VOBJ);
-            era.push_back(Pair("initialreward", rewards.size() > i ? rewards[i] : (int64_t)0));
-            era.push_back(Pair("rewarddecay", rewardsDecay.size() > i ? rewardsDecay[i] : (int64_t)0));
-            era.push_back(Pair("halvingperiod", halving.size() > i ? halving[i] : (int64_t)0));
-            era.push_back(Pair("eraend", eraEnd.size() > i ? eraEnd[i] : (int64_t)0));
-            era.push_back(Pair("eraoptions", eraOptions.size() > i ? eraOptions[i] : (int64_t)0));
-        }
-        obj.push_back(Pair("eras", eraArr));
-
-        obj.push_back(Pair("firstblockreward", (int64_t)firstBlockReward));
-        obj.push_back(Pair("notarizationreward", (int64_t)notarizationReward));
-
-        return obj;
-    }
+    UniValue ToUniValue() const;
 };
 
 // This data structure is used on an output that provides proof of stake validation for other crypto conditions
@@ -836,6 +844,8 @@ public:
     CCriticalSection cs_mergemining;
     CSemaphore sem_submitthread;
 
+    bool isVerusPBaaSVersion;                   // is the version of Verus or VRSCTEST we are running PBaaS compatible
+
     CConnectedChains() : sem_submitthread(0), dirtyCounter(0) {}
 
     arith_uint256 LowestTarget()
@@ -867,6 +877,10 @@ public:
     bool GetChainInfo(uint160 chainID, CRPCChainData &rpcChainData);
     uint32_t PruneOldChains(uint32_t pruneBefore);
     uint32_t CombineBlocks(CBlockHeader &bh);
+
+    bool CheckVerusPBaaSVersion(UniValue &rpcGetInfoResult);
+    bool CheckVerusPBaaSVersion();      // may use RPC to call Verus
+    bool IsVerusPBaaSVersion();
 };
 
 template <typename TOBJ>
@@ -926,7 +940,14 @@ bool ValidatePremineOutput(struct CCcontract_info *cp, Eval* eval, const CTransa
 
 bool ValidateChainDefinition(struct CCcontract_info *cp, Eval* eval, const CTransaction &tx, uint32_t nIn);
 
+bool GetCCParams(const CScript &scr, COptCCParams &ccParams);
+
 extern CConnectedChains ConnectedChains;
+
+extern CPBaaSChainDefinition ThisChainDefinition;
+void SetThisChain(UniValue &chainDefinition);
+
 extern uint160 ASSETCHAINS_CHAINID;
+extern bool IsVerusPBaaSVersion;
 
 #endif

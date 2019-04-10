@@ -19,6 +19,7 @@
 using namespace std;
 
 CConnectedChains ConnectedChains;
+CPBaaSChainDefinition ThisChainDefinition;
 
 bool IsVerusActive()
 {
@@ -210,6 +211,53 @@ std::vector<CBaseChainObject *> RetrieveOpRetArray(const CScript &opRetScript)
     return vRet;
 }
 
+CNodeData::CNodeData(UniValue &obj)
+{
+    networkAddress = find_value(obj, "networkaddress").get_str();
+    paymentAddress = GetDestinationID(DecodeDestination(find_value(obj, "paymentaddress").get_str()));
+}
+
+UniValue CNodeData::ToUniValue() const
+{
+    UniValue obj(UniValue::VOBJ);
+    obj.push_back(Pair("networkaddress", networkAddress));
+    obj.push_back(Pair("paymentaddress", CBitcoinAddress(paymentAddress).ToString()));
+    return obj;
+}
+
+CPBaaSChainDefinition::CPBaaSChainDefinition(UniValue &obj)
+{
+    nVersion = find_value(obj, "version").get_int();
+    name = find_value(obj, "name").get_str();
+    address = find_value(obj, "foundersaddress").get_str();
+    premine = find_value(obj, "premine").get_int64();
+    conversion = find_value(obj, "conversionfactor").get_int64();
+    launchfee = find_value(obj, "launchfactor").get_int64();
+    startBlock = find_value(obj, "startblock").get_int64();
+    endBlock = find_value(obj, "endblock").get_int64();
+
+    auto vEras = find_value(obj, "eras").getValues();
+    eras = vEras.size();
+
+    for (auto era : vEras)
+    {
+        rewards.push_back(find_value(obj, "initialreward").get_int64());
+        rewardsDecay.push_back(find_value(obj, "rewarddecay").get_int64());
+        halving.push_back(find_value(obj, "halvingperiod").get_int64());
+        eraEnd.push_back(find_value(obj, "eraend").get_int64());
+        eraOptions.push_back(find_value(obj, "eraoptions").get_int64());
+    }
+
+    firstBlockReward = find_value(obj, "firstblockreward").get_int64();
+    notarizationReward = find_value(obj, "notarizationreward").get_int64();
+
+    auto nodeVec = find_value(obj, "nodes").getValues();
+    for (auto node : nodeVec)
+    {
+        nodes.push_back(CNodeData());
+    }
+}
+
 CPBaaSChainDefinition::CPBaaSChainDefinition(const CTransaction &tx, bool validate)
 {
     bool definitionFound = false;
@@ -257,6 +305,57 @@ uint160 CPBaaSChainDefinition::GetConditionID(int32_t condition)
     const char *condStr = itostr(condition).c_str();
     uint256 chainHash = Hash(condStr, condStr + strlen(condStr), (char *)&cid, ((char *)&cid) + sizeof(cid));
     return Hash160(chainHash.begin(), chainHash.end());
+}
+
+UniValue CPBaaSChainDefinition::ToUniValue() const
+{
+    UniValue obj(UniValue::VOBJ);
+    obj.push_back(Pair("version", (int64_t)nVersion));
+    obj.push_back(Pair("name", name));
+    obj.push_back(Pair("foundersaddress", address));
+    obj.push_back(Pair("premine", (int64_t)premine));
+    obj.push_back(Pair("conversionfactor", (int64_t)conversion));
+    obj.push_back(Pair("launchfactor", (int64_t)launchfee));
+    obj.push_back(Pair("conversion", (double)conversion / 100000000));
+    obj.push_back(Pair("launchfeepercent", ((double)launchfee / 100000000) * 100));
+    obj.push_back(Pair("startblock", (int64_t)startBlock));
+    obj.push_back(Pair("endblock", (int64_t)endBlock));
+
+    UniValue eraArr(UniValue::VARR);
+    for (int i = 0; i < eras; i++)
+    {
+        UniValue era(UniValue::VOBJ);
+        era.push_back(Pair("initialreward", rewards.size() > i ? rewards[i] : (int64_t)0));
+        era.push_back(Pair("rewarddecay", rewardsDecay.size() > i ? rewardsDecay[i] : (int64_t)0));
+        era.push_back(Pair("halvingperiod", halving.size() > i ? halving[i] : (int64_t)0));
+        era.push_back(Pair("eraend", eraEnd.size() > i ? eraEnd[i] : (int64_t)0));
+        era.push_back(Pair("eraoptions", eraOptions.size() > i ? eraOptions[i] : (int64_t)0));
+        eraArr.push_back(era);
+    }
+    obj.push_back(Pair("eras", eraArr));
+
+    obj.push_back(Pair("firstblockreward", (int64_t)firstBlockReward));
+    obj.push_back(Pair("notarizationreward", (int64_t)notarizationReward));
+
+    UniValue nodeArr(UniValue::VARR);
+    for (auto node : nodes)
+    {
+        nodeArr.push_back(node.ToUniValue());
+    }
+    obj.push_back(Pair("nodes", nodeArr));
+
+    return obj;
+}
+
+// adds the nodes as well
+void SetThisChain(UniValue &chainDefinition)
+{
+    ThisChainDefinition = CPBaaSChainDefinition(chainDefinition);
+    // set all command line parameters into mapArgs from chain definition
+    for (auto node : ThisChainDefinition.nodes)
+    {
+        AddOneShot(node.networkAddress);
+    }
 }
 
 // ensures that the chain definition is valid and that there are no other definitions of the same name
@@ -526,6 +625,40 @@ uint32_t CConnectedChains::CombineBlocks(CBlockHeader &bh)
     return CConstVerusSolutionVector::GetDescriptor(bh.nSolution).numPBaaSHeaders;
 }
 
+bool CConnectedChains::CheckVerusPBaaSVersion(UniValue &rpcGetInfoResult)
+{
+    bool ret = false;
+    UniValue uniVer = find_value(rpcGetInfoResult, "VRSCversion");
+    if (uniVer.isStr())
+    {
+        if (uniVer.get_str() > "0.6")
+        {
+            ret = true;
+        }
+    }
+    return ret;
+}
+
+bool CConnectedChains::CheckVerusPBaaSVersion()
+{
+    if (IsVerusActive())
+    {
+        isVerusPBaaSVersion = true;
+    }
+    else
+    {
+        // if this is a PBaaS chain, poll for presence of Verus / root chain and current Verus block and version number
+        UniValue result;
+        result = RPCCallRoot("getinfo", UniValue(UniValue::VARR));
+        isVerusPBaaSVersion = CheckVerusPBaaSVersion(result);
+    }
+}
+
+bool CConnectedChains::IsVerusPBaaSVersion()
+{
+    return isVerusPBaaSVersion;
+}
+
 void CConnectedChains::SubmissionThread()
 {
     try
@@ -540,30 +673,45 @@ void CConnectedChains::SubmissionThread()
         // wait for something to checkon, then submit blocks that should be submitted
         while (true)
         {
-            if (mergeMinedChains.size() > 0)
+            if (IsVerusActive())
             {
-                sem_submitthread.wait();
-                // wait for a new block header win
+                if (mergeMinedChains.size() > 0)
                 {
-                    bool submit = false;
+                    sem_submitthread.wait();
+                    // wait for a new block header win
                     {
-                        LOCK(cs_mergemining);
-                        if (lastHash != latestHash)
+                        bool submit = false;
                         {
-                            submit = true;
+                            LOCK(cs_mergemining);
+                            if (lastHash != latestHash)
+                            {
+                                submit = true;
+                            }
+                        }
+                        if (submit)
+                        {
+                            SubmitQualifiedBlocks(latestBlockHeader);
                         }
                     }
-                    if (submit)
-                    {
-                        SubmitQualifiedBlocks(latestBlockHeader);
-                    }
+                }
+                else
+                {
+                    MilliSleep(500);
                 }
             }
             else
             {
-                MilliSleep(500);
+                UniValue result;
+
+                // if this is a PBaaS chain, poll for presence of Verus / root chain and current Verus block and version number
+                result = RPCCallRoot("getinfo", UniValue(UniValue::VARR));
+
+                UniValue uniVer = find_value(result, "VRSCversion");
+                isVerusPBaaSVersion = CheckVerusPBaaSVersion(result);
+
+                sleep(3);
             }
-            
+
             boost::this_thread::interruption_point();
         }
     }
@@ -572,6 +720,7 @@ void CConnectedChains::SubmissionThread()
         LogPrintf("Verus merge mining thread terminated\n");
     }
 }
+
 void CConnectedChains::SubmissionThreadStub()
 {
     ConnectedChains.SubmissionThread();

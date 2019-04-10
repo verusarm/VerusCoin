@@ -19,19 +19,28 @@
 
 static const int DEFAULT_RPC_TIMEOUT=900;
 
-class CrossChainRPCData
+class CCrossChainRPCData
 {
 public:
     std::string host;
     int32_t port;
     std::string credentials;
 
-    CrossChainRPCData() : port(0) {}
+    CCrossChainRPCData() : port(0) {}
 
-    CrossChainRPCData(std::string Host, int32_t Port, std::string Credentials) :
+    CCrossChainRPCData(std::string Host, int32_t Port, std::string Credentials) :
         host(Host), port(Port), credentials(Credentials) {}
     
-    static CrossChainRPCData LoadFromConfig(std::string fPath="");
+    ADD_SERIALIZE_METHODS;
+
+    template <typename Stream, typename Operation>
+    inline void SerializationOp(Stream& s, Operation ser_action) {
+        READWRITE(host);
+        READWRITE(port);        
+        READWRITE(credentials);
+    }
+
+    static CCrossChainRPCData LoadFromConfig(std::string fPath="");
 
     inline static uint160 GetChainID(std::string name)
     {
@@ -53,6 +62,8 @@ public:
         uint256 chainHash = Hash(condStr, condStr + strlen(condStr), (char *)&cid, ((char *)&cid) + sizeof(cid));
         return Hash160(chainHash.begin(), chainHash.end());
     }
+
+    UniValue ToUniValue() const;
 };
 
 // credentials for now are "user:password"
@@ -62,5 +73,7 @@ UniValue RPCCall(const std::string& strMethod,
                  int port=27486, 
                  const std::string host="127.0.0.1", 
                  int timeout=DEFAULT_RPC_TIMEOUT);
+
+UniValue RPCCallRoot(const std::string& strMethod, const UniValue& params);
 
 #endif

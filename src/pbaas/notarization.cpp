@@ -15,13 +15,13 @@
 #include "pbaas/crosschainrpc.h"
 #include "rpc/pbaasrpc.h"
 #include "cc/CCinclude.h"
-#include "komodo_globals.h"
 
 #include <assert.h>
 
 using namespace std;
 
 extern uint160 VERUS_CHAINID;
+extern uint160 ASSETCHAINS_CHAINID;
 extern string PBAAS_HOST;
 extern string PBAAS_USERPASS;
 extern int32_t PBAAS_PORT;
@@ -113,50 +113,6 @@ CNotarizationFinalization::CNotarizationFinalization(const CTransaction &tx, boo
     if (validate)
     {
         
-    }
-}
-
-// this gets the last notarization of this chain from the chain passed
-// we pass chain name, so that we can access the chain information
-bool GetLastMatchingNotarization(string &chainID)
-{
-    // make sure we have a valid host and credentials
-    if (!PBAAS_HOST.size() || !PBAAS_USERPASS.size())
-    {
-        return false;
-    }
-
-    // get chain notarization data, see which of the notarizations match our latest notarization,
-    // get the cross transaction, and make a notarization transaction to put into a block
-
-    CKeyID keyID(CrossChainRPCData::GetConditionID(chainID, EVAL_ACCEPTEDNOTARIZATION));
-    std::vector<std::pair<CAddressIndexKey, CAmount>> addressIndex;
-
-    if (GetAddressIndex(keyID, 0, addressIndex))
-    {
-        // iterate backwards until we find a notarization that we agree with
-        for (auto it = addressIndex.end(); it != addressIndex.begin(); it--)
-        {
-            CTransaction notarization;
-            uint256 blkHash;
-            COptCCParams p;
-
-            if (myGetTransaction(it->first.txhash, notarization, blkHash))
-            {
-                CPBaaSNotarization pbn;
-                if (IsPayToCryptoCondition(notarization.vout[it->first.txindex].scriptPubKey, p, pbn) && (p.evalCode == EVAL_EARNEDNOTARIZATION))
-                {
-                    // interpret this notarization and determine if we agree
-
-                }
-            }
-            else
-            {
-                // failure to read a tx means that we will not successfully determine
-                // the latest we agree with
-                return false;
-            }
-        }
     }
 }
 
@@ -379,7 +335,7 @@ bool CreateEarnedNotarization(CMutableTransaction &mnewTx, CTransaction &lastTx,
     // need to be able to send this to EVAL_PBAASDEFINITION address as a destination, locked by the default pubkey
     CPubKey pk = CPubKey(std::vector<unsigned char>(CC.CChexstr, CC.CChexstr + strlen(CC.CChexstr)));
 
-    vKeys.push_back(CTxDestination(CKeyID(CrossChainRPCData::GetConditionID(ASSETCHAINS_CHAINID, EVAL_EARNEDNOTARIZATION))));
+    vKeys.push_back(CTxDestination(CKeyID(CCrossChainRPCData::GetConditionID(ASSETCHAINS_CHAINID, EVAL_EARNEDNOTARIZATION))));
 
     // update crypto condition with final notarization output data
     mnewTx.vout.push_back(MakeCC1of1Vout(EVAL_EARNEDNOTARIZATION, PBAAS_MINNOTARIZATIONOUTPUT, pk, vKeys, pbn));
@@ -390,7 +346,7 @@ bool CreateEarnedNotarization(CMutableTransaction &mnewTx, CTransaction &lastTx,
     // need to be able to send this to EVAL_PBAASDEFINITION address as a destination, locked by the default pubkey
     pk = CPubKey(std::vector<unsigned char>(CC.CChexstr, CC.CChexstr + strlen(CC.CChexstr)));
 
-    vKeys[0] = CTxDestination(CKeyID(CrossChainRPCData::GetConditionID(ASSETCHAINS_CHAINID, EVAL_FINALIZENOTARIZATION)));
+    vKeys[0] = CTxDestination(CKeyID(CCrossChainRPCData::GetConditionID(ASSETCHAINS_CHAINID, EVAL_FINALIZENOTARIZATION)));
 
     // update crypto condition with final notarization output data
     mnewTx.vout.push_back(MakeCC1of1Vout(EVAL_FINALIZENOTARIZATION, PBAAS_MINNOTARIZATIONOUTPUT, pk, vKeys, pbn));
