@@ -47,6 +47,9 @@
 #endif
 #include <mutex>
 
+#include "pbaas/pbaas.h"
+#include "pbaas/notarization.h"
+
 using namespace std;
 
 //////////////////////////////////////////////////////////////////////////////
@@ -338,6 +341,14 @@ CBlockTemplate* CreateNewBlock(const CScript& _scriptPubKeyIn, int32_t gpucount,
             {
                 RelayTransaction(cheatTx);
             }
+        }
+
+        // if we should make an earned notarization, make it
+        // only make one if we are the 1st block, or if it has been the specified min blocks since the last for this chain
+        if (!IsVerusActive() && ConnectedChains.IsVerusPBaaSAvailable())
+        {
+            // we are a PBaaS chain, create a notarization, if we would qualify, and add it to the mempool and block
+            //if (CreateEarnedNotarization())
         }
 
         // now add transactions from the mem pool

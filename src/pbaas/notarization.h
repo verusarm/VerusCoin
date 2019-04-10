@@ -301,4 +301,6 @@ public:
     }
 };
 
+bool CreateEarnedNotarization(CMutableTransaction &mnewTx, CTransaction &lastTx, CTransaction &crossTx, int32_t height, uint256 &prevMMR);
+
 #endif

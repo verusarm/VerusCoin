@@ -844,7 +844,7 @@ public:
     CCriticalSection cs_mergemining;
     CSemaphore sem_submitthread;
 
-    bool isVerusPBaaSVersion;                   // is the version of Verus or VRSCTEST we are running PBaaS compatible
+    bool isVerusPBaaSAvailable;                   // is the version of Verus or VRSCTEST we are running PBaaS compatible
 
     CConnectedChains() : sem_submitthread(0), dirtyCounter(0) {}
 
@@ -878,9 +878,9 @@ public:
     uint32_t PruneOldChains(uint32_t pruneBefore);
     uint32_t CombineBlocks(CBlockHeader &bh);
 
-    bool CheckVerusPBaaSVersion(UniValue &rpcGetInfoResult);
-    bool CheckVerusPBaaSVersion();      // may use RPC to call Verus
-    bool IsVerusPBaaSVersion();
+    bool CheckVerusPBaaSAvailable(UniValue &rpcGetInfoResult);
+    bool CheckVerusPBaaSAvailable();      // may use RPC to call Verus
+    bool IsVerusPBaaSAvailable();
 };
 
 template <typename TOBJ>
@@ -948,6 +948,6 @@ extern CPBaaSChainDefinition ThisChainDefinition;
 void SetThisChain(UniValue &chainDefinition);
 
 extern uint160 ASSETCHAINS_CHAINID;
-extern bool IsVerusPBaaSVersion;
+extern bool isVerusPBaaSAvailable;
 
 #endif

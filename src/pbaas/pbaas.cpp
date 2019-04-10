@@ -625,7 +625,7 @@ uint32_t CConnectedChains::CombineBlocks(CBlockHeader &bh)
     return CConstVerusSolutionVector::GetDescriptor(bh.nSolution).numPBaaSHeaders;
 }
 
-bool CConnectedChains::CheckVerusPBaaSVersion(UniValue &rpcGetInfoResult)
+bool CConnectedChains::CheckVerusPBaaSAvailable(UniValue &rpcGetInfoResult)
 {
     bool ret = false;
     UniValue uniVer = find_value(rpcGetInfoResult, "VRSCversion");
@@ -639,24 +639,24 @@ bool CConnectedChains::CheckVerusPBaaSVersion(UniValue &rpcGetInfoResult)
     return ret;
 }
 
-bool CConnectedChains::CheckVerusPBaaSVersion()
+bool CConnectedChains::CheckVerusPBaaSAvailable()
 {
     if (IsVerusActive())
     {
-        isVerusPBaaSVersion = true;
+        isVerusPBaaSAvailable = true;
     }
     else
     {
         // if this is a PBaaS chain, poll for presence of Verus / root chain and current Verus block and version number
         UniValue result;
         result = RPCCallRoot("getinfo", UniValue(UniValue::VARR));
-        isVerusPBaaSVersion = CheckVerusPBaaSVersion(result);
+        isVerusPBaaSAvailable = CheckVerusPBaaSAvailable(result);
     }
 }
 
-bool CConnectedChains::IsVerusPBaaSVersion()
+bool CConnectedChains::IsVerusPBaaSAvailable()
 {
-    return isVerusPBaaSVersion;
+    return isVerusPBaaSAvailable;
 }
 
 void CConnectedChains::SubmissionThread()
@@ -707,7 +707,7 @@ void CConnectedChains::SubmissionThread()
                 result = RPCCallRoot("getinfo", UniValue(UniValue::VARR));
 
                 UniValue uniVer = find_value(result, "VRSCversion");
-                isVerusPBaaSVersion = CheckVerusPBaaSVersion(result);
+                isVerusPBaaSAvailable = CheckVerusPBaaSAvailable(result);
 
                 sleep(3);
             }
