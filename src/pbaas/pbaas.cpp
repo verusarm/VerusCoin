@@ -19,7 +19,6 @@
 using namespace std;
 
 CConnectedChains ConnectedChains;
-CPBaaSChainDefinition ThisChainDefinition;
 
 bool IsVerusActive()
 {
@@ -347,12 +346,13 @@ UniValue CPBaaSChainDefinition::ToUniValue() const
     return obj;
 }
 
-// adds the nodes as well
+// adds the chain definition for this chain and nodes as well
+// this also sets up the notarization chain, if there is one
 void SetThisChain(UniValue &chainDefinition)
 {
-    ThisChainDefinition = CPBaaSChainDefinition(chainDefinition);
+    ConnectedChains.ThisChain() = CPBaaSChainDefinition(chainDefinition);
     // set all command line parameters into mapArgs from chain definition
-    for (auto node : ThisChainDefinition.nodes)
+    for (auto node : ConnectedChains.ThisChain().nodes)
     {
         AddOneShot(node.networkAddress);
     }
@@ -625,25 +625,26 @@ uint32_t CConnectedChains::CombineBlocks(CBlockHeader &bh)
     return CConstVerusSolutionVector::GetDescriptor(bh.nSolution).numPBaaSHeaders;
 }
 
+bool CConnectedChains::IsVerusPBaaSAvailable()
+{
+    return notaryChainVersion > "0.6";
+}
+
 bool CConnectedChains::CheckVerusPBaaSAvailable(UniValue &rpcGetInfoResult)
 {
-    bool ret = false;
     UniValue uniVer = find_value(rpcGetInfoResult, "VRSCversion");
     if (uniVer.isStr())
     {
-        if (uniVer.get_str() > "0.6")
-        {
-            ret = true;
-        }
+        notaryChainVersion = uniVer.get_str();
     }
-    return ret;
+    return IsVerusPBaaSAvailable();
 }
 
 bool CConnectedChains::CheckVerusPBaaSAvailable()
 {
     if (IsVerusActive())
     {
-        isVerusPBaaSAvailable = true;
+        notaryChainVersion = "";
     }
     else
     {
@@ -652,11 +653,6 @@ bool CConnectedChains::CheckVerusPBaaSAvailable()
         result = RPCCallRoot("getinfo", UniValue(UniValue::VARR));
         isVerusPBaaSAvailable = CheckVerusPBaaSAvailable(result);
     }
-}
-
-bool CConnectedChains::IsVerusPBaaSAvailable()
-{
-    return isVerusPBaaSAvailable;
 }
 
 void CConnectedChains::SubmissionThread()
@@ -707,7 +703,7 @@ void CConnectedChains::SubmissionThread()
                 result = RPCCallRoot("getinfo", UniValue(UniValue::VARR));
 
                 UniValue uniVer = find_value(result, "VRSCversion");
-                isVerusPBaaSAvailable = CheckVerusPBaaSAvailable(result);
+                CheckVerusPBaaSAvailable(result);
 
                 sleep(3);
             }

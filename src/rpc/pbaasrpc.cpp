@@ -119,10 +119,11 @@ UniValue getchaindefinition(const UniValue& params, bool fHelp)
     {
         throw runtime_error(
             "getchaindefinition \"chainname\"\n"
-            "\nReturns a complete definition for any given chain if it is registered on the blockchain.\n"
+            "\nReturns a complete definition for any given chain if it is registered on the blockchain. If the chain requested\n"
+            "\nis NULL, chain definition of the current chain is returned.\n"
 
             "\nArguments\n"
-            "1. \"chainname\"                   (string, required) name of the chain to look for. is case sensistive\n"
+            "1. \"chainname\"                     (string, optional) name of the chain to look for. no parameter returns current chain in daemon.\n"
 
             "\nResult:\n"
             "  {\n"

@@ -408,7 +408,7 @@ public:
 class CPBaaSChainDefinition
 {
 public:
-    uint32_t nVersion;                      // version of this chain definition to allow for extensions
+    uint32_t nVersion;                      // version of this chain definition data structure to allow for extensions (not daemon version)
     std::string name;                       // chain name, maximum 64 characters
     std::string address;                    // non-purchased/converted premine and fee recipient address
     uint64_t premine;                       // initial supply that is distributed to the premine output address, but not purchased
@@ -837,6 +837,11 @@ public:
     std::map<uint160, CPBaaSMergeMinedChainData> mergeMinedChains;
     std::map<arith_uint256, CPBaaSMergeMinedChainData *> mergeMinedTargets;
 
+    std::string notaryChainVersion;             // is Verus or VRSCTEST running and PBaaS compatible?
+    CRPCChainData notaryChain;                  // notary chain information
+
+    CPBaaSChainDefinition thisChain;
+
     uint32_t dirtyCounter;                      // monotonically increasing dirty counter
     arith_uint256 latestHash;                   // latest hash won for the latest block header
     CBlockHeader latestBlockHeader;             // latest winning merge mined header
@@ -844,7 +849,6 @@ public:
     CCriticalSection cs_mergemining;
     CSemaphore sem_submitthread;
 
-    bool isVerusPBaaSAvailable;                   // is the version of Verus or VRSCTEST we are running PBaaS compatible
 
     CConnectedChains() : sem_submitthread(0), dirtyCounter(0) {}
 
@@ -877,6 +881,16 @@ public:
     bool GetChainInfo(uint160 chainID, CRPCChainData &rpcChainData);
     uint32_t PruneOldChains(uint32_t pruneBefore);
     uint32_t CombineBlocks(CBlockHeader &bh);
+
+    CRPCChainData &NotaryChain()
+    {
+        return notaryChain;
+    }
+
+    CPBaaSChainDefinition &ThisChain()
+    {
+        return thisChain;
+    }
 
     bool CheckVerusPBaaSAvailable(UniValue &rpcGetInfoResult);
     bool CheckVerusPBaaSAvailable();      // may use RPC to call Verus
@@ -942,12 +956,9 @@ bool ValidateChainDefinition(struct CCcontract_info *cp, Eval* eval, const CTran
 
 bool GetCCParams(const CScript &scr, COptCCParams &ccParams);
 
-extern CConnectedChains ConnectedChains;
-
-extern CPBaaSChainDefinition ThisChainDefinition;
 void SetThisChain(UniValue &chainDefinition);
 
+extern CConnectedChains ConnectedChains;
 extern uint160 ASSETCHAINS_CHAINID;
-extern bool isVerusPBaaSAvailable;
 
 #endif

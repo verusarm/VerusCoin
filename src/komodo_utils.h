@@ -1951,7 +1951,7 @@ void komodo_args(char *argv0)
 
         if ( ASSETCHAINS_ENDSUBSIDY[0] != 0 || ASSETCHAINS_REWARD[0] != 0 || ASSETCHAINS_HALVING[0] != 0 || ASSETCHAINS_DECAY[0] != 0 || ASSETCHAINS_COMMISSION != 0 || ASSETCHAINS_PUBLIC != 0 || ASSETCHAINS_PRIVATE != 0 )
         {
-            printf("perc.%llu\n",(long long)ASSETCHAINS_COMMISSION);
+            // printf("perc.%llu\n",(long long)ASSETCHAINS_COMMISSION);
 
             extraptr = extrabuf;
             memcpy(extraptr,ASSETCHAINS_OVERRIDE_PUBKEY33,33), extralen = 33;
@@ -1959,11 +1959,11 @@ void komodo_args(char *argv0)
             // if we have one era, this should create the same data structure as it used to, same if we increase _MAX_ERAS
             for ( int i = 0; i <= ASSETCHAINS_LASTERA; i++ )
             {
-                printf("ERA%u: end.%llu reward.%llu halving.%llu decay.%llu\n", i,
-                       (long long)ASSETCHAINS_ENDSUBSIDY[i],
-                       (long long)ASSETCHAINS_REWARD[i],
-                       (long long)ASSETCHAINS_HALVING[i],
-                       (long long)ASSETCHAINS_DECAY[i]);
+                //printf("ERA%u: end.%llu reward.%llu halving.%llu decay.%llu\n", i,
+                //       (long long)ASSETCHAINS_ENDSUBSIDY[i],
+                //       (long long)ASSETCHAINS_REWARD[i],
+                //       (long long)ASSETCHAINS_HALVING[i],
+                //       (long long)ASSETCHAINS_DECAY[i]);
 
                 // TODO: Verify that we don't overrun extrabuf here, which is a 256 byte buffer
                 extralen += iguana_rwnum(1,&extraptr[extralen],sizeof(ASSETCHAINS_ENDSUBSIDY[i]),(void *)&ASSETCHAINS_ENDSUBSIDY[i]);
