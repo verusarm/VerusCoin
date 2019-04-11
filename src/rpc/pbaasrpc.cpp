@@ -692,13 +692,13 @@ UniValue getcrossnotarization(const UniValue& params, bool fHelp)
     return ret;
 }
 
-UniValue definepbaaschain(const UniValue& params, bool fHelp)
+UniValue definechain(const UniValue& params, bool fHelp)
 {
     if (fHelp || params.size() != 1)
     {
         throw runtime_error(
             "definechain '{\"name\": \"BAAS\", ... }'\n"
-            "\n\n"
+            "\nThis defines a PBaaS chain, provides it with initial notarization fees to support its launch, and prepares it to begin running.\n"
 
             "\nArguments\n"
             "      {\n"
@@ -708,23 +708,16 @@ UniValue definepbaaschain(const UniValue& params, bool fHelp)
             "         \"convertible\" : \"n\",      (int,    optional) amount of coins that may be converted from Verus, price determined by total contribution\n"
             "         \"launchfee\"  : \"n\",       (int,    optional) VRSC fee for conversion at startup, multiplied by amount, divided by 100000000\n"
             "         \"startblock\" : \"n\",       (int,    optional) VRSC block must be notarized into block 1 of PBaaS chain, default curheight + 100\n"
-            "         \"eras\"       : \"n\",       (int,    optional) number of eras in this chain's life\n"
-            "         \"eraend\"     : \"[n, ..]\", (array,  optional) ending block of each era\n"
-            "         \"eraoptions\" : \"[n, ..]\", (array,  optional) options for each era\n"
-            "         \"blockrewards\"  : \"obj\",  (object, optional) data specific to block rewards"
+            "         \"eras\"       : \"objarray\", (array, optional) data specific to each era, maximum 3\n"
             "         {\n"
-            "            \"rewards\"      : \"[n, ..]\", (array,  optional) native initial block rewards in each period\n"
-            "            \"rewardsdecay\" : \"[n, ..]\", (array,  optional) reward decay for each era\n"
-            "            \"halving\"      : \"[n, ..]\", (array,  optional) halving period for each era\n"
+            "            \"reward\"      : \"n\",   (int64,  optional) native initial block rewards in each period\n"
+            "            \"decay\" : \"n\",         (int64,  optional) reward decay for each era\n"
+            "            \"halving\"      : \"n\",  (int,    optional) halving period for each era\n"
+            "            \"eraend\"       : \"n\",  (int,    optional) ending block of each era\n"
+            "            \"eraoptions\"   : \"n\",  (int,    optional) options for each era\n"
             "         }\n"
-            "         \"notarizationrewards\" : \"obj\",  (object, required) data specific to notarization rewards"
-            "         {\n"
-            "            \"firstblock\" : \"n\",    (int,     optional) reward for first block, default is 8 notarizations\n"
-            "            \"reward\" : \"n\",        (int,     required) default VRSC notarization rewards per block\n"
-            "            \"blocks\" : \"n\",        (int,     required) prepaid number of blocks to send from wallet\n"
-            "            \"source\" : \"txid\",     (string,  optional) optional source transaction for payment\n"
-            "            \"output\" : \"n\",        (int,     optional) transaction output for payment if specified\n"
-            "         }\n"
+            "         \"notarizationreward\" : \"n\", (int,  required) default VRSC notarization reward total for first billing period\n"
+            "         \"billingperiod\" : \"n\",    (int,    optional) number of blocks in each billing period\n"
             "         \"nodes\"      : \"[obj, ..]\", (objectarray, optional) up to 2 nodes that can be used to connect to the blockchain"
             "         [{\n"
             "            \"nodeaddress\" : \"txid\", (string,  optional) internet, TOR, or other supported address for node\n"
@@ -755,7 +748,7 @@ UniValue definepbaaschain(const UniValue& params, bool fHelp)
     CPBaaSChainDefinition newChain;
 
     // if no name is specified, assign a random, unspendable address as the name
-    newChain.name = find_value(params[0], "name").get_str();
+    newChain.name = uni_get_str(find_value(params[0], "name"));
     if (!newChain.name.size())
     {
         uint160 id;
@@ -764,97 +757,50 @@ UniValue definepbaaschain(const UniValue& params, bool fHelp)
     }
 
     newChain.nVersion = PBAAS_VERSION;
-    newChain.address = find_value(params[0], "address").get_str();
+    newChain.address = uni_get_str(find_value(params[0], "address"));
 
-    UniValue param = find_value(params[0], "premine");
-    newChain.premine = param.isNull() ? 0 : param.get_int64();
+    newChain.premine = uni_get_int64(find_value(params[0], "premine"));
+    newChain.conversion = uni_get_int64(find_value(params[0], "conversion"));
+    newChain.launchfee = uni_get_int64(find_value(params[0], "launchfee"));
+    newChain.startBlock = uni_get_int(find_value(params[0], "startblock"));
+    newChain.endBlock = uni_get_int(find_value(params[0], "endblock"));
 
-    param = find_value(params[0], "conversion");
-    newChain.conversion = param.isNull() ? 0 : param.get_int64();
+    vector<UniValue> erasUni = uni_getValues(find_value(params[0], "eras"));
 
-    param = find_value(params[0], "launchfee");
-    newChain.launchfee = param.isNull() ? 0 : param.get_int64();
-
-    param = find_value(params[0], "startblock");
-    newChain.startBlock = param.isNull() ? chainActive.LastTip()->GetHeight() + 100 : param.get_int();
-
-    param = find_value(params[0], "endblock");
-    newChain.endBlock = param.isNull() ? 0 : param.get_int();
-
-    param = find_value(params[0], "eras");
-    newChain.eras = param.isNull() ? 1 : param.get_int();
-    if (newChain.eras == 0)
+    if (erasUni.size() > ASSETCHAINS_MAX_ERAS)
     {
-        newChain.eras = 1;
-    }
-    else if (newChain.eras > ASSETCHAINS_MAX_ERAS)
+        erasUni.resize(ASSETCHAINS_MAX_ERAS);
+    } else if (erasUni.size() == 0)
     {
-        newChain.eras = ASSETCHAINS_MAX_ERAS;
+        newChain.rewards.push_back(0);
+        newChain.rewardsDecay.push_back(0);
+        newChain.halving.push_back(0);
+        newChain.eraEnd.push_back(0);
+        newChain.eraOptions.push_back(0);
     }
 
-    param = find_value(params[0], "eraend");
-    auto eraend = param.getValues();
-    for (auto o : eraend)
+    for (auto era : erasUni)
     {
-        newChain.eraEnd.push_back(o.get_int());
-    }
-    newChain.eraEnd.resize(newChain.eras);
-
-    param = find_value(params[0], "eraoptions");
-    auto eraoptions = param.getValues();
-    for (auto o : eraoptions)
-    {
-        newChain.eraOptions.push_back(o.get_int());
+        newChain.rewards.push_back(uni_get_int64(find_value(era, "reward")));
+        newChain.rewardsDecay.push_back(uni_get_int64(find_value(era, "decay")));
+        newChain.halving.push_back(uni_get_int(find_value(era, "halving")));
+        newChain.eraEnd.push_back(uni_get_int(find_value(era, "eraend")));
+        newChain.eraOptions.push_back(uni_get_int(find_value(era, "eraoptions")));
     }
 
-    param = find_value(params[0], "blockrewards");
-    if (param.isNull())
-    {
-        for (int i = 0; i < newChain.eras; i++)
-        {
-            newChain.rewards.push_back(0);
-            newChain.halving.push_back(0);
-            newChain.rewardsDecay.push_back(0);
-        }
-    }
-    else
-    {
-        param = find_value(params[0], "rewards");
-        auto rewards = param.getValues();
-        for (auto o : rewards)
-        {
-            newChain.rewards.push_back(o.get_int64());
-        }
-        newChain.rewards.resize(newChain.eras);
+    newChain.eras = newChain.rewards.size();
 
-        param = find_value(params[0], "rewardsdecay");
-        auto rewardsDecay = param.getValues();
-        for (auto o : rewardsDecay)
-        {
-            newChain.rewardsDecay.push_back(o.get_int64());
-        }
-        newChain.rewardsDecay.resize(newChain.eras);
+    newChain.notarizationReward = uni_get_int64(find_value(params[0], "notarizationreward"));
+    newChain.billingPeriod = uni_get_int(find_value(params[0], "billingperiod"));
 
-        param = find_value(params[0], "halving");
-        auto halving = param.getValues();
-        for (auto o : halving)
-        {
-            newChain.halving.push_back(o.get_int());
-        }
-        newChain.halving.resize(newChain.eras);
+    if (newChain.billingPeriod < (newChain.notarizationReward / newChain.billingPeriod) < CPBaaSChainDefinition::MIN_PER_BLOCK_NOTARIZATION)
+    {
+        throw JSONRPCError(RPC_INVALID_PARAMS, "Billing period of at least " + 
+                                               to_string(CPBaaSChainDefinition::MIN_BILLING_PERIOD) + 
+                                               " blocks and per-block notary rewards of >= 1000000 are required to define a chain\n");
     }
 
-    auto notrewards = find_value(params[0], "notarizationrewards");
-    if (notrewards.isNull())
-    {
-        throw JSONRPCError(RPC_INVALID_PARAMS, "notarizationrewards are required");
-    }
-
-    newChain.notarizationReward = find_value(notrewards, "reward").get_int64();
-    UniValue fbl = find_value(notrewards, "firstblock");
-    newChain.firstBlockReward = fbl.isNull() ? newChain.notarizationReward * 8 : fbl.get_int64();
-
-    param = find_value(params[0], "nodes");
+    UniValue param = find_value(params[0], "nodes");
     if (!param.isNull())
     {
         auto nodes = param.getValues();
@@ -871,38 +817,11 @@ UniValue definepbaaschain(const UniValue& params, bool fHelp)
         }
     }
 
-    // this is required for now
-    if (!find_value(notrewards, "source").isStr() || !find_value(notrewards, "output").isNum())
-    {
-        throw JSONRPCError(RPC_INVALID_PARAMS, "currently requires transaction input");
-    }
-    CTxIn txInput = CTxIn(uint256S(find_value(notrewards, "source").get_str()), find_value(notrewards, "output").get_int());
-
-    CMutableTransaction mtx;
-    CTransaction txSource;
-    uint256 blkHash;
-
-    if (!GetTransaction(txInput.prevout.hash, txSource, blkHash, true))
-    {
-        throw JSONRPCError(RPC_TRANSACTION_ERROR, "cannot find transaction input");
-    }
-
-    if (txInput.prevout.n >= txSource.vout.size())
-    {
-        throw JSONRPCError(RPC_TRANSACTION_ERROR, "invalid source transaction output");
-    }
+    vector<CRecipient> outputs;
 
     // default double fee for miner of chain definition tx
     // one output for definition, one for finalization
-    CAmount nReward = txSource.vout[txInput.prevout.n].nValue - (DEFAULT_TRANSACTION_FEE * 4);
-
-    if (nReward < (newChain.notarizationReward * 200 + newChain.firstBlockReward))
-    {
-        throw JSONRPCError(RPC_TRANSACTION_ERROR, "minimum notarizatoin fees for at least first notarization reward and 200 blocks are required");
-    }
-
-    // add the input
-    mtx.vin.push_back(txInput);
+    CAmount nReward = newChain.notarizationReward + (DEFAULT_TRANSACTION_FEE * 4);
 
     CCcontract_info CC;
     CCcontract_info *cp;
@@ -915,7 +834,8 @@ UniValue definepbaaschain(const UniValue& params, bool fHelp)
     CKeyID id;
     bca.GetKeyID(id);
     std::vector<CTxDestination> dests({id});
-    mtx.vout.push_back(MakeCC1of1Vout(EVAL_PBAASDEFINITION, DEFAULT_TRANSACTION_FEE, pk, dests, newChain));
+    CTxOut defOut = MakeCC1of1Vout(EVAL_PBAASDEFINITION, DEFAULT_TRANSACTION_FEE, pk, dests, newChain);
+    outputs.push_back(CRecipient({defOut.scriptPubKey, CPBaaSChainDefinition::DEFAULT_OUTPUT_VALUE, false}));
 
     // make the first chain notarization output
     cp = CCinit(&CC, EVAL_ACCEPTEDNOTARIZATION);
@@ -943,37 +863,38 @@ UniValue definepbaaschain(const UniValue& params, bool fHelp)
 
     pk = CPubKey(std::vector<unsigned char>(CC.CChexstr, CC.CChexstr + strlen(CC.CChexstr)));
     dests = std::vector<CTxDestination>({CKeyID(newChain.GetConditionID(EVAL_ACCEPTEDNOTARIZATION))});
-    mtx.vout.push_back(MakeCC1of1Vout(EVAL_ACCEPTEDNOTARIZATION, nReward, pk, dests, pbn));
+    CTxOut notarizationOut = MakeCC1of1Vout(EVAL_ACCEPTEDNOTARIZATION, nReward, pk, dests, pbn);
+    outputs.push_back(CRecipient({notarizationOut.scriptPubKey, newChain.notarizationReward, false}));
 
     // make the finalization output
     cp = CCinit(&CC, EVAL_FINALIZENOTARIZATION);
     pk = CPubKey(std::vector<unsigned char>(CC.CChexstr, CC.CChexstr + strlen(CC.CChexstr)));
     dests = std::vector<CTxDestination>({CKeyID(newChain.GetConditionID(EVAL_FINALIZENOTARIZATION))});
     CNotarizationFinalization nf(0);
-    mtx.vout.push_back(MakeCC1of1Vout(EVAL_FINALIZENOTARIZATION, DEFAULT_TRANSACTION_FEE, pk, dests, nf));
+    CTxOut finalizationOut = MakeCC1of1Vout(EVAL_FINALIZENOTARIZATION, DEFAULT_TRANSACTION_FEE, pk, dests, nf);
+    outputs.push_back(CRecipient({finalizationOut.scriptPubKey, CPBaaSChainDefinition::DEFAULT_OUTPUT_VALUE, false}));
 
     // sign and return the transaction
     SignatureData sigdata; 
     auto consensusBranchId = CurrentEpochBranchId(chainActive.LastTip()->GetHeight(), Params().GetConsensus());
 
-    mtx.nLockTime = 0;
-    CTransaction txNewConst(mtx);
-    bool signSuccess = 
-        ProduceSignature(
-            TransactionSignatureCreator(pwalletMain, &txNewConst, 0, txSource.vout[txInput.prevout.n].nValue, SIGHASH_ALL), 
-                                        txSource.vout[txInput.prevout.n].scriptPubKey, sigdata, consensusBranchId);
-
-    if (!signSuccess)
+    // create the transaction
+    CWalletTx wtx;
     {
-        throw JSONRPCError(RPC_TRANSACTION_ERROR, "failed to sign transaction");
+        LOCK2(cs_main, pwalletMain->cs_wallet);
+
+        CReserveKey reserveKey(pwalletMain);
+        CAmount fee;
+        int nChangePos;
+        string failReason;
+
+        pwalletMain->CreateTransaction(outputs, wtx, reserveKey, fee, nChangePos, failReason);
     }
 
-    UpdateTransaction(mtx, 0, sigdata);
-
     UniValue uvret(UniValue::VOBJ);
-    uvret.push_back(Pair("txid", txNewConst.GetHash().GetHex()));
+    uvret.push_back(Pair("txid", wtx.GetHash().GetHex()));
 
-    string strHex = EncodeHexTx(static_cast<CTransaction>(mtx));
+    string strHex = EncodeHexTx(static_cast<CTransaction>(wtx));
     uvret.push_back(Pair("hex", strHex));
 
     return uvret;
@@ -1457,7 +1378,7 @@ static const CRPCCommand commands[] =
     { "pbaas",        "getmergedblocktemplate",       &getmergedblocktemplate, true  },
     { "pbaas",        "getnotarizationdata",          &getnotarizationdata,    true  },
     { "pbaas",        "getcrossnotarization",         &getcrossnotarization,   true  },
-    { "pbaas",        "definepbaaschain",             &definepbaaschain,       true  },
+    { "pbaas",        "definechain",                  &definechain,            true  },
     { "pbaas",        "addmergedblock",               &addmergedblock,         true  }
 };
 

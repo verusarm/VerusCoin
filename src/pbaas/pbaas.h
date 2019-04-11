@@ -408,6 +408,10 @@ public:
 class CPBaaSChainDefinition
 {
 public:
+    static const int64_t MIN_PER_BLOCK_NOTARIZATION = 1000000;  // 0.01 VRSC per block notarization minimum
+    static const int64_t MIN_BILLING_PERIOD = 480;  // 8 hour minimum billing period for notarization, typically expect days/weeks/months
+    static const int64_t DEFAULT_OUTPUT_VALUE = 100000;  // 0.001 VRSC default output value
+
     uint32_t nVersion;                      // version of this chain definition data structure to allow for extensions (not daemon version)
     std::string name;                       // chain name, maximum 64 characters
     std::string address;                    // non-purchased/converted premine and fee recipient address
@@ -423,8 +427,8 @@ public:
     std::vector<uint32_t> eraEnd;           // block number that ends each ERA
     std::vector<uint32_t> eraOptions;       // flags to determine fungibility and conversion for each ERA
 
-    uint64_t firstBlockReward;              // payed in notarization currency
-    uint64_t notarizationReward;            // default amount per block for notarizations
+    int32_t billingPeriod;                  // number of blocks in one billing period
+    int64_t notarizationReward;             // default amount per block for notarizations
 
     std::vector<CNodeData> nodes;           // network nodes
 
@@ -443,7 +447,7 @@ public:
                           const std::vector<uint64_t> &chainRewards, const std::vector<uint64_t> &chainRewardsDecay,
                           const std::vector<uint32_t> &chainHalving, const std::vector<uint32_t> &chainEraEnd, std::vector<uint32_t> &chainCurrencyOptions,
                           uint64_t chainTimeLockGTE, uint32_t chainTimeUnlockFrom, uint32_t chainTimeUnlockTo,
-                          uint64_t FirstBlockReward, uint64_t NotaryReward, std::vector<CNodeData> &Nodes) :
+                          int32_t BillingPeriod, int64_t NotaryReward, std::vector<CNodeData> &Nodes) :
                             nVersion(PBAAS_VERSION),
                             premine(Premine),
                             eras(chainEras),
@@ -452,7 +456,7 @@ public:
                             halving(chainHalving),
                             eraEnd(chainEraEnd),
                             eraOptions(chainCurrencyOptions),
-                            firstBlockReward(FirstBlockReward),
+                            billingPeriod(BillingPeriod),
                             notarizationReward(NotaryReward),
                             nodes(Nodes)
     {
@@ -476,7 +480,7 @@ public:
         READWRITE(halving);
         READWRITE(eraEnd);
         READWRITE(eraOptions);
-        READWRITE(VARINT(firstBlockReward));
+        READWRITE(billingPeriod);
         READWRITE(VARINT(notarizationReward));
         READWRITE(nodes);
     }
@@ -957,6 +961,11 @@ bool ValidateChainDefinition(struct CCcontract_info *cp, Eval* eval, const CTran
 bool GetCCParams(const CScript &scr, COptCCParams &ccParams);
 
 void SetThisChain(UniValue &chainDefinition);
+
+int32_t uni_get_int(UniValue uv, int32_t def=0);
+int64_t uni_get_int64(UniValue uv, int64_t def =0);
+std::string uni_get_str(UniValue uv, std::string def="");
+std::vector<UniValue> uni_getValues(UniValue uv, std::vector<UniValue> def=std::vector<UniValue>());
 
 extern CConnectedChains ConnectedChains;
 extern uint160 ASSETCHAINS_CHAINID;

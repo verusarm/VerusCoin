@@ -80,6 +80,53 @@ CPBaaSNotarization::CPBaaSNotarization(const CTransaction &tx, bool validate)
     }
 }
 
+CPBaaSNotarization::CPBaaSNotarization(const UniValue &obj)
+{
+    nVersion = (uint32_t)uni_get_int(find_value(obj, "version"));
+    chainID = uint160(ParseHex(uni_get_str(find_value(obj, "chainid"))));
+    rewardPerBlock = uni_get_int64(find_value(obj, "rewardperblock"));
+    notarizationHeight = uni_get_int(find_value(obj, "notarizationheight"));
+    mmrRoot = uint256S(uni_get_str(find_value(obj, "mmrroot")));
+    compactPower = ArithToUint256((UintToArith256(uint256S(uni_get_str(find_value(obj, "stake")))) << 128) + 
+                                   UintToArith256(uint256S(uni_get_str(find_value(obj, "work")))));
+    prevNotarization = uint256S(uni_get_str(find_value(obj, "prevnotarization")));
+    prevHeight = uni_get_int(find_value(obj, "prevheight"));
+    crossNotarization = uint256S(uni_get_str(find_value(obj, "crossnotarization")));
+    crossHeight = uni_get_int(find_value(obj, "crossheight"));
+    auto nodesUni = find_value(obj, "nodes");
+    if (nodesUni.isArray())
+    {
+        vector<UniValue> nodeVec = nodesUni.getValues();
+        for (auto node : nodeVec)
+        {
+            nodes.push_back(CNodeData(uni_get_str(find_value(node, "networkaddress")), uni_get_str(find_value(node, "paymentaddress"))));
+        }
+    }
+}
+
+UniValue CPBaaSNotarization::ToUniValue() const
+{
+    UniValue obj(UniValue::VOBJ);
+    obj.push_back(Pair("version", (int32_t)nVersion));
+    obj.push_back(Pair("chainid", chainID.GetHex()));
+    obj.push_back(Pair("rewardperblock", rewardPerBlock));
+    obj.push_back(Pair("notarizationheight", (int32_t)notarizationHeight));
+    obj.push_back(Pair("mmrroot", mmrRoot.GetHex()));
+    obj.push_back(Pair("work", ((UintToArith256(compactPower) << 128) >> 128).ToString()));
+    obj.push_back(Pair("stake", (UintToArith256(compactPower) >> 128).ToString()));
+    obj.push_back(Pair("prevnotarization", prevNotarization.GetHex()));
+    obj.push_back(Pair("prevheight", prevHeight));
+    obj.push_back(Pair("crossnotarization", crossNotarization.GetHex()));
+    obj.push_back(Pair("crossheight", crossHeight));
+    UniValue nodesUni(UniValue::VARR);
+    for (auto node : nodes)
+    {
+        nodesUni.push_back(node.ToUniValue());
+    }
+    obj.push_back(Pair("nodes", nodesUni));
+    return obj;
+}
+
 CNotarizationFinalization::CNotarizationFinalization(const CTransaction &tx, bool validate)
 {
     bool found = false;
@@ -116,6 +163,71 @@ CNotarizationFinalization::CNotarizationFinalization(const CTransaction &tx, boo
     }
 }
 
+CChainNotarizationData::CChainNotarizationData(UniValue &obj)
+{
+    version = (uint32_t)uni_get_int(find_value(obj, "version"));
+    UniValue vtxUni = find_value(obj, "vtx");
+    if (vtxUni.isArray())
+    {
+        vector<UniValue> vvtx = vtxUni.getValues();
+        for (auto o : vvtx)
+        {
+            vtx.push_back(make_pair(uint256S(uni_get_str(find_value(o, "txid"))), CPBaaSNotarization(find_value(o, "notarization"))));
+        }
+    }
+
+    lastConfirmed = (uint32_t)uni_get_int(find_value(obj, "lastconfirmed"));
+    UniValue forksUni = find_value(obj, "forks");
+    if (forksUni.isArray())
+    {
+        vector<UniValue> forksVec = forksUni.getValues();
+        for (auto fv : forksVec)
+        {
+            if (fv.isArray())
+            {
+                forks.push_back(vector<int32_t>());
+                vector<UniValue> forkVec = fv.getValues();
+                for (auto fidx : forkVec)
+                {
+                    forks.back().push_back(uni_get_int(fidx));
+                }
+            }
+        }
+    }
+
+    bestChain = (uint32_t)uni_get_int(find_value(obj, "bestchain"));
+}
+
+UniValue CChainNotarizationData::ToUniValue() const
+{
+    UniValue obj(UniValue::VOBJ);
+    obj.push_back(Pair("version", (int32_t)version));
+    UniValue notarizations(UniValue::VARR);
+    for (int64_t i = 0; i < vtx.size(); i++)
+    {
+        UniValue notarization(UniValue::VOBJ);
+        obj.push_back(Pair("index", i));
+        notarization.push_back(Pair("txid", vtx[i].first.GetHex()));
+        notarization.push_back(Pair("notarization", vtx[i].second.ToUniValue()));
+        notarizations.push_back(notarization);
+    }
+    obj.push_back(notarizations);
+    obj.push_back(Pair("lastconfirmed", (int32_t)version));
+    UniValue Forks(UniValue::VARR);
+    for (int32_t i = 0; i < forks.size(); i++)
+    {
+        UniValue Fork(UniValue::VARR);
+        for (int32_t j = 0; j < forks[i].size(); j++)
+        {
+            Fork.push_back(forks[i][j]);
+        }
+        Forks.push_back(Pair("fork", Fork));
+    }
+    obj.push_back(Pair("forks", Forks));
+    obj.push_back(Pair("bestchain", bestChain));
+    return obj;
+}
+
 // This creates a notarization that will be in the current block and use the prevMMR to prove the block before us
 // we refer to the transactions on the Verus chain and on our chain with which we agree, and if we have added the
 // 10th validation to a notarization in our lineage, we finalize it as validated and finalize any conflicting notarizations
@@ -123,8 +235,7 @@ CNotarizationFinalization::CNotarizationFinalization(const CTransaction &tx, boo
 bool CreateEarnedNotarization(CMutableTransaction &mnewTx, CTransaction &lastTx, CTransaction &crossTx, int32_t height, uint256 &prevMMR)
 {
     // we can only create a notarization if there is an available Verus chain
-    CPBaaSMergeMinedChainData pmmcd;
-    if (!ConnectedChains.GetChainInfo(VERUS_CHAINID, pmmcd))
+    if (!ConnectedChains.IsVerusPBaaSAvailable())
     {
         return false;
     }
@@ -147,7 +258,7 @@ bool CreateEarnedNotarization(CMutableTransaction &mnewTx, CTransaction &lastTx,
 
     params.push_back(txidArr);
 
-    auto result = RPCCall("getcrossnotarization", params, pmmcd.rpcHost, pmmcd.rpcPort, pmmcd.rpcUserPass);
+    auto result = RPCCallRoot("getcrossnotarization", params);
 
     // if no error, prepare notarization
     auto uv1 = find_value(result, "crosstxid");
@@ -218,6 +329,12 @@ bool CreateEarnedNotarization(CMutableTransaction &mnewTx, CTransaction &lastTx,
             return false;
         }
         pbn.prevHeight = mapBlockIndex[hblk]->GetHeight();
+
+        if (pbn.prevHeight + CPBaaSNotarization::MIN_BLOCKS_BETWEEN_ACCEPTED > height)
+        {
+            // can't make another notarization yet
+            return false;
+        }
     }
 
     // determine all finalized transactions that should be spent as input
@@ -284,15 +401,7 @@ bool CreateEarnedNotarization(CMutableTransaction &mnewTx, CTransaction &lastTx,
     assert(lastNotarizationID.IsNull() || j < lastTx.vout.size());
 
     // if this isn't the first notarization, setup inputs
-    if (lastNotarizationID.IsNull())
-    {
-        // it is currently only valid to make the first notarization in block #1 on a PBaaS chain
-        if (chainActive.LastTip() != NULL && chainActive.LastTip()->GetHeight() > 0)
-        {
-            return false;
-        }
-    }
-    else
+    if (!lastNotarizationID.IsNull())
     {
         mnewTx.vin.push_back(CTxIn(lastNotarizationID, j, CScript()));
 
@@ -323,8 +432,8 @@ bool CreateEarnedNotarization(CMutableTransaction &mnewTx, CTransaction &lastTx,
         }
     }
 
-    // we need our earned notarization and finalization outputs, divide outputs evenly, as none of the earned notarizations
-    // are paid on this chain
+    // we need our earned notarization and finalization outputs
+    // add up inputs, and make sure that the main notarization output holds any excess over minimum
 
     CCcontract_info CC;
     CCcontract_info *cp;

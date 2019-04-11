@@ -1431,6 +1431,8 @@ void komodo_configfile(char *symbol,uint16_t rpcport)
                 {
                     const char *charPtr;
                     // all basic coin parameters
+                    fprintf(fp,"startblock=%d\n", ConnectedChains.thisChain.startBlock);
+                    fprintf(fp,"endblock=%d\n", ConnectedChains.thisChain.endBlock);
                     fprintf(fp,"ac_algo=verushash\nac_veruspos=50\nac_cc=1\n");
                     fprintf(fp,"ac_supply=%s\n", (charPtr = mapArgs["-ac_supply"].c_str())[0] == 0 ? "0" : charPtr);
                     fprintf(fp,"ac_halving=%s\n", (charPtr = mapArgs["-ac_halving"].c_str())[0] == 0 ? "0" : charPtr);
@@ -1818,9 +1820,9 @@ void komodo_args(char *argv0)
                         ASSETCHAINS_LASTERA = eras.size() - 1;
                         for (int i = 0; i <= ASSETCHAINS_LASTERA; i++)
                         {
-                            ASSETCHAINS_REWARD[i] = find_value(eras[i], "initialreward").get_int64();
-                            ASSETCHAINS_DECAY[i] = find_value(eras[i], "rewarddecay").get_int64();
-                            ASSETCHAINS_HALVING[i] = find_value(eras[i], "halvingperiod").get_int();
+                            ASSETCHAINS_REWARD[i] = find_value(eras[i], "reward").get_int64();
+                            ASSETCHAINS_DECAY[i] = find_value(eras[i], "decay").get_int64();
+                            ASSETCHAINS_HALVING[i] = find_value(eras[i], "halving").get_int();
                             ASSETCHAINS_ENDSUBSIDY[i] = find_value(eras[i], "eraend").get_int();
                         }
                     }
@@ -2054,6 +2056,44 @@ void komodo_args(char *argv0)
         {
             ASSETCHAINS_CC = 2;
             fprintf(stderr,"smart utxo CC contracts will activate at height.%d\n",KOMODO_CCACTIVATE);
+        }
+
+        if (!paramsLoaded)
+        {
+            // we need to set the chain definition for this chain based on globals set above
+            UniValue obj(UniValue::VOBJ);
+
+            obj.push_back(Pair("premine", ASSETCHAINS_SUPPLY));
+            obj.push_back(Pair("name", ASSETCHAINS_SYMBOL));
+
+            obj.push_back(Pair("startblock", GetArg("-startblock", 0)));
+            obj.push_back(Pair("endblock", GetArg("-endblock", 0)));
+
+            UniValue eras(UniValue::VARR);
+            for (int i = 0; i < ASSETCHAINS_MAX_ERAS; i++)
+            {
+                UniValue era(UniValue::VOBJ);
+                if (i <= ASSETCHAINS_LASTERA)
+                {
+                    era.push_back(Pair("reward", ASSETCHAINS_REWARD[i]));
+                    era.push_back(Pair("decay", ASSETCHAINS_DECAY[i]));
+                    era.push_back(Pair("halving", ASSETCHAINS_HALVING[i]));
+                    era.push_back(Pair("eraend", ASSETCHAINS_ENDSUBSIDY[i]));
+                }
+                else
+                {
+                    era.push_back(Pair("reward", 0));
+                    era.push_back(Pair("decay", 0));
+                    era.push_back(Pair("halving", 0));
+                    era.push_back(Pair("eraend", 0));
+                }
+                eras.push_back(era);
+            }
+
+            obj.push_back(Pair("eras", eras));
+
+            SetThisChain(obj);
+            paramsLoaded = true;
         }
     }
     else

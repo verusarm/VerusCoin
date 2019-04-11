@@ -18,6 +18,54 @@
 
 using namespace std;
 
+int32_t uni_get_int(UniValue uv, int32_t def)
+{
+    try
+    {
+        return uv.get_int();
+    }
+    catch(const std::exception& e)
+    {
+        return def;
+    }
+}
+
+int64_t uni_get_int64(UniValue uv, int64_t def)
+{
+    try
+    {
+        return uv.get_int64();
+    }
+    catch(const std::exception& e)
+    {
+        return def;
+    }
+}
+
+std::string uni_get_str(UniValue uv, std::string def)
+{
+    try
+    {
+        return uv.get_str();
+    }
+    catch(const std::exception& e)
+    {
+        return def;
+    }
+}
+
+std::vector<UniValue> uni_getValues(UniValue uv, std::vector<UniValue> def)
+{
+    try
+    {
+        return uv.getValues();
+    }
+    catch(const std::exception& e)
+    {
+        return def;
+    }
+}
+
 CConnectedChains ConnectedChains;
 
 bool IsVerusActive()
@@ -212,8 +260,8 @@ std::vector<CBaseChainObject *> RetrieveOpRetArray(const CScript &opRetScript)
 
 CNodeData::CNodeData(UniValue &obj)
 {
-    networkAddress = find_value(obj, "networkaddress").get_str();
-    paymentAddress = GetDestinationID(DecodeDestination(find_value(obj, "paymentaddress").get_str()));
+    networkAddress = uni_get_str(find_value(obj, "networkaddress"));
+    paymentAddress = GetDestinationID(DecodeDestination(uni_get_str(find_value(obj, "paymentaddress"))));
 }
 
 UniValue CNodeData::ToUniValue() const
@@ -226,34 +274,34 @@ UniValue CNodeData::ToUniValue() const
 
 CPBaaSChainDefinition::CPBaaSChainDefinition(UniValue &obj)
 {
-    nVersion = find_value(obj, "version").get_int();
-    name = find_value(obj, "name").get_str();
-    address = find_value(obj, "foundersaddress").get_str();
-    premine = find_value(obj, "premine").get_int64();
-    conversion = find_value(obj, "conversionfactor").get_int64();
-    launchfee = find_value(obj, "launchfactor").get_int64();
-    startBlock = find_value(obj, "startblock").get_int64();
-    endBlock = find_value(obj, "endblock").get_int64();
+    nVersion = uni_get_int(find_value(obj, "version"));
+    name = uni_get_str(find_value(obj, "name"));
+    address = uni_get_str(find_value(obj, "foundersaddress"));
+    premine = uni_get_int64(find_value(obj, "premine"));
+    conversion = uni_get_int64(find_value(obj, "conversionfactor"));
+    launchfee = uni_get_int64(find_value(obj, "launchfactor"));
+    startBlock = uni_get_int(find_value(obj, "startblock"));
+    endBlock = uni_get_int(find_value(obj, "endblock"));
 
-    auto vEras = find_value(obj, "eras").getValues();
+    auto vEras = uni_getValues(find_value(obj, "eras"));
     eras = vEras.size();
 
     for (auto era : vEras)
     {
-        rewards.push_back(find_value(obj, "initialreward").get_int64());
-        rewardsDecay.push_back(find_value(obj, "rewarddecay").get_int64());
-        halving.push_back(find_value(obj, "halvingperiod").get_int64());
-        eraEnd.push_back(find_value(obj, "eraend").get_int64());
-        eraOptions.push_back(find_value(obj, "eraoptions").get_int64());
+        rewards.push_back(uni_get_int64(find_value(era, "reward")));
+        rewardsDecay.push_back(uni_get_int64(find_value(era, "decay")));
+        halving.push_back(uni_get_int64(find_value(era, "halving")));
+        eraEnd.push_back(uni_get_int64(find_value(era, "eraend")));
+        eraOptions.push_back(uni_get_int64(find_value(era, "eraoptions")));
     }
 
-    firstBlockReward = find_value(obj, "firstblockreward").get_int64();
-    notarizationReward = find_value(obj, "notarizationreward").get_int64();
+    billingPeriod = uni_get_int(find_value(obj, "billingperiod"));
+    notarizationReward = uni_get_int64(find_value(obj, "notarizationreward"));
 
-    auto nodeVec = find_value(obj, "nodes").getValues();
+    auto nodeVec = uni_getValues(find_value(obj, "nodes"));
     for (auto node : nodeVec)
     {
-        nodes.push_back(CNodeData());
+        nodes.push_back(CNodeData(node));
     }
 }
 
@@ -317,24 +365,24 @@ UniValue CPBaaSChainDefinition::ToUniValue() const
     obj.push_back(Pair("launchfactor", (int64_t)launchfee));
     obj.push_back(Pair("conversion", (double)conversion / 100000000));
     obj.push_back(Pair("launchfeepercent", ((double)launchfee / 100000000) * 100));
-    obj.push_back(Pair("startblock", (int64_t)startBlock));
-    obj.push_back(Pair("endblock", (int64_t)endBlock));
+    obj.push_back(Pair("startblock", (int32_t)startBlock));
+    obj.push_back(Pair("endblock", (int32_t)endBlock));
 
     UniValue eraArr(UniValue::VARR);
     for (int i = 0; i < eras; i++)
     {
         UniValue era(UniValue::VOBJ);
-        era.push_back(Pair("initialreward", rewards.size() > i ? rewards[i] : (int64_t)0));
-        era.push_back(Pair("rewarddecay", rewardsDecay.size() > i ? rewardsDecay[i] : (int64_t)0));
-        era.push_back(Pair("halvingperiod", halving.size() > i ? halving[i] : (int64_t)0));
-        era.push_back(Pair("eraend", eraEnd.size() > i ? eraEnd[i] : (int64_t)0));
-        era.push_back(Pair("eraoptions", eraOptions.size() > i ? eraOptions[i] : (int64_t)0));
+        era.push_back(Pair("reward", rewards.size() > i ? rewards[i] : (int64_t)0));
+        era.push_back(Pair("decay", rewardsDecay.size() > i ? rewardsDecay[i] : (int64_t)0));
+        era.push_back(Pair("halving", halving.size() > i ? (int32_t)halving[i] : (int32_t)0));
+        era.push_back(Pair("eraend", eraEnd.size() > i ? (int32_t)eraEnd[i] : (int32_t)0));
+        era.push_back(Pair("eraoptions", eraOptions.size() > i ? (int32_t)eraOptions[i] : (int32_t)0));
         eraArr.push_back(era);
     }
     obj.push_back(Pair("eras", eraArr));
 
-    obj.push_back(Pair("firstblockreward", (int64_t)firstBlockReward));
-    obj.push_back(Pair("notarizationreward", (int64_t)notarizationReward));
+    obj.push_back(Pair("billingperiod", billingPeriod));
+    obj.push_back(Pair("notarizationreward", notarizationReward));
 
     UniValue nodeArr(UniValue::VARR);
     for (auto node : nodes)
@@ -635,7 +683,7 @@ bool CConnectedChains::CheckVerusPBaaSAvailable(UniValue &rpcGetInfoResult)
     UniValue uniVer = find_value(rpcGetInfoResult, "VRSCversion");
     if (uniVer.isStr())
     {
-        notaryChainVersion = uniVer.get_str();
+        notaryChainVersion = uni_get_str(uniVer);
     }
     return IsVerusPBaaSAvailable();
 }
@@ -651,8 +699,13 @@ bool CConnectedChains::CheckVerusPBaaSAvailable()
         // if this is a PBaaS chain, poll for presence of Verus / root chain and current Verus block and version number
         UniValue result;
         result = RPCCallRoot("getinfo", UniValue(UniValue::VARR));
-        isVerusPBaaSAvailable = CheckVerusPBaaSAvailable(result);
+        if (CheckVerusPBaaSAvailable(result))
+        {
+
+            return true;
+        }
     }
+    return false;
 }
 
 void CConnectedChains::SubmissionThread()

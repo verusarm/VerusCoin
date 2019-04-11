@@ -343,12 +343,28 @@ CBlockTemplate* CreateNewBlock(const CScript& _scriptPubKeyIn, int32_t gpucount,
             }
         }
 
-        // if we should make an earned notarization, make it
-        // only make one if we are the 1st block, or if it has been the specified min blocks since the last for this chain
-        if (!IsVerusActive() && ConnectedChains.IsVerusPBaaSAvailable())
+        // if we are a PBaaS chain, first make sure we don't start prematurely, and if
+        // we should make an earned notarization, make it
+        if (!IsVerusActive())
         {
-            // we are a PBaaS chain, create a notarization, if we would qualify, and add it to the mempool and block
-            //if (CreateEarnedNotarization())
+            if (nHeight != 1 || ConnectedChains.IsVerusPBaaSAvailable())
+            {
+                // we are a PBaaS chain, create a notarization, if we would qualify, and add it to the mempool and block
+                CMutableTransaction newNotarizationTx;
+                CTransaction prevTx, crossTx;
+                ChainMerkleMountainView mmv = chainActive.GetMMV();
+                uint256 mmrRoot = mmv.GetRoot();
+                if (CreateEarnedNotarization(newNotarizationTx, prevTx, crossTx, nHeight, mmrRoot))
+                {
+                    // we have a valid, earned notarization transaction. we may need to combine it with the coinbase if it is
+                    // block #1
+                }
+            }
+            else
+            {
+                // can't mine block 1 unless we have a connection to Verus and can notarize
+                return NULL;
+            }
         }
 
         // now add transactions from the mem pool

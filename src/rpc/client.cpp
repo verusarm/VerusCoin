@@ -27,7 +27,7 @@ UniValue RPCCall(const string& strMethod, const UniValue& params, const string c
 UniValue RPCCallRoot(const string& strMethod, const UniValue& params)
 {assert(false);}
 void SetThisChain(UniValue &chainDefinition)
-{assert(false);}
+{}
 
 static const CRPCConvertParam vRPCConvertParams[] =
 {

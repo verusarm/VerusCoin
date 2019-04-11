@@ -73,6 +73,7 @@ class CPBaaSNotarization
 {
 public:
     static const int FINAL_CONFIRMATIONS = 10;
+    static const int MIN_BLOCKS_BETWEEN_ACCEPTED = 8;
     static const int CURRENT_VERSION = PBAAS_VERSION;
     uint32_t nVersion;                      // PBAAS version
     uint160 chainID;                        // chain being notarized
@@ -130,6 +131,8 @@ public:
 
     CPBaaSNotarization(const CTransaction &tx, bool validate = false);
 
+    CPBaaSNotarization(const UniValue &obj);
+
     ADD_SERIALIZE_METHODS;
 
     template <typename Stream, typename Operation>
@@ -158,28 +161,7 @@ public:
         return !mmrRoot.IsNull();
     }
 
-    UniValue ToUniValue() const
-    {
-        UniValue obj(UniValue::VOBJ);
-        obj.push_back(Pair("version", (int64_t)nVersion));
-        obj.push_back(Pair("chainid", chainID.GetHex()));
-        obj.push_back(Pair("rewardperblock", rewardPerBlock));
-        obj.push_back(Pair("notarizationheight", (int64_t)notarizationHeight));
-        obj.push_back(Pair("mmrroot", mmrRoot.GetHex()));
-        obj.push_back(Pair("work", ((UintToArith256(compactPower) << 128) >> 128).ToString()));
-        obj.push_back(Pair("stake", (UintToArith256(compactPower) >> 128).ToString()));
-        obj.push_back(Pair("prevnotarization", prevNotarization.GetHex()));
-        obj.push_back(Pair("prevheight", prevHeight));
-        obj.push_back(Pair("crossnotarization", crossNotarization.GetHex()));
-        obj.push_back(Pair("crossheight", rewardPerBlock));
-        UniValue nodesUni(UniValue::VARR);
-        for (auto node : nodes)
-        {
-            nodesUni.push_back(node.ToUniValue());
-        }
-        obj.push_back(Pair("nodes", nodesUni));
-        return obj;
-    }
+    UniValue ToUniValue() const;
 };
 
 class CNotarizationFinalization
@@ -218,22 +200,20 @@ class CChainNotarizationData
 public:
     static const int CURRENT_VERSION = PBAAS_VERSION;
     uint32_t version;
-    int32_t startBlock;
-    int32_t endBlock;
 
     std::vector<std::pair<uint256, CPBaaSNotarization>> vtx;
     int32_t lastConfirmed;                          // last confirmed notarization
     std::vector<std::vector<int32_t>> forks;        // chains that represent alternate branches from the last confirmed notarization
     int32_t bestChain;                              // index in forks of the chain, beginning with the last confirmed notarization, that has the most power
 
-    CChainNotarizationData() : version(0), startBlock(0), endBlock(0), lastConfirmed(-1) {}
+    CChainNotarizationData() : version(0), lastConfirmed(-1) {}
 
     CChainNotarizationData(uint32_t ver, int32_t start, int32_t end, 
                            std::vector<std::pair<uint256, CPBaaSNotarization>> txes,
                            int32_t lastConf,
                            std::vector<std::vector<int32_t>> &Forks,
                            int32_t Best) : 
-                        version(ver), startBlock(start), endBlock(end),
+                        version(ver),
                         vtx(txes), lastConfirmed(lastConf), bestChain(Best), forks(Forks) {}
 
     CChainNotarizationData(std::vector<unsigned char> vch)
@@ -241,13 +221,13 @@ public:
         ::FromVector(vch, *this);
     }
 
+    CChainNotarizationData(UniValue &obj);
+
     ADD_SERIALIZE_METHODS;
 
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action) {
         READWRITE(version);
-        READWRITE(startBlock);
-        READWRITE(endBlock);
         READWRITE(vtx);
         READWRITE(bestChain);
         READWRITE(forks);
@@ -269,36 +249,7 @@ public:
         return lastConfirmed != -1;
     }
 
-    UniValue ToUniValue() const
-    {
-        UniValue obj(UniValue::VOBJ);
-        obj.push_back(Pair("version", (int64_t)version));
-        obj.push_back(Pair("startblock", (int64_t)startBlock));
-        obj.push_back(Pair("endblock", (int64_t)endBlock));
-        UniValue notarizations(UniValue::VARR);
-        for (int64_t i = 0; i < vtx.size(); i++)
-        {
-            UniValue notarization(UniValue::VOBJ);
-            obj.push_back(Pair("index", i));
-            notarization.push_back(Pair("txid", vtx[i].first.GetHex()));
-            notarization.push_back(Pair("notarization", vtx[i].second.ToUniValue()));
-            notarizations.push_back(notarization);
-        }
-        obj.push_back(notarizations);
-        obj.push_back(Pair("lastconfirmed", (int64_t)version));
-        UniValue Forks(UniValue::VARR);
-        for (int64_t i = 0; i < forks.size(); i++)
-        {
-            UniValue Fork(UniValue::VARR);
-            for (int64_t j = 0; j < forks[i].size(); j++)
-            {
-                Fork.push_back((int64_t)forks[i][j]);
-            }
-            Forks.push_back(Pair("fork", Fork));
-        }
-        obj.push_back(Pair("forks", Forks));
-        return obj;
-    }
+    UniValue ToUniValue() const;
 };
 
 bool CreateEarnedNotarization(CMutableTransaction &mnewTx, CTransaction &lastTx, CTransaction &crossTx, int32_t height, uint256 &prevMMR);

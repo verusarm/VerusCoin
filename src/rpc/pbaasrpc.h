@@ -21,7 +21,7 @@ bool GetNotarizationData(uint160 chainID, uint32_t ecode, CChainNotarizationData
 UniValue getchaindefinition(const UniValue& params, bool fHelp);
 UniValue getnotarizationdata(const UniValue& params, bool fHelp);
 UniValue getcrossnotarization(const UniValue& params, bool fHelp);
-UniValue definepbaaschain(const UniValue& params, bool fHelp);
+UniValue definechain(const UniValue& params, bool fHelp);
 UniValue addmergedblock(const UniValue& params, bool fHelp);
 
 void RegisterPBaaSRPCCommands(CRPCTable &tableRPC);
