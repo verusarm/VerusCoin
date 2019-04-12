@@ -1381,9 +1381,8 @@ bool CWallet::VerusSelectStakeOutput(CBlock *pBlock, arith_uint256 &hashResult, 
                 // all that data includes enough information to verify
                 // prior MMR, blockhash, transaction, entropy hash, and block indexes match
                 // also checks root match & block power
-                txStream << CPBaaSBlockHeader(ASSETCHAINS_CHAINID, 
-                                              CPBaaSPreHeader(*pBlock), 
-                                              uint256());
+                auto view = chainActive.GetMMV();
+                pBlock->AddUpdatePBaaSHeader(view.GetRoot());
 
                 txStream << *(CTransaction *)pwinner->tx;
 
@@ -1395,7 +1394,7 @@ bool CWallet::VerusSelectStakeOutput(CBlock *pBlock, arith_uint256 &hashResult, 
 
                 // use the block that we got entropy hash from as the validating block
                 // which immediately provides all but unspent proof for PoS block
-                ChainMerkleMountainView view(chainActive.GetMMR(), pastBlockIndex->GetHeight());
+                view.resize(pastBlockIndex->GetHeight());
 
                 view.GetProof(branch, srcIndex);
 
@@ -1414,9 +1413,7 @@ bool CWallet::VerusSelectStakeOutput(CBlock *pBlock, arith_uint256 &hashResult, 
                 view.GetProof(branch, pastBlockIndex->GetHeight());
 
                 // block proof of the same block using the MMR of that block height, so we don't need to add additional data
-                // beyond the block hash. with the next update to PoS, entropy hash will always equal the block hash, which
-                // allows us to recontruct the full PoS qualification with only the header and validate it further with
-                // prior blocks
+                // beyond the block hash.
                 txStream << pastBlockIndex->GetBlockHash();
                 txStream << branch;
 

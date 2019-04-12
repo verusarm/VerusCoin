@@ -158,7 +158,7 @@ int32_t CBlockHeader::AddPBaaSHeader(const CPBaaSBlockHeader &pbh)
     else
     {
         // make sure we have space. do not adjust capacity
-        if (d.numPBaaSHeaders < (uint32_t)(sv.ExtraDataLen() / sizeof(CPBaaSBlockHeader)))
+        if ((uint32_t)(sv.ExtraDataLen() / sizeof(CPBaaSBlockHeader)) > 0)
         {
             d.numPBaaSHeaders++;
             // store in last slot
