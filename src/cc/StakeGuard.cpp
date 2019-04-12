@@ -450,8 +450,8 @@ bool StakeGuardValidate(struct CCcontract_info *cp, Eval* eval, const CTransacti
 
 bool IsStakeGuardInput(const CScript &scriptSig)
 {
-    printf("IsStakeGuardInput: not implemented");
-    return false;
+    uint32_t ecode;
+    return scriptSig.IsPayToCryptoCondition(&ecode) && ecode == EVAL_STAKEGUARD;
 }
 
 UniValue StakeGuardInfo()

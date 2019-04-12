@@ -1789,9 +1789,14 @@ void komodo_args(char *argv0)
             // if we are requested to automatically load the information from the Verus chain, do it if we can find the daemon
             if (ReadConfigFile(PBAAS_TESTMODE ? "VRSCTEST" : "VRSC", settings, settingsmulti))
             {
-                PBAAS_USERPASS = settingsmulti.find("-rpcuser")->second[0] + ":" + settingsmulti.find("-rpcpassword")->second[0];
-                PBAAS_PORT = atoi(settingsmulti.find("-rpcport")->second[0]);
-                PBAAS_HOST = settingsmulti.find("-rpchost")->second[0];
+                auto user = settingsmulti.find("-rpcuser");
+                auto pwd = settingsmulti.find("-rpcpassword");
+                auto host = settingsmulti.find("-rpchost");
+                auto port = settingsmulti.find("-rpcport");
+                auto multiEnd = settingsmulti.end();
+                PBAAS_USERPASS = (user == multiEnd ? "" : user->second[0]) + ":" + ((pwd == multiEnd) ? "" : pwd->second[0]);
+                PBAAS_PORT = port == multiEnd ? 0 : atoi(port->second[0]);
+                PBAAS_HOST = host == multiEnd ? "" : host->second[0];
                 if (!PBAAS_HOST.size())
                 {
                     PBAAS_HOST = "127.0.0.1";
@@ -1826,6 +1831,10 @@ void komodo_args(char *argv0)
                             ASSETCHAINS_ENDSUBSIDY[i] = find_value(eras[i], "eraend").get_int();
                         }
                     }
+
+                    PBAAS_STARTBLOCK = find_value(result, "startblock").get_int();
+                    PBAAS_ENDBLOCK = find_value(result, "endblock").get_int();
+
                     paramsLoaded = true;
                 }
                 catch(const std::exception& e)
@@ -1938,6 +1947,9 @@ void komodo_args(char *argv0)
             // other values
             if ( (ASSETCHAINS_LWMAPOS = GetArg("-ac_veruspos", 50)) != 0 )
                 ASSETCHAINS_LWMAPOS = 50;
+            
+            PBAAS_STARTBLOCK = GetArg("-startblock", 0);
+            PBAAS_ENDBLOCK = GetArg("-endblock", 0);
         }
 
         ASSETCHAINS_SAPLING = 1;
@@ -1996,6 +2008,12 @@ void komodo_args(char *argv0)
             if ( ASSETCHAINS_LWMAPOS != 0 )
             {
                 extralen += iguana_rwnum(1,&extraptr[extralen],sizeof(ASSETCHAINS_LWMAPOS),(void *)&ASSETCHAINS_LWMAPOS);
+            }
+
+            if ( PBAAS_STARTBLOCK || PBAAS_ENDBLOCK )
+            {
+                extralen += iguana_rwnum(1,&extraptr[extralen],sizeof(PBAAS_STARTBLOCK),(void *)&PBAAS_STARTBLOCK);
+                extralen += iguana_rwnum(1,&extraptr[extralen],sizeof(PBAAS_ENDBLOCK),(void *)&PBAAS_ENDBLOCK);
             }
 
             val = ASSETCHAINS_COMMISSION | (((uint64_t)ASSETCHAINS_STAKED & 0xff) << 32) | (((uint64_t)ASSETCHAINS_CC & 0xffff) << 40) | ((ASSETCHAINS_PUBLIC != 0) << 7) | ((ASSETCHAINS_PRIVATE != 0) << 6);

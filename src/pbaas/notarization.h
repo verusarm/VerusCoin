@@ -254,4 +254,11 @@ public:
 
 bool CreateEarnedNotarization(CMutableTransaction &mnewTx, CTransaction &lastTx, CTransaction &crossTx, int32_t height, uint256 &prevMMR);
 
+bool ValidateEarnedNotarization(struct CCcontract_info *cp, Eval* eval, const CTransaction &tx, uint32_t nIn);
+bool IsEarnedNotarizationInput(const CScript &scriptSig);
+bool ValidateAcceptedNotarization(struct CCcontract_info *cp, Eval* eval, const CTransaction &tx, uint32_t nIn);
+bool IsAcceptedNotarizationInput(const CScript &scriptSig);
+bool ValidateFinalizeNotarization(struct CCcontract_info *cp, Eval* eval, const CTransaction &tx, uint32_t nIn);
+bool IsFinalizeNotarizationInput(const CScript &scriptSig);
+
 #endif

@@ -129,6 +129,7 @@ extern int32_t VERUS_MIN_STAKEAGE, ASSETCHAINS_ALGO, ASSETCHAINS_EQUIHASH, ASSET
 extern char ASSETCHAINS_SYMBOL[KOMODO_ASSETCHAIN_MAXLEN];
 extern uint160 ASSETCHAINS_CHAINID;
 extern uint160 VERUS_CHAINID;
+extern int32_t PBAAS_STARTBLOCK, PBAAS_ENDBLOCK;
 extern std::string NOTARY_PUBKEY,ASSETCHAINS_OVERRIDE_PUBKEY;
 void vcalc_sha256(char deprecated[(256 >> 3) * 2 + 1],uint8_t hash[256 >> 3],uint8_t *src,int32_t len);
 
@@ -344,20 +345,46 @@ CBlockTemplate* CreateNewBlock(const CScript& _scriptPubKeyIn, int32_t gpucount,
         }
 
         // if we are a PBaaS chain, first make sure we don't start prematurely, and if
-        // we should make an earned notarization, make it
+        // we should make an earned notarization, make it and set index to non-zero value
+        int32_t pbaasNotarizationTx = 0;
+        int64_t pbaasTransparentIn = 0;
+        int32_t pbaasCoinbaseInstantSpendOut = 0;
         if (!IsVerusActive())
         {
-            if (nHeight != 1 || ConnectedChains.IsVerusPBaaSAvailable())
+            // if we don't have a connected root PBaaS chain, we can't properly check
+            // and notarize the start block, so we have to pass and wait
+            if (nHeight != 1 || (ConnectedChains.IsVerusPBaaSAvailable() && ConnectedChains.notaryChainHeight >= PBAAS_STARTBLOCK))
             {
-                // we are a PBaaS chain, create a notarization, if we would qualify, and add it to the mempool and block
+                // if we have access to our parent daemon
+                // create a notarization, if we would qualify, and add it to the mempool and block
                 CMutableTransaction newNotarizationTx;
                 CTransaction prevTx, crossTx;
                 ChainMerkleMountainView mmv = chainActive.GetMMV();
                 uint256 mmrRoot = mmv.GetRoot();
                 if (CreateEarnedNotarization(newNotarizationTx, prevTx, crossTx, nHeight, mmrRoot))
                 {
-                    // we have a valid, earned notarization transaction. we may need to combine it with the coinbase if it is
-                    // block #1
+                    // we have a valid, earned notarization transaction. we still need to verify:
+                    // 1. it has enough input for its outputs. it can be returned with less than enough, 
+                    // and if so, take it as instant-spend from the coinbase. instant-spend and notarization 
+                    // threads on a PBaaS chain can only be used for notarization, and can never convert to 
+                    // available supply
+
+                    // Fetch previous transactions (inputs):
+                    for (const CTxIn& txin : newNotarizationTx.vin)
+                    {
+                        const uint256& prevHash = txin.prevout.hash;
+                        const CCoins *pcoins = view.AccessCoins(prevHash); // this is certainly allowed to fail
+                        pbaasTransparentIn += pcoins && (pcoins->vout.size() > txin.prevout.n) ? pcoins->vout[txin.prevout.n].nValue : 0;
+                    }
+                    pblock->vtx.push_back(CTransaction(newNotarizationTx));
+                    pblocktemplate->vTxFees.push_back(0);
+                    pblocktemplate->vTxSigOps.push_back(-1); // updated at end
+                    pbaasNotarizationTx = pblock->vtx.size() - 1;
+                }
+                else if (nHeight == 1)
+                {
+                    // failed to notarize at block 1
+                    return NULL;
                 }
             }
             else
@@ -703,6 +730,79 @@ CBlockTemplate* CreateNewBlock(const CScript& _scriptPubKeyIn, int32_t gpucount,
             //printf("autocreate commision vout\n");
         }
 
+        // if we need an instant out to be a source of funds for the notarization transaction, make it here
+        if (pbaasNotarizationTx)
+        {
+            extern CWallet *pwalletMain;
+            LOCK(pwalletMain->cs_wallet);
+
+            // now add an input from the coinbase to the notarization
+            CMutableTransaction mntx(pblock->vtx[pbaasNotarizationTx]);
+            CTransaction ntx = pblock->vtx[pbaasNotarizationTx];
+
+            int64_t pbaasTxValueOut = ntx.GetValueOut();
+            int numOutputs = ntx.vout.size() - (ntx.vout[ntx.vout.size() - 1].scriptPubKey.IsOpReturn() ? 1 : 0);
+            if (pbaasNotarizationTx != 0 && pbaasTxValueOut > pbaasTransparentIn)
+            {
+                int64_t needed = pbaasTxValueOut - pbaasTransparentIn;
+                if (needed > PBAAS_MINNOTARIZATIONOUTPUT * numOutputs)
+                {
+                    fprintf(stderr,"CreateNewBlock: too much output from earned notarization transaction\n");
+                    return NULL;
+                }
+
+                auto coinbaseOutIt = txNew.vout.end();
+                pbaasCoinbaseInstantSpendOut = txNew.vout.size();
+                if ((coinbaseOutIt - 1)->scriptPubKey.IsOpReturn())
+                {
+                    coinbaseOutIt -= 1;
+                    pbaasCoinbaseInstantSpendOut -= 1;
+                }
+
+                CCcontract_info CC;
+                CCcontract_info *cp;
+                vector<CTxDestination> vKeys;
+
+                // make the earned notarization output
+                cp = CCinit(&CC, EVAL_EARNEDNOTARIZATION);
+                // need to be able to send this to EVAL_PBAASDEFINITION address as a destination, locked by the default pubkey
+                CPubKey pk = CPubKey(std::vector<unsigned char>(CC.CChexstr, CC.CChexstr + strlen(CC.CChexstr)));
+
+                vKeys.push_back(CTxDestination(CKeyID(CCrossChainRPCData::GetConditionID(VERUS_CHAINID, EVAL_EARNEDNOTARIZATION))));
+
+                // output duplicate notarization as coinbase output for instant spend to notarization
+                // these coins will never join the supply pool, so they do not need to be considered as
+                // part of the total value out sum of this coinbase
+                CPBaaSNotarization pbn(ntx);
+                txNew.vout.insert(coinbaseOutIt, MakeCC1of1Vout(EVAL_EARNEDNOTARIZATION, PBAAS_MINNOTARIZATIONOUTPUT, pk, vKeys, pbn));
+                mntx.vin.push_back(CTxIn(txNew.GetHash(), pbaasCoinbaseInstantSpendOut));
+            }
+
+            // we need to sign mntx and put it back
+            int nIn = 0;
+            ntx = CTransaction(mntx);
+
+            for (int i = 0; i < ntx.vin.size(); i++)
+            {
+                bool signSuccess;
+                const CCoins *coins = view.AccessCoins(ntx.vin[i].prevout.hash);
+                const CScript& scriptPubKey = coins->vout[ntx.vin[i].prevout.n].scriptPubKey;
+                SignatureData sigdata;
+
+                signSuccess = ProduceSignature(TransactionSignatureCreator(pwalletMain, &ntx, i, coins->vout[ntx.vin[i].prevout.n].nValue, SIGHASH_ALL), scriptPubKey, sigdata, consensusBranchId);
+
+                if (!signSuccess)
+                {
+                    fprintf(stderr,"CreateNewBlock: failure to sign earned notarization\n");
+                    return NULL;
+                } else {
+                    UpdateTransaction(mntx, i, sigdata);
+                }
+            }
+            pblock->vtx[pbaasNotarizationTx] = mntx;
+            pblocktemplate->vTxSigOps[pbaasNotarizationTx] = GetLegacySigOpCount(mntx);
+        }
+
         pblock->vtx[0] = txNew;
         pblocktemplate->vTxFees[0] = -nFees;
 
@@ -730,6 +830,7 @@ CBlockTemplate* CreateNewBlock(const CScript& _scriptPubKeyIn, int32_t gpucount,
         }
 
         pblocktemplate->vTxSigOps[0] = GetLegacySigOpCount(pblock->vtx[0]);
+
         if ( ASSETCHAINS_SYMBOL[0] == 0 && IS_KOMODO_NOTARY != 0 && My_notaryid >= 0 )
         {
             uint32_t r;
@@ -1098,8 +1199,6 @@ void static VerusStaker(CWallet *pwallet)
         {
             waitForPeers(chainparams);
             CBlockIndex* pindexPrev = chainActive.LastTip();
-
-            // TODO: update notarization data if this is a PBaaS chain, and there is a Verus daemon available
 
             // Create new block
             unsigned int nTransactionsUpdatedLast = mempool.GetTransactionsUpdated();

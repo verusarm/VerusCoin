@@ -97,80 +97,6 @@ CC *CCcond1(uint8_t evalcode,CPubKey pk)
     return CCNewThreshold(2, {condCC, Sig});
 }
 
-// TODO: these are redundant and should be cleaned up to one file
-std::string _StakeGuardAddr = "RCG8KwJNDVwpUBcdoa6AoHqHVJsA1uMYMR";
-std::string _StakeGuardPubKey = "03166b7813a4855a88e9ef7340a692ef3c2decedfdc2c7563ec79537e89667d935";
-std::string _StakeGuardWIF = "Uw7vRYHGKjyi1FaJ8Lv1USSuj7ntUti8fAhSDiCdbzuV6yDagaTn";
-
-std::vector<CCcontract_info> &GetCryptoConditions()
-{
-    static bool initialized = false;
-    static std::vector<CCcontract_info> vCC = std::vector<CCcontract_info>();
-    CCcontract_info C;
-
-    if (!initialized)
-    {
-        C.evalcode = EVAL_STAKEGUARD;
-        strcpy(C.unspendableCCaddr,_StakeGuardAddr.c_str());
-        strcpy(C.normaladdr,_StakeGuardAddr.c_str());
-        strcpy(C.CChexstr,_StakeGuardPubKey.c_str());
-        memcpy(C.CCpriv, DecodeSecret(_StakeGuardWIF).begin(),32);
-        vCC.push_back(C);
-
-        initialized = true;
-    }
-    return vCC;
-}
-
-bool GetCCByUnspendableAddress(struct CCcontract_info *cp, char *addrstr)
-{
-    std::vector<CCcontract_info> &vCC = GetCryptoConditions();
-    bool found = false;
-
-    for (int i = 0; i < vCC.size(); i++)
-    {
-        if (strcmp(addrstr, vCC[i].unspendableCCaddr) == 0)
-        {
-            found = true;
-            *cp = vCC[i];
-            break;
-        }
-    }
-    return found;
-}
-
-bool CCinitLite(struct CCcontract_info *cp, uint8_t evalcode)
-{
-    std::vector<CCcontract_info> &vCC = GetCryptoConditions();
-    bool found = false;
-
-    for (int i = 0; i < vCC.size(); i++)
-    {
-        if (vCC[i].evalcode == evalcode)
-        {
-            found = true;
-            *cp = vCC[i];
-            break;
-        }
-    }
-    return found;
-}
-
-bool _GetscriptaddressEx(char *destaddr, const CScript &scriptPubKey)
-{
-    CTxDestination address; 
-    txnouttype whichType;
-    std::vector<std::vector<unsigned char>> vvch = std::vector<std::vector<unsigned char>>();
-    if (Solver(scriptPubKey, whichType, vvch) && vvch[0].size() == 20)
-    {
-        address = CKeyID(uint160(vvch[0]));
-        strcpy(destaddr,(char *)CBitcoinAddress(address).ToString().c_str());
-        return(true);
-    }
-    fprintf(stderr,"Solver for scriptPubKey failed\n%s\n", scriptPubKey.ToString().c_str());
-    return(false);
-}
-
 CScript _CCPubKey(const CC *cond)
 {
     unsigned char buf[1000];
@@ -192,10 +118,11 @@ static bool SignStepCC(const BaseSignatureCreator& creator, const CScript& scrip
     scriptPubKey.IsPayToCryptoCondition(&subScript, vParams);
     if (vParams.empty())
     {
-        // get the keyID address of the cc and if it is an unspendable cc address, use its pubkey
-        // we have nothing else
-        char addr[64];
-        if (_GetscriptaddressEx(addr, subScript) && GetCCByUnspendableAddress(&C, addr))
+        uint32_t ecode;
+        scriptPubKey.IsPayToCryptoCondition(&ecode);
+
+        // use the cryptocondition's pubkey, we have nothing else
+        if (CCinit(&C, p.evalCode))
         {
             vPK.push_back(CTxDestination(CPubKey(ParseHex(C.CChexstr))));
             p = COptCCParams(p.VERSION_V1, C.evalcode, 1, 1, vPK, vParams);
@@ -212,7 +139,7 @@ static bool SignStepCC(const BaseSignatureCreator& creator, const CScript& scrip
         CKey privKey;
 
         // must be a valid cc eval code
-        if (CCinitLite(&C, p.evalCode))
+        if (CCinit(&C, p.evalCode))
         {
             // pay to cc address is a valid tx
             if (!is1of2)

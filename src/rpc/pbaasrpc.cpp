@@ -793,7 +793,7 @@ UniValue definechain(const UniValue& params, bool fHelp)
     newChain.notarizationReward = uni_get_int64(find_value(params[0], "notarizationreward"));
     newChain.billingPeriod = uni_get_int(find_value(params[0], "billingperiod"));
 
-    if (newChain.billingPeriod < (newChain.notarizationReward / newChain.billingPeriod) < CPBaaSChainDefinition::MIN_PER_BLOCK_NOTARIZATION)
+    if (newChain.billingPeriod < CPBaaSChainDefinition::MIN_BILLING_PERIOD || (newChain.notarizationReward / newChain.billingPeriod) < CPBaaSChainDefinition::MIN_PER_BLOCK_NOTARIZATION)
     {
         throw JSONRPCError(RPC_INVALID_PARAMS, "Billing period of at least " + 
                                                to_string(CPBaaSChainDefinition::MIN_BILLING_PERIOD) + 
@@ -874,10 +874,6 @@ UniValue definechain(const UniValue& params, bool fHelp)
     CTxOut finalizationOut = MakeCC1of1Vout(EVAL_FINALIZENOTARIZATION, DEFAULT_TRANSACTION_FEE, pk, dests, nf);
     outputs.push_back(CRecipient({finalizationOut.scriptPubKey, CPBaaSChainDefinition::DEFAULT_OUTPUT_VALUE, false}));
 
-    // sign and return the transaction
-    SignatureData sigdata; 
-    auto consensusBranchId = CurrentEpochBranchId(chainActive.LastTip()->GetHeight(), Params().GetConsensus());
-
     // create the transaction
     CWalletTx wtx;
     {
@@ -892,6 +888,10 @@ UniValue definechain(const UniValue& params, bool fHelp)
     }
 
     UniValue uvret(UniValue::VOBJ);
+    uvret.push_back(Pair("chaindefinition", CPBaaSChainDefinition(wtx).ToUniValue()));
+
+    uvret.push_back(Pair("basenotarization", CPBaaSNotarization(wtx).ToUniValue()));
+
     uvret.push_back(Pair("txid", wtx.GetHash().GetHex()));
 
     string strHex = EncodeHexTx(static_cast<CTransaction>(wtx));

@@ -32,6 +32,11 @@ using namespace std;
 
 #include "komodo_interest.h"
 
+struct CCcontract_info *CCinit(struct CCcontract_info *cp, uint8_t evalcode)
+{
+    return NULL;
+}
+
 uint64_t komodo_accrued_interest(int32_t *txheightp,uint32_t *locktimep,uint256 hash,int32_t n,int32_t checkheight,uint64_t checkvalue,int32_t tipheight)
 {
     return(0);

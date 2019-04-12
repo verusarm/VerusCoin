@@ -842,6 +842,7 @@ public:
     std::map<arith_uint256, CPBaaSMergeMinedChainData *> mergeMinedTargets;
 
     std::string notaryChainVersion;             // is Verus or VRSCTEST running and PBaaS compatible?
+    int32_t notaryChainHeight;                  // is Verus or VRSCTEST running and PBaaS compatible?
     CRPCChainData notaryChain;                  // notary chain information
 
     CPBaaSChainDefinition thisChain;
@@ -957,6 +958,7 @@ bool ValidateReserveExchange(struct CCcontract_info *cp, Eval* eval, const CTran
 bool ValidatePremineOutput(struct CCcontract_info *cp, Eval* eval, const CTransaction &tx, uint32_t nIn);
 
 bool ValidateChainDefinition(struct CCcontract_info *cp, Eval* eval, const CTransaction &tx, uint32_t nIn);
+bool IsChainDefinitionInput(const CScript &scriptSig);
 
 bool GetCCParams(const CScript &scr, COptCCParams &ccParams);
 

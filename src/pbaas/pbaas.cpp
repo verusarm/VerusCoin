@@ -684,6 +684,7 @@ bool CConnectedChains::CheckVerusPBaaSAvailable(UniValue &rpcGetInfoResult)
     if (uniVer.isStr())
     {
         notaryChainVersion = uni_get_str(uniVer);
+        notaryChainHeight = uni_get_int(find_value(rpcGetInfoResult, "blocks"));
     }
     return IsVerusPBaaSAvailable();
 }
@@ -754,10 +755,7 @@ void CConnectedChains::SubmissionThread()
 
                 // if this is a PBaaS chain, poll for presence of Verus / root chain and current Verus block and version number
                 result = RPCCallRoot("getinfo", UniValue(UniValue::VARR));
-
-                UniValue uniVer = find_value(result, "VRSCversion");
                 CheckVerusPBaaSAvailable(result);
-
                 sleep(3);
             }
 
@@ -775,3 +773,8 @@ void CConnectedChains::SubmissionThreadStub()
     ConnectedChains.SubmissionThread();
 }
 
+bool IsChainDefinitionInput(const CScript &scriptSig)
+{
+    uint32_t ecode;
+    return scriptSig.IsPayToCryptoCondition(&ecode) && ecode == EVAL_PBAASDEFINITION;
+}

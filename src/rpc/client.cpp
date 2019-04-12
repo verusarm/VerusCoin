@@ -162,6 +162,8 @@ static const CRPCConvertParam vRPCConvertParams[] =
     { "getproofroot", 2},
     { "height_MoM", 1},
     { "calc_MoM", 2},
+    // pbaas
+    { "definechain", 0},
 };
 
 class CRPCConvertTable

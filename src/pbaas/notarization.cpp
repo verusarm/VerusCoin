@@ -444,7 +444,7 @@ bool CreateEarnedNotarization(CMutableTransaction &mnewTx, CTransaction &lastTx,
     // need to be able to send this to EVAL_PBAASDEFINITION address as a destination, locked by the default pubkey
     CPubKey pk = CPubKey(std::vector<unsigned char>(CC.CChexstr, CC.CChexstr + strlen(CC.CChexstr)));
 
-    vKeys.push_back(CTxDestination(CKeyID(CCrossChainRPCData::GetConditionID(ASSETCHAINS_CHAINID, EVAL_EARNEDNOTARIZATION))));
+    vKeys.push_back(CTxDestination(CKeyID(CCrossChainRPCData::GetConditionID(VERUS_CHAINID, EVAL_EARNEDNOTARIZATION))));
 
     // update crypto condition with final notarization output data
     mnewTx.vout.push_back(MakeCC1of1Vout(EVAL_EARNEDNOTARIZATION, PBAAS_MINNOTARIZATIONOUTPUT, pk, vKeys, pbn));
@@ -455,7 +455,7 @@ bool CreateEarnedNotarization(CMutableTransaction &mnewTx, CTransaction &lastTx,
     // need to be able to send this to EVAL_PBAASDEFINITION address as a destination, locked by the default pubkey
     pk = CPubKey(std::vector<unsigned char>(CC.CChexstr, CC.CChexstr + strlen(CC.CChexstr)));
 
-    vKeys[0] = CTxDestination(CKeyID(CCrossChainRPCData::GetConditionID(ASSETCHAINS_CHAINID, EVAL_FINALIZENOTARIZATION)));
+    vKeys[0] = CTxDestination(CKeyID(CCrossChainRPCData::GetConditionID(VERUS_CHAINID, EVAL_FINALIZENOTARIZATION)));
 
     // update crypto condition with final notarization output data
     mnewTx.vout.push_back(MakeCC1of1Vout(EVAL_FINALIZENOTARIZATION, PBAAS_MINNOTARIZATIONOUTPUT, pk, vKeys, pbn));
@@ -499,6 +499,12 @@ bool ValidateAcceptedNotarization(struct CCcontract_info *cp, Eval* eval, const 
     // we will jump back 10 transactions, if there are that many in our thread, validate the 10th, invalidate
     // any notarizations that do not derive from that notarization, and spend as inputs
 }
+bool IsAcceptedNotarizationInput(const CScript &scriptSig)
+{
+    uint32_t ecode;
+    return scriptSig.IsPayToCryptoCondition(&ecode) && ecode == EVAL_ACCEPTEDNOTARIZATION;
+}
+
 
 /*
  * Ensures that a spend in an earned notarization of either an OpRet support transaction or summary notarization
@@ -516,6 +522,11 @@ bool ValidateEarnedNotarization(struct CCcontract_info *cp, Eval* eval, const CT
 {
 
 }
+bool IsEarnedNotarizationInput(const CScript &scriptSig)
+{
+    uint32_t ecode;
+    return scriptSig.IsPayToCryptoCondition(&ecode) && ecode == EVAL_EARNEDNOTARIZATION;
+}
 
 /*
  * Ensures that the finalization, either as validated or orphaned, is determined by
@@ -527,10 +538,9 @@ bool ValidateFinalizeNotarization(struct CCcontract_info *cp, Eval* eval, const 
 {
 
 }
-
-// ensures that all cryptographically verifiable proofs and rules of notarization are verified
-bool ValidateNotarization(struct CCcontract_info *cp, Eval* eval, const CTransaction &tx, uint32_t nIn)
+bool IsFinalizeNotarizationInput(const CScript &scriptSig)
 {
-
+    uint32_t ecode;
+    return scriptSig.IsPayToCryptoCondition(&ecode) && ecode == EVAL_FINALIZENOTARIZATION;
 }
 
