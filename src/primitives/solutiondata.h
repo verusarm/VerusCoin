@@ -8,6 +8,9 @@
 #include "serialize.h"
 #include "uint256.h"
 #include "arith_uint256.h"
+#include "hash.h"
+#include "nonce.h"
+#include "streams.h"
 
 class CPBaaSBlockHeader;
 
@@ -57,18 +60,123 @@ class CActivationHeight
         }
 };
 
-class CPBaaSBlockHeaderBase
+class CBlockHeader;
+
+class CPBaaSPreHeader
 {
-    public:
-        uint160 chainID;                                                // hash of unique PBaaS symbol on Verus chain
-        uint256 hashPreHeader;                                          // hash of block before solution + chain power + block number
-        uint256 hashPrevMMRRoot;                                        // prior block's Merkle Mountain Range
+public:
+    uint256 hashPrevBlock;
+    uint256 hashMerkleRoot;
+    uint256 hashFinalSaplingRoot;
+    uint256 nNonce;
+    uint32_t nBits;
+
+    CPBaaSPreHeader() : nBits(0) {}
+    CPBaaSPreHeader(const uint256 &prevBlock, const uint256 &merkleRoot, const uint256 &finalSaplingRoot,const uint256 &nonce, uint32_t compactTarget) : 
+                    hashPrevBlock(prevBlock), hashMerkleRoot(merkleRoot), hashFinalSaplingRoot(finalSaplingRoot), nNonce(nonce), nBits(compactTarget) {}
+
+    CPBaaSPreHeader(CBlockHeader &bh);
+
+    ADD_SERIALIZE_METHODS;
+
+    template <typename Stream, typename Operation>
+    inline void SerializationOp(Stream& s, Operation ser_action) {
+        READWRITE(hashPrevBlock);
+        READWRITE(hashMerkleRoot);
+        READWRITE(hashFinalSaplingRoot);
+        READWRITE(nNonce);
+        READWRITE(nBits);
+    }
+};
+
+// this class provides a minimal and compact hash pair and identity for a merge mined PBaaS header
+class CPBaaSBlockHeader
+{
+public:
+    uint160 chainID;                                                // hash of unique PBaaS symbol on Verus chain
+    uint256 hashPreHeader;                                          // hash of block before solution + chain power + block number
+    uint256 hashPrevMMRRoot;                                        // prior block's Merkle Mountain Range
+
+    // header
+    static const size_t ID_OFFSET = 0;                              // offset of 32 byte ID in serialized stream
+    static const int32_t CURRENT_VERSION = CPOSNonce::VERUS_V2;
+    static const int32_t CURRENT_VERSION_MASK = 0x0000ffff;         // for compatibility
+
+    CPBaaSBlockHeader()
+    {
+        SetNull();
+    }
+
+    CPBaaSBlockHeader(const uint160 &cID, const uint256 &hashPre, const uint256 &hashPrevMMR) : chainID(cID), hashPreHeader(hashPre), hashPrevMMRRoot(hashPrevMMR) { }
+
+    CPBaaSBlockHeader(const char *pbegin, const char *pend) 
+    {
+        CDataStream s = CDataStream(pbegin, pend, SER_NETWORK, PROTOCOL_VERSION);
+        s >> *this;
+    }
+
+    CPBaaSBlockHeader(const uint160 &cID, const CPBaaSPreHeader &pbph, const uint256 &hashPrevMMR) : chainID(cID), hashPrevMMRRoot(hashPrevMMR)
+    {
+        CHashWriter hw(SER_GETHASH, PROTOCOL_VERSION);
+
+        // all core data besides version, and solution, which are shared across all headers 
+        hw << pbph;
+
+        hashPreHeader = hw.GetHash();
+    }
+
+    CPBaaSBlockHeader(const uint160 &cID, 
+                          const uint256 &hashPrevBlock, 
+                          const uint256 &hashMerkleRoot, 
+                          const uint256 &hashFinalSaplingRoot, 
+                          const uint256 &nNonce, 
+                          uint32_t nBits, 
+                          const uint256 &hashPrevMMRRoot)
+    {
+        CPBaaSPreHeader pbph(hashPrevBlock, hashMerkleRoot, hashFinalSaplingRoot, nNonce, nBits);
+
+        CHashWriter hw(SER_GETHASH, PROTOCOL_VERSION);
+        hw << pbph;
+
+        hashPreHeader = hw.GetHash();
+    }
+
+    ADD_SERIALIZE_METHODS;
+
+    template <typename Stream, typename Operation>
+    inline void SerializationOp(Stream& s, Operation ser_action) {
+        READWRITE(chainID);
+        READWRITE(hashPreHeader);
+        READWRITE(hashPrevMMRRoot);
+    }
+
+    bool operator==(const CPBaaSBlockHeader &right)
+    {
+        return (chainID == right.chainID && hashPreHeader == right.hashPreHeader && hashPrevMMRRoot == right.hashPrevMMRRoot);
+    }
+
+    bool operator!=(const CPBaaSBlockHeader &right)
+    {
+        return (chainID != right.chainID || hashPreHeader != right.hashPreHeader || hashPrevMMRRoot != right.hashPrevMMRRoot);
+    }
+
+    void SetNull()
+    {
+        chainID.SetNull();
+        hashPreHeader.SetNull();
+        hashPrevMMRRoot.SetNull();
+    }
+
+    bool IsNull() const
+    {
+        return chainID.IsNull();
+    }
 };
 
 enum SolutionConstants
 {
     SOLUTION_POW = 0x1,                                                 // if set, this is a PoW solution, otherwise, not
-    SOLUTION_PBAAS_HEADER_SIZE = sizeof(CPBaaSBlockHeaderBase)          // size of a processed PBAAS header
+    SOLUTION_PBAAS_HEADER_SIZE = sizeof(CPBaaSBlockHeader)              // size of a processed PBAAS header
 };
 
 class CPBaaSSolutionDescriptor
@@ -178,7 +286,7 @@ class CConstVerusSolutionVector
         {
             auto descr = GetDescriptor(vch);
 
-            return descr.extraDataSize ? descr.numPBaaSHeaders : descr.numPBaaSHeaders + (uint32_t)(ExtraDataLen(vch) / sizeof(CPBaaSBlockHeaderBase));
+            return descr.extraDataSize ? descr.numPBaaSHeaders : descr.numPBaaSHeaders + (uint32_t)(ExtraDataLen(vch) / sizeof(CPBaaSBlockHeader));
         }
 
         static bool SetDescriptorBits(std::vector<unsigned char> &vch, uint8_t dBits)
@@ -215,7 +323,7 @@ class CConstVerusSolutionVector
 
         static uint32_t HeadersOverheadSize(const std::vector<unsigned char> &vch)
         {
-            return GetDescriptor(vch).numPBaaSHeaders * sizeof(CPBaaSBlockHeaderBase) + OVERHEAD_SIZE;
+            return GetDescriptor(vch).numPBaaSHeaders * sizeof(CPBaaSBlockHeader) + OVERHEAD_SIZE;
         }
 
         // return a vector of bytes that contains the internal data for this solution vector
@@ -325,7 +433,7 @@ class CVerusSolutionVector
 
         uint32_t HeadersOverheadSize()
         {
-            return Descriptor().numPBaaSHeaders * sizeof(CPBaaSBlockHeaderBase) + solutionTools.OVERHEAD_SIZE;
+            return Descriptor().numPBaaSHeaders * sizeof(CPBaaSBlockHeader) + solutionTools.OVERHEAD_SIZE;
         }
 
         // return length of the internal data for this solution vector

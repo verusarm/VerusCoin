@@ -57,7 +57,7 @@ arith_uint256 GetCompactPower(const uint256 &nNonce, uint32_t nBits, int32_t ver
         {
             return BIG_ZERO;
         }
-        return bnWork + bnStake << 128;
+        return bnWork + (bnStake << 128);
     }
     else
     {
@@ -140,32 +140,19 @@ bool CBlockHeader::CheckNonCanonicalData() const
 int32_t CBlockHeader::AddPBaaSHeader(const CPBaaSBlockHeader &pbh)
 {
     CVerusSolutionVector sv(nSolution);
-    CPBaaSSolutionDescriptor d = CConstVerusSolutionVector::GetDescriptor(nSolution);
+    CPBaaSSolutionDescriptor d = sv.Descriptor();
     int32_t retVal = d.numPBaaSHeaders;
 
-    // adds a PBaaS header to the existing header space if there is room
-    if (IsVerusPOSBlock())
+    // make sure we have space. do not adjust capacity
+    // if there is anything in the extradata, we have no more room
+    if (!d.extraDataSize && (uint32_t)(sv.ExtraDataLen() / sizeof(CPBaaSBlockHeader)) > 0)
     {
-        // PoS blocks only get one PBaaS header
-        if (!d.numPBaaSHeaders)
-        {
-            d.numPBaaSHeaders++;
-            // store in last slot
-            sv.SetPBaaSHeader(pbh, d.numPBaaSHeaders - 1);
-            return retVal;
-        }
+        d.numPBaaSHeaders++;
+        sv.SetDescriptor(d);                            // update descriptor to make sure it will accept the set
+        sv.SetPBaaSHeader(pbh, d.numPBaaSHeaders - 1);
+        return retVal;
     }
-    else
-    {
-        // make sure we have space. do not adjust capacity
-        if ((uint32_t)(sv.ExtraDataLen() / sizeof(CPBaaSBlockHeader)) > 0)
-        {
-            d.numPBaaSHeaders++;
-            // store in last slot
-            sv.SetPBaaSHeader(pbh, d.numPBaaSHeaders - 1);
-            return retVal;
-        }
-    }
+
     return -1;
 }
 
@@ -193,10 +180,10 @@ bool CBlockHeader::AddUpdatePBaaSHeader(uint256 prevMMRRoot)
 {
     if (CConstVerusSolutionVector::Version(nSolution) == CActivationHeight::SOLUTION_VERUSV3)
     {
-        CPBaaSBlockHeader pbbh;
         CPBaaSPreHeader pbph(hashPrevBlock, hashMerkleRoot, hashFinalSaplingRoot, nNonce, nBits);
         CPBaaSBlockHeader pbh(ASSETCHAINS_CHAINID, pbph, prevMMRRoot);
 
+        CPBaaSBlockHeader pbbh;
         if (int32_t idx = GetPBaaSHeader(pbbh, ASSETCHAINS_CHAINID) != -1)
         {
             return UpdatePBaaSHeader(pbh);

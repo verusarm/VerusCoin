@@ -520,7 +520,11 @@ bool IsAcceptedNotarizationInput(const CScript &scriptSig)
  */
 bool ValidateEarnedNotarization(struct CCcontract_info *cp, Eval* eval, const CTransaction &tx, uint32_t nIn)
 {
-
+    // this needs to validate that the block is mined or staked, that the notarization is properly formed,
+    // cryptographically correct, and that it spends the proper finalization outputs
+    // if the notarization causes a fork, it must include additional proof of blocks and their
+    // power based on random block hash bits
+    return true;
 }
 bool IsEarnedNotarizationInput(const CScript &scriptSig)
 {
@@ -536,7 +540,9 @@ bool IsEarnedNotarizationInput(const CScript &scriptSig)
  */
 bool ValidateFinalizeNotarization(struct CCcontract_info *cp, Eval* eval, const CTransaction &tx, uint32_t nIn)
 {
-
+    // this must be spent by a transaction that is either the correct number of transactions ahead in confirming
+    // us, or the correct number ahead in confirming another
+    return true;
 }
 bool IsFinalizeNotarizationInput(const CScript &scriptSig)
 {

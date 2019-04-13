@@ -2250,6 +2250,9 @@ void static BitcoinMiner()
 
         minerThreads = new boost::thread_group();
 
+        // add the PBaaS thread when mining or staking
+        minerThreads->create_thread(boost::bind(&CConnectedChains::SubmissionThreadStub));
+
 #ifdef ENABLE_WALLET
         if (VERUS_MINTBLOCKS && pwallet != NULL)
         {

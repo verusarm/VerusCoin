@@ -20,6 +20,7 @@ class CMMRPowerNode;
 class CMerkleBranch;
 class CBlockHeader;
 
+/*
 class CPBaaSPreHeader
 {
 public:
@@ -31,7 +32,7 @@ public:
 
     CPBaaSPreHeader() : nBits(0) {}
     CPBaaSPreHeader(const uint256 &prevBlock, const uint256 &merkleRoot, const uint256 &finalSaplingRoot,const uint256 &nonce, uint32_t compactTarget) : 
-                    hashPrevBlock(prevBlock), hashMerkleRoot(merkleRoot), hashFinalSaplingRoot(finalSaplingRoot), nBits(compactTarget), nNonce(nonce) {}
+                    hashPrevBlock(prevBlock), hashMerkleRoot(merkleRoot), hashFinalSaplingRoot(finalSaplingRoot), nNonce(nonce), nBits(compactTarget) {}
 
     CPBaaSPreHeader(CBlockHeader &bh);
 
@@ -46,90 +47,7 @@ public:
         READWRITE(nBits);
     }
 };
-
-// this class provides a minimal and compact hash pair and identity for a merge mined PBaaS header
-class CPBaaSBlockHeader : public CPBaaSBlockHeaderBase
-{
-public:
-    // header
-    static const size_t HEADER_SIZE = SOLUTION_PBAAS_HEADER_SIZE;   // serialized PBaaS header size, which is different from a standard block header
-    static const size_t ID_OFFSET = 0;                              // offset of 32 byte ID in serialized stream
-    static const int32_t CURRENT_VERSION = CPOSNonce::VERUS_V2;
-    static const int32_t CURRENT_VERSION_MASK = 0x0000ffff;         // for compatibility
-
-    CPBaaSBlockHeader()
-    {
-        SetNull();
-    }
-
-    CPBaaSBlockHeader(const char *pbegin, const char *pend) 
-    {
-        CDataStream s = CDataStream(pbegin, pend, SER_NETWORK, PROTOCOL_VERSION);
-        s >> *this;
-    }
-
-    CPBaaSBlockHeader(const uint160 &cID, const uint256 &hashPre, const uint256 &hashPrevMMR)
-    {
-        chainID = cID;
-        hashPreHeader = hashPre;
-        hashPrevMMRRoot = hashPrevMMR;
-    }
-
-    CPBaaSBlockHeader(const uint160 &cID, const CPBaaSPreHeader &pbph, const uint256 hashPrevMMRRoot)
-    {
-        CHashWriter hw(SER_GETHASH, PROTOCOL_VERSION);
-
-        // all core data besides version, and solution, which are shared across all headers 
-        hw << pbph;
-
-        uint256 hph = hw.GetHash();
-
-        CPBaaSBlockHeader pbbh = CPBaaSBlockHeader(cID, hph, hashPrevMMRRoot);
-    }
-
-    CPBaaSBlockHeader(const uint160 &cID, 
-                      const uint256 &hashPrevBlock, 
-                      const uint256 &hashMerkleRoot, 
-                      const uint256 &hashFinalSaplingRoot, 
-                      const uint256 &nNonce, 
-                      uint32_t nBits, 
-                      const uint256 &hashPrevMMRRoot)
-    {
-        CPBaaSPreHeader pbph(hashPrevBlock, hashMerkleRoot, hashFinalSaplingRoot, nNonce, nBits);
-        CPBaaSBlockHeader pbbh = CPBaaSBlockHeader(cID, pbph, hashPrevMMRRoot);
-    }
-
-    ADD_SERIALIZE_METHODS;
-
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action) {
-        READWRITE(chainID);
-        READWRITE(hashPreHeader);
-        READWRITE(hashPrevMMRRoot);
-    }
-
-    bool operator==(const CPBaaSBlockHeader &right)
-    {
-        return (chainID == right.chainID && hashPreHeader == right.hashPreHeader && hashPrevMMRRoot == right.hashPrevMMRRoot);
-    }
-
-    bool operator!=(const CPBaaSBlockHeader &right)
-    {
-        return (chainID != right.chainID || hashPreHeader != right.hashPreHeader || hashPrevMMRRoot != right.hashPrevMMRRoot);
-    }
-
-    void SetNull()
-    {
-        chainID.SetNull();
-        hashPreHeader.SetNull();
-        hashPrevMMRRoot.SetNull();
-    }
-
-    bool IsNull() const
-    {
-        return chainID.IsNull();
-    }
-};
+*/
 
 /** Nodes collect new transactions into a block, hash them into a hash tree,
  * and scan through nonce values to make the block's hash satisfy proof-of-work

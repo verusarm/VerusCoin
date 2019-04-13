@@ -15,6 +15,7 @@
 #include "rpc/pbaasrpc.h"
 #include "pbaas/crosschainrpc.h"
 #include "base58.h"
+#include "timedata.h"
 
 using namespace std;
 
@@ -702,7 +703,6 @@ bool CConnectedChains::CheckVerusPBaaSAvailable()
         result = RPCCallRoot("getinfo", UniValue(UniValue::VARR));
         if (CheckVerusPBaaSAvailable(result))
         {
-
             return true;
         }
     }
@@ -725,6 +725,7 @@ void CConnectedChains::SubmissionThread()
         {
             if (IsVerusActive())
             {
+                ConnectedChains.PruneOldChains(GetAdjustedTime() - 60000);
                 if (mergeMinedChains.size() > 0)
                 {
                     sem_submitthread.wait();
