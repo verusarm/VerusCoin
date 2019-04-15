@@ -1405,11 +1405,11 @@ void static BitcoinMiner_noeq()
             // prevent forking on startup before the diff algorithm kicks in,
             // but only for a startup Verus test chain. PBaaS chains have the difficulty inherited from
             // their parent
-            if (IsVerusActive() && chainparams.MiningRequiresPeers() && (pindexPrev->GetHeight() < 50 || pindexPrev != chainActive.LastTip()))
+            if (chainparams.MiningRequiresPeers() && ((IsVerusActive() && pindexPrev->GetHeight() < 50) || pindexPrev != chainActive.LastTip()))
             {
                 do {
                     pindexPrev = chainActive.LastTip();
-                    MilliSleep(5000 + rand() % 5000);
+                    MilliSleep(3000 + rand() % 3000);
                 } while (pindexPrev != chainActive.LastTip());
             }
 

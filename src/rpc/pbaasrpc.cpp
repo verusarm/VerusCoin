@@ -517,7 +517,7 @@ UniValue getcrossnotarization(const UniValue& params, bool fHelp)
 
             "\nArguments\n"
             "1. \"chainid\"                     (string, required) the hex-encoded chainid to search for notarizations on\n"
-            "2. \"txidlist\"                    (stringarray, required) list of transaction ids to check in preferred order, first found is returned\n"
+            "2. \"txidlist\"                    (stringarray, optional) list of transaction ids to check in preferred order, first found is returned\n"
             "2. \"accepted\"                    (bool, optional) accepted, not earned notarizations, default: true if on\n"
             "                                                    VRSC or VRSCTEST, false otherwise\n"
 

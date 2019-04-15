@@ -305,10 +305,7 @@ uint160 CPBaaSChainDefinition::GetChainID(std::string name)
 
 uint160 CPBaaSChainDefinition::GetConditionID(int32_t condition)
 {
-    uint160 cid = GetChainID(name);
-    const char *condStr = itostr(condition).c_str();
-    uint256 chainHash = Hash(condStr, condStr + strlen(condStr), (char *)&cid, ((char *)&cid) + sizeof(cid));
-    return Hash160(chainHash.begin(), chainHash.end());
+    return CCrossChainRPCData::GetConditionID(name, condition);
 }
 
 UniValue CPBaaSChainDefinition::ToUniValue() const
