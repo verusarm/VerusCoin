@@ -73,7 +73,7 @@ int64_t MAX_MONEY = 200000000 * 100000000LL;
 // spec will use an op_return with CLTV at front and anything after |OP_RETURN|PUSH of rest|OPRETTYPE_TIMELOCK|script|
 #define _ASSETCHAINS_TIMELOCKOFF 0xffffffffffffffff
 uint64_t ASSETCHAINS_TIMELOCKGTE = _ASSETCHAINS_TIMELOCKOFF;
-uint64_t ASSETCHAINS_TIMEUNLOCKFROM = 0, ASSETCHAINS_TIMEUNLOCKTO = 0;
+int32_t ASSETCHAINS_TIMEUNLOCKFROM = 0, ASSETCHAINS_TIMEUNLOCKTO = 0;
 
 uint32_t ASSETCHAINS_LASTERA = 1;
 uint64_t ASSETCHAINS_ENDSUBSIDY[ASSETCHAINS_MAX_ERAS],ASSETCHAINS_REWARD[ASSETCHAINS_MAX_ERAS],ASSETCHAINS_HALVING[ASSETCHAINS_MAX_ERAS],ASSETCHAINS_DECAY[ASSETCHAINS_MAX_ERAS];
@@ -164,6 +164,10 @@ int64_t komodo_current_supply(uint32_t nHeight)
                     uint64_t lastEnd = j == 0 ? 0 : ASSETCHAINS_ENDSUBSIDY[j - 1];
                     uint64_t curEnd = ASSETCHAINS_ENDSUBSIDY[j] == 0 ? nHeight : nHeight > ASSETCHAINS_ENDSUBSIDY[j] ? ASSETCHAINS_ENDSUBSIDY[j] : nHeight;
                     uint64_t period = ASSETCHAINS_HALVING[j];
+                    if (period == 0)
+                    {
+                        period = curEnd - lastEnd;
+                    }
                     uint32_t nSteps = (curEnd - lastEnd) / period;
                     uint32_t modulo = (curEnd - lastEnd) % period;
                     uint64_t decay = ASSETCHAINS_DECAY[j];
@@ -248,6 +252,15 @@ int64_t komodo_current_supply(uint32_t nHeight)
                     }
                     else
                     {
+                        if (period == 0)
+                        {
+
+                        }
+                        else
+                        {
+                            /* code */
+                        }
+                        
                         for ( int k = lastEnd; k < curEnd; k += period )
                         {
                             cur_money += period * reward;

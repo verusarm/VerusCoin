@@ -79,9 +79,9 @@ void *chainparams_commandline(void *ptr);
 
 extern char ASSETCHAINS_SYMBOL[KOMODO_ASSETCHAIN_MAXLEN];
 extern uint16_t ASSETCHAINS_P2PPORT,ASSETCHAINS_RPCPORT;
-extern uint32_t ASSETCHAIN_INIT, ASSETCHAINS_MAGIC;
+extern uint32_t ASSETCHAIN_INIT, ASSETCHAINS_MAGIC, ASSETCHAINS_ALGO, ASSETCHAINS_EQUIHASH, ASSETCHAINS_VERUSHASH;
 extern int32_t VERUS_BLOCK_POSUNITS, ASSETCHAINS_LWMAPOS, ASSETCHAINS_SAPLING, ASSETCHAINS_OVERWINTER;
-extern uint64_t ASSETCHAINS_SUPPLY, ASSETCHAINS_ALGO, ASSETCHAINS_EQUIHASH, ASSETCHAINS_VERUSHASH;
+extern uint64_t ASSETCHAINS_SUPPLY;
 extern std::string VERUS_CHEATCATCHER;
 
 const arith_uint256 maxUint = UintToArith256(uint256S("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"));
@@ -683,6 +683,11 @@ static CChainParams *pCurrentParams = 0;
 const CChainParams &Params() {
     assert(pCurrentParams);
     return *pCurrentParams;
+}
+
+bool AreParamsInitialized()
+{
+    return (pCurrentParams != NULL);
 }
 
 CChainParams &Params(CBaseChainParams::Network network) {

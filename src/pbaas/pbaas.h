@@ -379,20 +379,14 @@ class CNodeData
 {
 public:
     std::string networkAddress;
-    CKeyID paymentAddress;
+    std::string paymentAddress;
 
     CNodeData() {}
     CNodeData(UniValue &);
 
-    CNodeData(std::string netAddr, CKeyID paymentAddr) :
+    CNodeData(std::string netAddr, std::string paymentAddr) :
         networkAddress(netAddr), paymentAddress(paymentAddr) {}
     
-    CNodeData(std::string netAddr, std::string destAddr) :
-        networkAddress(netAddr)
-    {
-        CBitcoinAddress(destAddr.c_str()).GetKeyID(paymentAddress);
-    }
-
     ADD_SERIALIZE_METHODS;
 
     template <typename Stream, typename Operation>
@@ -415,17 +409,17 @@ public:
     uint32_t nVersion;                      // version of this chain definition data structure to allow for extensions (not daemon version)
     std::string name;                       // chain name, maximum 64 characters
     std::string address;                    // non-purchased/converted premine and fee recipient address
-    uint64_t premine;                       // initial supply that is distributed to the premine output address, but not purchased
-    uint64_t conversion;                    // factor / 100000000 for conversion of VRSC to coin on launch
-    uint64_t launchfee;                     // ratio of satoshis to send from contribution to convertible to fee address
-    uint32_t startBlock;                    // parent chain block # that must kickoff the notarization of block 0, cannot be before this block
-    uint32_t endBlock;                      // block after which this is considered end-of-lifed
-    uint32_t eras;                          // number of eras, each vector below should have an entry for each
-    std::vector<uint64_t> rewards;          // initial reward in each ERA in native coin
-    std::vector<uint64_t> rewardsDecay;     // decay of rewards during the era - only applies to non-converted values
-    std::vector<uint32_t> halving;          // number of blocks between halvings
-    std::vector<uint32_t> eraEnd;           // block number that ends each ERA
-    std::vector<uint32_t> eraOptions;       // flags to determine fungibility and conversion for each ERA
+    int64_t premine;                        // initial supply that is distributed to the premine output address, but not purchased
+    int64_t conversion;                     // factor / 100000000 for conversion of VRSC to coin on launch
+    int64_t launchFee;                      // ratio of satoshis to send from contribution to convertible to fee address
+    int32_t startBlock;                     // parent chain block # that must kickoff the notarization of block 0, cannot be before this block
+    int32_t endBlock;                       // block after which this is considered end-of-lifed
+    int32_t eras;                           // number of eras, each vector below should have an entry for each
+    std::vector<int64_t> rewards;           // initial reward in each ERA in native coin
+    std::vector<int64_t> rewardsDecay;      // decay of rewards during the era - only applies to non-converted values
+    std::vector<int32_t> halving;           // number of blocks between halvings
+    std::vector<int32_t> eraEnd;            // block number that ends each ERA
+    std::vector<int32_t> eraOptions;        // flags to determine fungibility and conversion for each ERA
 
     int32_t billingPeriod;                  // number of blocks in one billing period
     int64_t notarizationReward;             // default amount per block for notarizations
@@ -434,7 +428,7 @@ public:
 
     CPBaaSChainDefinition() : nVersion(PBAAS_VERSION_INVALID) {}
 
-    CPBaaSChainDefinition(UniValue &obj);
+    CPBaaSChainDefinition(const UniValue &obj);
 
     CPBaaSChainDefinition(const std::vector<unsigned char> &asVector)
     {
@@ -443,13 +437,19 @@ public:
 
     CPBaaSChainDefinition(const CTransaction &tx, bool validate = false);
 
-    CPBaaSChainDefinition(std::string Name, uint64_t Premine, uint32_t chainEras,
-                          const std::vector<uint64_t> &chainRewards, const std::vector<uint64_t> &chainRewardsDecay,
-                          const std::vector<uint32_t> &chainHalving, const std::vector<uint32_t> &chainEraEnd, std::vector<uint32_t> &chainCurrencyOptions,
-                          uint64_t chainTimeLockGTE, uint32_t chainTimeUnlockFrom, uint32_t chainTimeUnlockTo,
+    CPBaaSChainDefinition(std::string Name, std::string Address, int64_t Premine, int64_t Conversion, int64_t LaunchFee,
+                          int32_t StartBlock, int32_t EndBlock, int32_t chainEras,
+                          const std::vector<int64_t> &chainRewards, const std::vector<int64_t> &chainRewardsDecay,
+                          const std::vector<int32_t> &chainHalving, const std::vector<int32_t> &chainEraEnd, std::vector<int32_t> &chainCurrencyOptions,
                           int32_t BillingPeriod, int64_t NotaryReward, std::vector<CNodeData> &Nodes) :
                             nVersion(PBAAS_VERSION),
+                            name(Name),
+                            address(Address),
                             premine(Premine),
+                            conversion(Conversion),
+                            launchFee(LaunchFee),
+                            startBlock(StartBlock),
+                            endBlock(EndBlock),
                             eras(chainEras),
                             rewards(chainRewards),
                             rewardsDecay(chainRewardsDecay),
@@ -473,7 +473,12 @@ public:
     inline void SerializationOp(Stream& s, Operation ser_action) {
         READWRITE(nVersion);
         READWRITE(name);        
+        READWRITE(address);        
         READWRITE(VARINT(premine));
+        READWRITE(VARINT(conversion));
+        READWRITE(VARINT(launchFee));
+        READWRITE(startBlock);
+        READWRITE(endBlock);
         READWRITE(eras);
         READWRITE(rewards);
         READWRITE(rewardsDecay);
@@ -501,7 +506,7 @@ public:
 
     bool IsValid()
     {
-        return (nVersion != PBAAS_VERSION_INVALID) && (!name.size() && eras > 0 && eras <= ASSETCHAINS_MAX_ERAS);
+        return (nVersion != PBAAS_VERSION_INVALID) && (name.size() && eras > 0) && (eras <= ASSETCHAINS_MAX_ERAS);
     }
 
     UniValue ToUniValue() const;
@@ -854,7 +859,6 @@ public:
     CCriticalSection cs_mergemining;
     CSemaphore sem_submitthread;
 
-
     CConnectedChains() : sem_submitthread(0), dirtyCounter(0) {}
 
     arith_uint256 LowestTarget()
@@ -871,9 +875,9 @@ public:
 
     void SubmissionThread();
     static void SubmissionThreadStub();
-    std::vector<std::pair<std::string, UniValue>> SubmitQualifiedBlocks(const CBlockHeader &bh);
+    std::vector<std::pair<std::string, UniValue>> SubmitQualifiedBlocks();
 
-    bool QueueWinningBlockHeader(CBlockHeader &bh)
+    bool QueueNewBlockHeader(CBlockHeader &bh)
     {
         LOCK(cs_mergemining);
         latestHash = UintToArith256(bh.GetHash());
@@ -962,12 +966,7 @@ bool IsChainDefinitionInput(const CScript &scriptSig);
 
 bool GetCCParams(const CScript &scr, COptCCParams &ccParams);
 
-void SetThisChain(UniValue &chainDefinition);
-
-int32_t uni_get_int(UniValue uv, int32_t def=0);
-int64_t uni_get_int64(UniValue uv, int64_t def =0);
-std::string uni_get_str(UniValue uv, std::string def="");
-std::vector<UniValue> uni_getValues(UniValue uv, std::vector<UniValue> def=std::vector<UniValue>());
+bool SetThisChain(UniValue &chainDefinition);
 
 extern CConnectedChains ConnectedChains;
 extern uint160 ASSETCHAINS_CHAINID;

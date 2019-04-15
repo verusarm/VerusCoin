@@ -1349,7 +1349,7 @@ bool CWallet::VerusSelectStakeOutput(CBlock *pBlock, arith_uint256 &hashResult, 
             {
                 CDataStream s(SER_NETWORK, PROTOCOL_VERSION);
 
-                printf("Serialized size of transaction %d\n", GetSerializeSize(s, *(CTransaction *)txout.tx));
+                printf("Serialized size of transaction %lu\n", GetSerializeSize(s, *(CTransaction *)txout.tx));
 
                 if ((!pwinner || UintToArith256(curNonce) > UintToArith256(pBlock->nNonce)) &&
                     (Solver(txout.tx->vout[txout.i].scriptPubKey, whichType, vSolutions) && (whichType == TX_PUBKEY || whichType == TX_PUBKEYHASH)) &&
@@ -1422,7 +1422,7 @@ bool CWallet::VerusSelectStakeOutput(CBlock *pBlock, arith_uint256 &hashResult, 
 
                 std::vector<unsigned char> stx(txStream.begin(), txStream.end());
 
-                printf("\nFound Stake transaction... MerkleTx serialized size == %lu\n", stx.size());
+                // printf("\nFound Stake transaction... all proof serialized size == %lu\n", stx.size());
 
                 CVerusSolutionVector(pBlock->nSolution).ResizeExtraData(stx.size());
 

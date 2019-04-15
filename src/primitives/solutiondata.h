@@ -87,6 +87,8 @@ public:
         READWRITE(nNonce);
         READWRITE(nBits);
     }
+
+    void SetBlockData(CBlockHeader &bh);
 };
 
 // this class provides a minimal and compact hash pair and identity for a merge mined PBaaS header
@@ -115,15 +117,7 @@ public:
         s >> *this;
     }
 
-    CPBaaSBlockHeader(const uint160 &cID, const CPBaaSPreHeader &pbph, const uint256 &hashPrevMMR) : chainID(cID), hashPrevMMRRoot(hashPrevMMR)
-    {
-        CHashWriter hw(SER_GETHASH, PROTOCOL_VERSION);
-
-        // all core data besides version, and solution, which are shared across all headers 
-        hw << pbph;
-
-        hashPreHeader = hw.GetHash();
-    }
+    CPBaaSBlockHeader(const uint160 &cID, const CPBaaSPreHeader &pbph, const uint256 &hashPrevMMR);
 
     CPBaaSBlockHeader(const uint160 &cID, 
                           const uint256 &hashPrevBlock, 

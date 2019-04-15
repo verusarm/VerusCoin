@@ -1438,8 +1438,18 @@ void komodo_configfile(char *symbol,uint16_t rpcport)
                     fprintf(fp,"ac_halving=%s\n", (charPtr = mapArgs["-ac_halving"].c_str())[0] == 0 ? "0" : charPtr);
                     fprintf(fp,"ac_decay=%s\n", (charPtr = mapArgs["-ac_decay"].c_str())[0] == 0 ? "0" : charPtr);
                     fprintf(fp,"ac_reward=%s\n", (charPtr = mapArgs["-ac_reward"].c_str())[0] == 0 ? "0" : charPtr);
-                    fprintf(fp,"ac_eras=%s\n", (charPtr = mapArgs["-ac_eras"].c_str())[0] == 0 ? "0" : charPtr);
+                    fprintf(fp,"ac_eras=%s\n", (charPtr = mapArgs["-ac_eras"].c_str())[0] == 0 ? "1" : charPtr);
                     fprintf(fp,"ac_end=%s\n", (charPtr = mapArgs["-ac_end"].c_str())[0] == 0 ? "0" : charPtr);
+
+                    auto nodeIt = mapMultiArgs.find("-seednode");
+                    if (nodeIt != mapMultiArgs.end())
+                    {
+                        std::vector<std::string> &nodeStrs = mapMultiArgs["-seednode"];
+                        for (auto nodeStr : nodeStrs)
+                        {
+                            fprintf(fp,"seednode=%s\n", nodeStr.c_str());
+                        }
+                    }
                 }
                 fclose(fp);
                 printf("Created (%s)\n",fname);
@@ -1662,7 +1672,7 @@ uint64_t komodo_ac_block_subsidy(int nHeight)
 
 extern int64_t MAX_MONEY;
 extern std::string VERUS_CHEATCATCHER;
-void SetThisChain(UniValue &chainDefinition);
+bool SetThisChain(UniValue &chainDefinition);
 
 void komodo_args(char *argv0)
 {
@@ -1673,7 +1683,7 @@ void komodo_args(char *argv0)
     uint8_t magic[4],extrabuf[256],*extraptr=0; FILE *fp; 
     uint64_t val; 
     uint16_t port; 
-    int32_t i,baseid,len,n,extralen = 0;
+    int32_t baseid,len,n,extralen = 0;
 
     IS_KOMODO_NOTARY = GetBoolArg("-notary", false);
 
@@ -1694,7 +1704,7 @@ void komodo_args(char *argv0)
         USE_EXTERNAL_PUBKEY = 1;
         if ( IS_KOMODO_NOTARY == 0 )
         {
-            for (i=0; i<64; i++)
+            for (int i=0; i<64; i++)
                 if ( strcmp(NOTARY_PUBKEY.c_str(),Notaries_elected1[i][1]) == 0 )
                 {
                     IS_KOMODO_NOTARY = 1;
@@ -1706,12 +1716,12 @@ void komodo_args(char *argv0)
     } //else KOMODO_PAX = GetArg("-pax",0);
 
     // either the testmode parameter or calling this chain VRSCTEST will put us into testmode
-    PBAAS_TESTMODE = GetBoolArg("-testmode", false);
+    PBAAS_TESTMODE = GetBoolArg("-testmode", true);
 
     if ( argv0 != 0 )
     {
         len = (int32_t)strlen(argv0);
-        for (i=0; i<sizeof(argv0suffix)/sizeof(*argv0suffix); i++)
+        for (int i = 0; i < sizeof(argv0suffix)/sizeof(*argv0suffix); i++)
         {
             n = (int32_t)strlen(argv0suffix[i]);
             if ( strcmp(&argv0[len - n],argv0suffix[i]) == 0 )
@@ -1781,6 +1791,7 @@ void komodo_args(char *argv0)
     else
     {
         // this is a PBaaS chain, so look for an installation on the local file system or check the Verus daemon if it's running
+        // printf("Reading config file for %s\n", name.c_str());
         if (!ReadConfigFile(name, mapArgs, mapMultiArgs))
         {
             map<string, string> settings;
@@ -1802,44 +1813,21 @@ void komodo_args(char *argv0)
                     PBAAS_HOST = "127.0.0.1";
                 }
                 UniValue params(UniValue::VARR);
-                params.push_back(UniValue(CCrossChainRPCData::GetChainID(name).GetHex()));
+                params.push_back(name);
                 UniValue result = RPCCallRoot("getchaindefinition", params);
-
-                // set local parameters
-                SetThisChain(result);
 
                 try
                 {
-                    ASSETCHAINS_SUPPLY = find_value(result, "premine").get_int64();
-                    if (ASSETCHAINS_SUPPLY == 0)
+                    // set local parameters
+                    result = find_value(result, "result");
+                    if (result.isNull() || !SetThisChain(result))
                     {
-                        ASSETCHAINS_SUPPLY = 10;
+                        throw error("Cannot find chain data");
                     }
-                    ASSETCHAINS_ALGO = ASSETCHAINS_VERUSHASH;
-                    auto eras = find_value(result, "eras").getValues();
-                    if (eras.size())
-                    {
-                        ASSETCHAINS_TIMELOCKGTE = _ASSETCHAINS_TIMELOCKOFF;
-                        ASSETCHAINS_TIMEUNLOCKFROM = 0;
-                        ASSETCHAINS_TIMEUNLOCKTO = 0;
-                        ASSETCHAINS_LASTERA = eras.size() - 1;
-                        for (int i = 0; i <= ASSETCHAINS_LASTERA; i++)
-                        {
-                            ASSETCHAINS_REWARD[i] = find_value(eras[i], "reward").get_int64();
-                            ASSETCHAINS_DECAY[i] = find_value(eras[i], "decay").get_int64();
-                            ASSETCHAINS_HALVING[i] = find_value(eras[i], "halving").get_int();
-                            ASSETCHAINS_ENDSUBSIDY[i] = find_value(eras[i], "eraend").get_int();
-                        }
-                    }
-
-                    PBAAS_STARTBLOCK = find_value(result, "startblock").get_int();
-                    PBAAS_ENDBLOCK = find_value(result, "endblock").get_int();
-
                     paramsLoaded = true;
                 }
                 catch(const std::exception& e)
                 {
-                    printf("Failure to read chain definition from %s blockchain.", PBAAS_TESTMODE ? "VRSCTEST" : "VRSC");
                     if (result.size() > 0)
                     {
                         // load the mapArgs from the chain definition
@@ -1851,11 +1839,14 @@ void komodo_args(char *argv0)
                             printf("%s : %s\n", keys[i].c_str(), values[i].getValStr().c_str());
                         }
                     }
+                    printf("Failure to read chain definition from %s blockchain.", PBAAS_TESTMODE ? "VRSCTEST" : "VRSC");
+                    throw runtime_error("Cannot load config");
                 }
             }
             else
             {
-                LogPrintf("Config file for %s not found. Cannot load %s information from blockchain.\n", PBAAS_TESTMODE ? "VRSCTEST" : "VRSC", name.c_str());
+                printf("Config file for %s not found. Cannot load %s information from blockchain.\n", PBAAS_TESTMODE ? "VRSCTEST" : "VRSC", name.c_str());
+                throw runtime_error("Cannot load config");
             }
         }
     }
@@ -1886,7 +1877,8 @@ void komodo_args(char *argv0)
         {
             std::string selectedAlgo = GetArg("-ac_algo", std::string(ASSETCHAINS_ALGORITHMS[1]));
 
-            for ( int i = 0; i < ASSETCHAINS_NUMALGOS; i++ )
+            int i;
+            for (i = 0; i < ASSETCHAINS_NUMALGOS; i++ ) // i is declared above and not tested properly below
             {
                 if (std::string(ASSETCHAINS_ALGORITHMS[i]) == selectedAlgo)
                 {
@@ -1903,7 +1895,7 @@ void komodo_args(char *argv0)
             if ( ASSETCHAINS_LASTERA < 1 || ASSETCHAINS_LASTERA > ASSETCHAINS_MAX_ERAS )
             {
                 ASSETCHAINS_LASTERA = 1;
-                printf("ASSETCHAINS_LASTERA, if specified, must be between 1 and %u. ASSETCHAINS_LASTERA set to %u\n", ASSETCHAINS_MAX_ERAS, ASSETCHAINS_LASTERA);
+                printf("ac_eras, if specified, must be between 1 and %u. ac_eras set to %u\n", ASSETCHAINS_MAX_ERAS, ASSETCHAINS_LASTERA);
             }
             ASSETCHAINS_LASTERA -= 1;
 
@@ -1922,24 +1914,20 @@ void komodo_args(char *argv0)
             Split(GetArg("-ac_halving",""),  ASSETCHAINS_HALVING, 0);
             Split(GetArg("-ac_decay",""),  ASSETCHAINS_DECAY, 0);
 
-            for ( int i = 0; i < ASSETCHAINS_MAX_ERAS; i++ )
+            for (int j = 0; j < ASSETCHAINS_LASTERA; j++)
             {
-                if ( ASSETCHAINS_DECAY[i] == 100000000 && ASSETCHAINS_ENDSUBSIDY == 0 )
+                if ( ASSETCHAINS_DECAY[j] == 100000000 && ASSETCHAINS_ENDSUBSIDY[0] == 0 )
                 {
-                    ASSETCHAINS_DECAY[i] = 0;
-                    printf("ERA%u: ASSETCHAINS_DECAY of 100000000 means linear and that needs ASSETCHAINS_ENDSUBSIDY\n", i);
+                    ASSETCHAINS_DECAY[j] = 0;
+                    printf("ERA%u: ASSETCHAINS_DECAY of 100000000 means linear and that needs ASSETCHAINS_ENDSUBSIDY\n", j);
                 }
-                else if ( ASSETCHAINS_DECAY[i] > 100000000 )
+                else if ( ASSETCHAINS_DECAY[j] > 100000000 )
                 {
-                    ASSETCHAINS_DECAY[i] = 0;
-                    printf("ERA%u: ASSETCHAINS_DECAY cant be more than 100000000\n", i);
+                    ASSETCHAINS_DECAY[j] = 0;
+                    printf("ERA%u: ASSETCHAINS_DECAY cant be more than 100000000\n", j);
                 }
             }
 
-            MAX_BLOCK_SIGOPS = 60000;
-            ASSETCHAINS_SUPPLY = GetArg("-ac_supply",10);
-            ASSETCHAINS_COMMISSION = GetArg("-ac_perc",0);
-            ASSETCHAINS_OVERRIDE_PUBKEY = GetArg("-ac_pubkey","");
             if ( (ASSETCHAINS_STAKED= GetArg("-ac_staked",0)) > 100 )
                 ASSETCHAINS_STAKED = 100;
 
@@ -1947,11 +1935,16 @@ void komodo_args(char *argv0)
             // other values
             if ( (ASSETCHAINS_LWMAPOS = GetArg("-ac_veruspos", 50)) != 0 )
                 ASSETCHAINS_LWMAPOS = 50;
-            
+
+            ASSETCHAINS_SUPPLY = GetArg("-ac_supply", 0);
+
             PBAAS_STARTBLOCK = GetArg("-startblock", 0);
             PBAAS_ENDBLOCK = GetArg("-endblock", 0);
         }
 
+        MAX_BLOCK_SIGOPS = 60000;
+        ASSETCHAINS_COMMISSION = GetArg("-ac_perc",0);
+        ASSETCHAINS_OVERRIDE_PUBKEY = GetArg("-ac_pubkey","");
         ASSETCHAINS_SAPLING = 1;
         ASSETCHAINS_OVERWINTER = 1;
 
@@ -2058,7 +2051,7 @@ void komodo_args(char *argv0)
         //ASSETCHAINS_NOTARIES = GetArg("-ac_notaries","");
         //komodo_assetchain_pubkeys((char *)ASSETCHAINS_NOTARIES.c_str());
         iguana_rwnum(1,magic,sizeof(ASSETCHAINS_MAGIC),(void *)&ASSETCHAINS_MAGIC);
-        for (i=0; i<4; i++)
+        for (int i=0; i<4; i++)
             sprintf(&magicstr[i<<1],"%02x",magic[i]);
         magicstr[8] = 0;
 #ifndef FROM_CLI
@@ -2084,30 +2077,19 @@ void komodo_args(char *argv0)
             obj.push_back(Pair("premine", ASSETCHAINS_SUPPLY));
             obj.push_back(Pair("name", ASSETCHAINS_SYMBOL));
 
-            obj.push_back(Pair("startblock", GetArg("-startblock", 0)));
-            obj.push_back(Pair("endblock", GetArg("-endblock", 0)));
+            obj.push_back(Pair("startblock", PBAAS_STARTBLOCK));
+            obj.push_back(Pair("endblock", PBAAS_ENDBLOCK));
 
             UniValue eras(UniValue::VARR);
-            for (int i = 0; i < ASSETCHAINS_MAX_ERAS; i++)
+            for (int i = 0; i <= ASSETCHAINS_LASTERA; i++)
             {
                 UniValue era(UniValue::VOBJ);
-                if (i <= ASSETCHAINS_LASTERA)
-                {
-                    era.push_back(Pair("reward", ASSETCHAINS_REWARD[i]));
-                    era.push_back(Pair("decay", ASSETCHAINS_DECAY[i]));
-                    era.push_back(Pair("halving", ASSETCHAINS_HALVING[i]));
-                    era.push_back(Pair("eraend", ASSETCHAINS_ENDSUBSIDY[i]));
-                }
-                else
-                {
-                    era.push_back(Pair("reward", 0));
-                    era.push_back(Pair("decay", 0));
-                    era.push_back(Pair("halving", 0));
-                    era.push_back(Pair("eraend", 0));
-                }
+                era.push_back(Pair("reward", ASSETCHAINS_REWARD[i]));
+                era.push_back(Pair("decay", ASSETCHAINS_DECAY[i]));
+                era.push_back(Pair("halving", ASSETCHAINS_HALVING[i]));
+                era.push_back(Pair("eraend", ASSETCHAINS_ENDSUBSIDY[i]));
                 eras.push_back(era);
             }
-
             obj.push_back(Pair("eras", eras));
 
             SetThisChain(obj);

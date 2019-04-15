@@ -88,13 +88,21 @@ protected:
 
 bool GetChainDefinition(string &name, CPBaaSChainDefinition &chainDef)
 {
-    uint160 chainID = CPBaaSChainDefinition::GetChainID(name);
+    CCcontract_info CC;
+    CCcontract_info *cp;
 
-    CKeyID keyID(CCrossChainRPCData::GetConditionID(chainID, EVAL_PBAASDEFINITION));
+    // make the chain definition output
+    cp = CCinit(&CC, EVAL_PBAASDEFINITION);
+
+    CBitcoinAddress bca(CC.unspendableCCaddr);
+
+    CKeyID id;
+    bca.GetKeyID(id);
 
     std::vector<std::pair<CAddressIndexKey, CAmount>> addressIndex;
+    bool found = false;
 
-    if (!GetAddressIndex(keyID, 1, addressIndex))
+    if (GetAddressIndex(id, 1, addressIndex))
     {
         for (auto txidx : addressIndex)
         {
@@ -103,14 +111,49 @@ bool GetChainDefinition(string &name, CPBaaSChainDefinition &chainDef)
             if (myGetTransaction(txidx.first.txhash, tx, blkHash))
             {
                 chainDef = CPBaaSChainDefinition(tx);
-                if (chainDef.IsValid())
+                found = chainDef.IsValid() && chainDef.name == name;
+                if (found)
                 {
                     break;
                 }
             }
         }
     }
-    return chainDef.IsValid();
+    return found;
+}
+
+void GetDefinedChains(vector<CPBaaSChainDefinition> &chains, bool includeExpired)
+{
+    CCcontract_info CC;
+    CCcontract_info *cp;
+
+    // make the chain definition output
+    cp = CCinit(&CC, EVAL_PBAASDEFINITION);
+
+    CBitcoinAddress bca(CC.unspendableCCaddr);
+
+    CKeyID id;
+    bca.GetKeyID(id);
+
+    std::vector<std::pair<CAddressIndexKey, CAmount>> addressIndex;
+
+    if (GetAddressIndex(id, 1, addressIndex))
+    {
+        for (auto txidx : addressIndex)
+        {
+            CTransaction tx;
+            uint256 blkHash;
+            if (myGetTransaction(txidx.first.txhash, tx, blkHash))
+            {
+                chains.push_back(CPBaaSChainDefinition(tx));
+                // remove after to use less storage
+                if (!includeExpired && chains.back().endBlock != 0 && chains.back().endBlock < chainActive.Height())
+                {
+                    chains.pop_back();
+                }
+            }
+        }
+    }
 }
 
 UniValue getchaindefinition(const UniValue& params, bool fHelp)
@@ -152,54 +195,88 @@ UniValue getchaindefinition(const UniValue& params, bool fHelp)
             "  }\n"
 
             "\nExamples:\n"
-            + HelpExampleCli("getchaindefinition", "\"chainname\" true 10 100")
-            + HelpExampleRpc("getchaindefinition", "\"chainname\" false 10 100")
+            + HelpExampleCli("getchaindefinition", "\"chainname\"")
+            + HelpExampleRpc("getchaindefinition", "\"chainname\"")
         );
     }
     UniValue ret(UniValue::VOBJ);
-    uint160 chainID;
 
-    if (params[0].type() == UniValue::VSTR)
+    string name = params[0].get_str();
+
+    if (name.size() > KOMODO_ASSETCHAIN_MAXLEN - 1)
     {
-        try
-        {
-            chainID = uint160(ParseHex(params[0].get_str()));
-        }
-        catch(const std::exception& e)
-        {
-        }
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid chain name -- must be 64 characters or less");
     }
 
-    if (chainID.IsNull())
-    {
-        throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid chainid");
-    }
-
-    CKeyID keyID(CCrossChainRPCData::GetConditionID(chainID, EVAL_PBAASDEFINITION));
-    std::vector<std::pair<CAddressIndexKey, CAmount>> addressIndex;
     CPBaaSChainDefinition chainDef;
 
-    if (!GetAddressIndex(keyID, 1, addressIndex))
+    if (GetChainDefinition(name, chainDef))
     {
-        for (auto txidx : addressIndex)
-        {
-            CTransaction tx;
-            uint256 blkHash;
-            if (myGetTransaction(txidx.first.txhash, tx, blkHash))
-            {
-                chainDef = CPBaaSChainDefinition(tx);
-                if (chainDef.IsValid())
-                {
-                    ret = chainDef.ToUniValue();
-                    break;
-                }
-            }
-            else
-            {
-                throw JSONRPCError(RPC_TRANSACTION_ERROR, "Transaction error, local chain data may be corrupt");
-            }
-        }
+        return chainDef.ToUniValue();
     }
+    else
+    {
+        return NullUniValue;
+    }
+}
+
+UniValue getdefinedchains(const UniValue& params, bool fHelp)
+{
+    if (fHelp || params.size() > 1)
+    {
+        throw runtime_error(
+            "getdefinedchains (includeexpired)\n"
+            "\nReturns a complete definition for any given chain if it is registered on the blockchain. If the chain requested\n"
+            "\nis NULL, chain definition of the current chain is returned.\n"
+
+            "\nArguments\n"
+            "1. \"includeexpired\"                (bool, optional) if true, include chains that are no longer active\n"
+
+            "\nResult:\n"
+            "[\n"
+            "  {\n"
+            "    \"version\" : \"n\",             (int) version of this chain definition\n"
+            "    \"name\" : \"string\",           (string) name or symbol of the chain, same as passed\n"
+            "    \"address\" : \"string\",        (string) cryptocurrency address to send fee and non-converted premine\n"
+            "    \"chainid\" : \"hex-string\",    (string) 40 char string that represents the chain ID, calculated from the name\n"
+            "    \"premine\" : \"n\",             (int) amount of currency paid out to the premine address in block #1, may be smart distribution\n"
+            "    \"convertible\" : \"xxxx\"       (bool) if this currency is a fractional reserve currency of Verus\n"
+            "    \"launchfee\" : \"n\",           (int) (launchfee * total converted) / 100000000 sent directly to premine address\n"
+            "    \"startblock\" : \"n\",          (int) block # on this chain, which must be notarized into block one of the chain\n"
+            "    \"endblock\" : \"n\",            (int) block # after which, this chain's useful life is considered to be over\n"
+            "    \"eras\" : \"[obj, ...]\",       (objarray) different chain phases of rewards and convertibility\n"
+            "    {\n"
+            "      \"reward\" : \"[n, ...]\",     (int) reward start for each era in native coin\n"
+            "      \"decay\" : \"[n, ...]\",      (int) exponential or linear decay of rewards during each era\n"
+            "      \"halving\" : \"[n, ...]\",    (int) blocks between halvings during each era\n"
+            "      \"eraend\" : \"[n, ...]\",     (int) block marking the end of each era\n"
+            "      \"eraoptions\" : \"[n, ...]\", (int) options for each era (reserved)\n"
+            "    }\n"
+            "    \"nodes\"      : \"[obj, ..]\",  (objectarray, optional) up to 2 nodes that can be used to connect to the blockchain"
+            "      [{\n"
+            "         \"nodeaddress\" : \"txid\", (string,  optional) internet, TOR, or other supported address for node\n"
+            "         \"paymentaddress\" : \"n\", (int,     optional) rewards payment address\n"
+            "       }, .. ]\n"
+            "  }, ...\n"
+            "]\n"
+
+            "\nExamples:\n"
+            + HelpExampleCli("getdefinedchains", "true")
+            + HelpExampleRpc("getdefinedchains", "true")
+        );
+    }
+    UniValue ret(UniValue::VARR);
+
+    bool includeExpired = params[0].isBool() ? params[0].get_bool() : false;
+
+    vector<CPBaaSChainDefinition> chains;
+    GetDefinedChains(chains, includeExpired);
+
+    for (auto def : chains)
+    {
+        ret.push_back(def.ToUniValue());
+    }
+
     return ret;
 }
 
@@ -660,7 +737,8 @@ UniValue getcrossnotarization(const UniValue& params, bool fHelp)
                         vNodes[i]->copyStats(stats);
                         if (vNodes[i]->fSuccessfullyConnected && !vNodes[i]->fInbound)
                         {
-                            nodes.push_back(CNodeData(vNodes[i]->addr.ToString(), vNodes[i]->hashPaymentAddress));
+                            CBitcoinAddress bca(CKeyID(vNodes[i]->hashPaymentAddress));
+                            nodes.push_back(CNodeData(vNodes[i]->addr.ToString(), bca.ToString()));
                         }
                     }
                 }
@@ -745,76 +823,18 @@ UniValue definechain(const UniValue& params, bool fHelp)
         throw JSONRPCError(RPC_WALLET_ERROR, "must have active wallet to define PBaaS chain");
     }
 
-    CPBaaSChainDefinition newChain;
+    CPBaaSChainDefinition newChain(params[0]);
 
-    // if no name is specified, assign a random, unspendable address as the name
-    newChain.name = uni_get_str(find_value(params[0], "name"));
-    if (!newChain.name.size())
+    if (!newChain.startBlock)
     {
-        uint160 id;
-        randombytes((unsigned char *)&id, 20);
-        newChain.name = CBitcoinAddress(CTxDestination(CKeyID(id))).ToString();
+        newChain.startBlock = chainActive.Height() + 100;
     }
-
-    newChain.nVersion = PBAAS_VERSION;
-    newChain.address = uni_get_str(find_value(params[0], "address"));
-
-    newChain.premine = uni_get_int64(find_value(params[0], "premine"));
-    newChain.conversion = uni_get_int64(find_value(params[0], "conversion"));
-    newChain.launchfee = uni_get_int64(find_value(params[0], "launchfee"));
-    newChain.startBlock = uni_get_int(find_value(params[0], "startblock"));
-    newChain.endBlock = uni_get_int(find_value(params[0], "endblock"));
-
-    vector<UniValue> erasUni = uni_getValues(find_value(params[0], "eras"));
-
-    if (erasUni.size() > ASSETCHAINS_MAX_ERAS)
-    {
-        erasUni.resize(ASSETCHAINS_MAX_ERAS);
-    } else if (erasUni.size() == 0)
-    {
-        newChain.rewards.push_back(0);
-        newChain.rewardsDecay.push_back(0);
-        newChain.halving.push_back(0);
-        newChain.eraEnd.push_back(0);
-        newChain.eraOptions.push_back(0);
-    }
-
-    for (auto era : erasUni)
-    {
-        newChain.rewards.push_back(uni_get_int64(find_value(era, "reward")));
-        newChain.rewardsDecay.push_back(uni_get_int64(find_value(era, "decay")));
-        newChain.halving.push_back(uni_get_int(find_value(era, "halving")));
-        newChain.eraEnd.push_back(uni_get_int(find_value(era, "eraend")));
-        newChain.eraOptions.push_back(uni_get_int(find_value(era, "eraoptions")));
-    }
-
-    newChain.eras = newChain.rewards.size();
-
-    newChain.notarizationReward = uni_get_int64(find_value(params[0], "notarizationreward"));
-    newChain.billingPeriod = uni_get_int(find_value(params[0], "billingperiod"));
 
     if (newChain.billingPeriod < CPBaaSChainDefinition::MIN_BILLING_PERIOD || (newChain.notarizationReward / newChain.billingPeriod) < CPBaaSChainDefinition::MIN_PER_BLOCK_NOTARIZATION)
     {
         throw JSONRPCError(RPC_INVALID_PARAMS, "Billing period of at least " + 
                                                to_string(CPBaaSChainDefinition::MIN_BILLING_PERIOD) + 
                                                " blocks and per-block notary rewards of >= 1000000 are required to define a chain\n");
-    }
-
-    UniValue param = find_value(params[0], "nodes");
-    if (!param.isNull())
-    {
-        auto nodes = param.getValues();
-        for (auto o : nodes)
-        {
-            auto netaddr = find_value(o, "nodeaddress");
-            auto paymentaddr = find_value(o, "paymentaddress");
-            if (!netaddr.isStr() || !paymentaddr.isStr())
-            {
-                break;
-            }
-
-            newChain.nodes.push_back(CNodeData(netaddr.get_str(), paymentaddr.get_str()));
-        }
     }
 
     vector<CRecipient> outputs;
@@ -911,8 +931,8 @@ UniValue addmergedblock(const UniValue& params, bool fHelp)
             "Default action to take if adding would exceed available space is to replace the choice with the least ROI if this block provides more.\n"
 
             "\nArguments\n"
-            "1. \"name\"                        (string, required) chain name symbol\n"
-            "2. \"hexdata\"                     (string, required) the hex-encoded, complete, unsolved block data to add. nTime, and nSolution are replaced.\n"
+            "1. \"hexdata\"                     (string, required) the hex-encoded, complete, unsolved block data to add. nTime, and nSolution are replaced.\n"
+            "2. \"name\"                        (string, required) chain name symbol\n"
             "3. \"rpchost\"                     (string, required) host address for RPC connection\n"
             "4. \"rpcport\"                     (int,    required) port address for RPC connection\n"
             "5. \"userpass\"                    (string, required) credentials for login to RPC\n"
@@ -928,7 +948,7 @@ UniValue addmergedblock(const UniValue& params, bool fHelp)
     }
 
     // check to see if we should replace any existing block or add a new one. if so, add this to the merge mine vector
-    string name = params[0].get_str();
+    string name = params[1].get_str();
     if (name == "")
     {
         throw JSONRPCError(RPC_INVALID_PARAMETER, "must provide chain name to merge mine");
@@ -954,6 +974,7 @@ UniValue addmergedblock(const UniValue& params, bool fHelp)
     {
         chainDef = chainData.chainDefinition;
     }
+
     if (!chainDef.IsValid() && !GetChainDefinition(name, chainDef))
     {
         throw JSONRPCError(RPC_INVALID_PARAMETER, "chain not found");
@@ -961,7 +982,7 @@ UniValue addmergedblock(const UniValue& params, bool fHelp)
 
     CBlock blk;
 
-    if (!DecodeHexBlk(blk, params[1].get_str()))
+    if (!DecodeHexBlk(blk, params[0].get_str()))
         return "deserialize-invalid";
 
     CPBaaSMergeMinedChainData blkData = CPBaaSMergeMinedChainData(chainDef, rpchost, rpcport, rpcuserpass, blk);
@@ -1375,6 +1396,7 @@ static const CRPCCommand commands[] =
 { //  category              name                      actor (function)         okSafeMode
   //  --------------------- ------------------------  -----------------------  ----------
     { "pbaas",        "getchaindefinition",           &getchaindefinition,     true  },
+    { "pbaas",        "getdefinedchains",             &getdefinedchains,       true  },
     { "pbaas",        "getmergedblocktemplate",       &getmergedblocktemplate, true  },
     { "pbaas",        "getnotarizationdata",          &getnotarizationdata,    true  },
     { "pbaas",        "getcrossnotarization",         &getcrossnotarization,   true  },

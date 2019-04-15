@@ -241,3 +241,52 @@ UniValue RPCCallRoot(const string& strMethod, const UniValue& params)
     }
     return UniValue(UniValue::VNULL);
 }
+
+int32_t uni_get_int(UniValue uv, int32_t def)
+{
+    try
+    {
+        return uv.get_int();
+    }
+    catch(const std::exception& e)
+    {
+        return def;
+    }
+}
+
+int64_t uni_get_int64(UniValue uv, int64_t def)
+{
+    try
+    {
+        return uv.get_int64();
+    }
+    catch(const std::exception& e)
+    {
+        return def;
+    }
+}
+
+std::string uni_get_str(UniValue uv, std::string def)
+{
+    try
+    {
+        return uv.get_str();
+    }
+    catch(const std::exception& e)
+    {
+        return def;
+    }
+}
+
+std::vector<UniValue> uni_getValues(UniValue uv, std::vector<UniValue> def)
+{
+    try
+    {
+        return uv.getValues();
+    }
+    catch(const std::exception& e)
+    {
+        return def;
+    }
+}
+

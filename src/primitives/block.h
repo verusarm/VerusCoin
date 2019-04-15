@@ -140,30 +140,7 @@ public:
     }
 
     // returns -1 on failure, upon failure, pbbh is undefined and likely corrupted
-    int32_t GetPBaaSHeader(CPBaaSBlockHeader &pbh, const uint160 &cID) const
-    {
-        // find the specified PBaaS header in the solution and return its index if present
-        // if not present, return -1
-        if (nVersion == VERUS_V2)
-        {
-            // search in the solution for this header index and return it if found
-            CPBaaSSolutionDescriptor d = CVerusSolutionVector::solutionTools.GetDescriptor(nSolution);
-            if (CVerusSolutionVector::solutionTools.IsPBaaS(nSolution) != 0)
-            {
-                int32_t len = CVerusSolutionVector::solutionTools.ExtraDataLen(nSolution);
-                int32_t numHeaders = d.numPBaaSHeaders;
-                const CPBaaSBlockHeader *ppbbh = CVerusSolutionVector::solutionTools.GetFirstPBaaSHeader(nSolution);
-                for (int32_t i = 0; i < numHeaders; i++)
-                {
-                    if ((ppbbh + i)->chainID == cID)
-                    {
-                        return i;
-                    }
-                }
-            }
-        }
-        return -1;
-    }
+    int32_t GetPBaaSHeader(CPBaaSBlockHeader &pbh, const uint160 &cID) const;
 
     // returns false on failure to read data
     bool GetPBaaSHeader(CPBaaSBlockHeader &pbh, uint32_t idx) const
@@ -215,15 +192,15 @@ public:
         CPBaaSSolutionDescriptor descr = sv.Descriptor();
         if (idx < descr.numPBaaSHeaders)
         {
-            // we will remove one
-            descr.numPBaaSHeaders--;
+            CPBaaSBlockHeader pbh;
             // if we weren't last, move the one that was last to our prior space
-            if (idx < descr.numPBaaSHeaders)
+            if (idx < (descr.numPBaaSHeaders - 1))
             {
-                CPBaaSBlockHeader pbh;
-                sv.GetPBaaSHeader(pbh, descr.numPBaaSHeaders);
-                sv.SetPBaaSHeader(pbh, idx);
+                sv.GetPBaaSHeader(pbh, descr.numPBaaSHeaders - 1);
             }
+            sv.SetPBaaSHeader(pbh, idx);
+            
+            descr.numPBaaSHeaders--;
             sv.SetDescriptor(descr);
         }
     }

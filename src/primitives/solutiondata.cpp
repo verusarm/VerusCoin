@@ -27,4 +27,22 @@ bool CVerusSolutionVector::GetPBaaSHeader(CPBaaSBlockHeader &pbh, uint32_t idx) 
     return false;
 }
 
+void CPBaaSPreHeader::SetBlockData(CBlockHeader &bh)
+{
+    bh.hashPrevBlock = hashPrevBlock;
+    bh.hashFinalSaplingRoot = hashFinalSaplingRoot;
+    bh.nBits = nBits;
+    bh.nNonce = nNonce;
+    bh.hashMerkleRoot = hashMerkleRoot;
+}
+
+CPBaaSBlockHeader::CPBaaSBlockHeader(const uint160 &cID, const CPBaaSPreHeader &pbph, const uint256 &hashPrevMMR) : chainID(cID), hashPrevMMRRoot(hashPrevMMR)
+{
+    CHashWriter hw(SER_GETHASH, PROTOCOL_VERSION);
+
+    // all core data besides version, and solution, which are shared across all headers 
+    hw << pbph;
+
+    hashPreHeader = hw.GetHash();
+}
 

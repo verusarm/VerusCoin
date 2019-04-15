@@ -76,4 +76,9 @@ UniValue RPCCall(const std::string& strMethod,
 
 UniValue RPCCallRoot(const std::string& strMethod, const UniValue& params);
 
+int32_t uni_get_int(UniValue uv, int32_t def=0);
+int64_t uni_get_int64(UniValue uv, int64_t def =0);
+std::string uni_get_str(UniValue uv, std::string def="");
+std::vector<UniValue> uni_getValues(UniValue uv, std::vector<UniValue> def=std::vector<UniValue>());
+
 #endif

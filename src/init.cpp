@@ -208,6 +208,7 @@ void Shutdown()
     if (pwalletMain)
         pwalletMain->Flush(false);
 #endif
+
 #ifdef ENABLE_MINING
  #ifdef ENABLE_WALLET
     GenerateBitcoins(false, NULL, 0);
@@ -215,6 +216,7 @@ void Shutdown()
     GenerateBitcoins(false, 0);
  #endif
 #endif
+
     StopNode();
     StopTorControl();
     UnregisterNodeSignals(GetNodeSignals());

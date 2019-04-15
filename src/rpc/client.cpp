@@ -26,7 +26,7 @@ UniValue RPCCall(const string& strMethod, const UniValue& params, const string c
 {assert(false);}
 UniValue RPCCallRoot(const string& strMethod, const UniValue& params)
 {assert(false);}
-void SetThisChain(UniValue &chainDefinition)
+bool SetThisChain(UniValue &chainDefinition)
 {}
 
 static const CRPCConvertParam vRPCConvertParams[] =
@@ -164,6 +164,7 @@ static const CRPCConvertParam vRPCConvertParams[] =
     { "calc_MoM", 2},
     // pbaas
     { "definechain", 0},
+    { "getdefinedchains", 0},
 };
 
 class CRPCConvertTable

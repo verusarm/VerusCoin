@@ -19,54 +19,6 @@
 
 using namespace std;
 
-int32_t uni_get_int(UniValue uv, int32_t def)
-{
-    try
-    {
-        return uv.get_int();
-    }
-    catch(const std::exception& e)
-    {
-        return def;
-    }
-}
-
-int64_t uni_get_int64(UniValue uv, int64_t def)
-{
-    try
-    {
-        return uv.get_int64();
-    }
-    catch(const std::exception& e)
-    {
-        return def;
-    }
-}
-
-std::string uni_get_str(UniValue uv, std::string def)
-{
-    try
-    {
-        return uv.get_str();
-    }
-    catch(const std::exception& e)
-    {
-        return def;
-    }
-}
-
-std::vector<UniValue> uni_getValues(UniValue uv, std::vector<UniValue> def)
-{
-    try
-    {
-        return uv.getValues();
-    }
-    catch(const std::exception& e)
-    {
-        return def;
-    }
-}
-
 CConnectedChains ConnectedChains;
 
 bool IsVerusActive()
@@ -262,30 +214,34 @@ std::vector<CBaseChainObject *> RetrieveOpRetArray(const CScript &opRetScript)
 CNodeData::CNodeData(UniValue &obj)
 {
     networkAddress = uni_get_str(find_value(obj, "networkaddress"));
-    paymentAddress = GetDestinationID(DecodeDestination(uni_get_str(find_value(obj, "paymentaddress"))));
+    paymentAddress = uni_get_str(find_value(obj, "paymentaddress"));
 }
 
 UniValue CNodeData::ToUniValue() const
 {
     UniValue obj(UniValue::VOBJ);
     obj.push_back(Pair("networkaddress", networkAddress));
-    obj.push_back(Pair("paymentaddress", CBitcoinAddress(paymentAddress).ToString()));
+    obj.push_back(Pair("paymentaddress", paymentAddress));
     return obj;
 }
 
-CPBaaSChainDefinition::CPBaaSChainDefinition(UniValue &obj)
+CPBaaSChainDefinition::CPBaaSChainDefinition(const UniValue &obj)
 {
-    nVersion = uni_get_int(find_value(obj, "version"));
+    nVersion = PBAAS_VERSION;
     name = uni_get_str(find_value(obj, "name"));
-    address = uni_get_str(find_value(obj, "foundersaddress"));
+    address = uni_get_str(find_value(obj, "address"));
     premine = uni_get_int64(find_value(obj, "premine"));
-    conversion = uni_get_int64(find_value(obj, "conversionfactor"));
-    launchfee = uni_get_int64(find_value(obj, "launchfactor"));
+    conversion = uni_get_int64(find_value(obj, "conversion"));
+    launchFee = uni_get_int64(find_value(obj, "launchfee"));
     startBlock = uni_get_int(find_value(obj, "startblock"));
     endBlock = uni_get_int(find_value(obj, "endblock"));
 
     auto vEras = uni_getValues(find_value(obj, "eras"));
-    eras = vEras.size();
+    if (vEras.size() > ASSETCHAINS_MAX_ERAS)
+    {
+        vEras.resize(ASSETCHAINS_MAX_ERAS);
+    }
+    eras = !vEras.size() ? 1 : vEras.size();
 
     for (auto era : vEras)
     {
@@ -360,12 +316,12 @@ UniValue CPBaaSChainDefinition::ToUniValue() const
     UniValue obj(UniValue::VOBJ);
     obj.push_back(Pair("version", (int64_t)nVersion));
     obj.push_back(Pair("name", name));
-    obj.push_back(Pair("foundersaddress", address));
+    obj.push_back(Pair("address", address));
     obj.push_back(Pair("premine", (int64_t)premine));
-    obj.push_back(Pair("conversionfactor", (int64_t)conversion));
-    obj.push_back(Pair("launchfactor", (int64_t)launchfee));
-    obj.push_back(Pair("conversion", (double)conversion / 100000000));
-    obj.push_back(Pair("launchfeepercent", ((double)launchfee / 100000000) * 100));
+    obj.push_back(Pair("conversion", (int64_t)conversion));
+    obj.push_back(Pair("launchfee", (int64_t)launchFee));
+    obj.push_back(Pair("conversionpercent", (double)conversion / 100000000));
+    obj.push_back(Pair("launchfeepercent", ((double)launchFee / 100000000) * 100));
     obj.push_back(Pair("startblock", (int32_t)startBlock));
     obj.push_back(Pair("endblock", (int32_t)endBlock));
 
@@ -395,15 +351,90 @@ UniValue CPBaaSChainDefinition::ToUniValue() const
     return obj;
 }
 
+#define _ASSETCHAINS_TIMELOCKOFF 0xffffffffffffffff
+extern uint64_t ASSETCHAINS_TIMELOCKGTE;
+extern int64_t ASSETCHAINS_SUPPLY, ASSETCHAINS_REWARD[3], ASSETCHAINS_DECAY[3], ASSETCHAINS_HALVING[3], ASSETCHAINS_ENDSUBSIDY[3];
+extern int32_t PBAAS_STARTBLOCK, PBAAS_ENDBLOCK, ASSETCHAINS_LWMAPOS, ASSETCHAINS_TIMEUNLOCKFROM, ASSETCHAINS_TIMEUNLOCKTO;
+extern uint32_t ASSETCHAINS_ALGO, ASSETCHAINS_VERUSHASH, ASSETCHAINS_LASTERA;
+
 // adds the chain definition for this chain and nodes as well
 // this also sets up the notarization chain, if there is one
-void SetThisChain(UniValue &chainDefinition)
+bool SetThisChain(UniValue &chainDefinition)
 {
     ConnectedChains.ThisChain() = CPBaaSChainDefinition(chainDefinition);
-    // set all command line parameters into mapArgs from chain definition
-    for (auto node : ConnectedChains.ThisChain().nodes)
+
+    if (ConnectedChains.ThisChain().IsValid())
     {
-        AddOneShot(node.networkAddress);
+        // set all command line parameters into mapArgs from chain definition
+        vector<string> nodeStrs;
+        for (auto node : ConnectedChains.ThisChain().nodes)
+        {
+            nodeStrs.push_back(node.networkAddress);
+        }
+        if (nodeStrs.size())
+        {
+            mapMultiArgs["-seednode"] = nodeStrs;
+        }
+
+        ASSETCHAINS_SUPPLY = ConnectedChains.ThisChain().premine;
+        ASSETCHAINS_ALGO = ASSETCHAINS_VERUSHASH;
+        ASSETCHAINS_LWMAPOS = 50;
+
+        ASSETCHAINS_TIMELOCKGTE = _ASSETCHAINS_TIMELOCKOFF;
+        ASSETCHAINS_TIMEUNLOCKFROM = 0;
+        ASSETCHAINS_TIMEUNLOCKTO = 0;
+
+        auto numEras = ConnectedChains.ThisChain().eras;
+        ASSETCHAINS_LASTERA = numEras - 1;
+        mapArgs["-ac_eras"] = to_string(numEras);
+
+        mapArgs["-ac_end"] = "";
+        mapArgs["-ac_reward"] = "";
+        mapArgs["-ac_halving"] = "";
+        mapArgs["-ac_decay"] = "";
+
+        for (int j = 0; j < ASSETCHAINS_MAX_ERAS; j++)
+        {
+            if (j > ASSETCHAINS_LASTERA)
+            {
+                ASSETCHAINS_REWARD[j] = ASSETCHAINS_REWARD[j-1];
+                ASSETCHAINS_DECAY[j] = ASSETCHAINS_DECAY[j-1];
+                ASSETCHAINS_HALVING[j] = ASSETCHAINS_HALVING[j-1];
+                ASSETCHAINS_ENDSUBSIDY[j] = 0;
+            }
+            else
+            {
+                ASSETCHAINS_REWARD[j] = ConnectedChains.ThisChain().rewards[j];
+                ASSETCHAINS_DECAY[j] = ConnectedChains.ThisChain().rewardsDecay[j];
+                ASSETCHAINS_HALVING[j] = ConnectedChains.ThisChain().halving[j];
+                ASSETCHAINS_ENDSUBSIDY[j] = ConnectedChains.ThisChain().eraEnd[j];
+                if (j == 0)
+                {
+                    mapArgs["-ac_reward"] = to_string(ASSETCHAINS_REWARD[j]);
+                    mapArgs["-ac_decay"] = to_string(ASSETCHAINS_DECAY[j]);
+                    mapArgs["-ac_halving"] = to_string(ASSETCHAINS_HALVING[j]);
+                    mapArgs["-ac_end"] = to_string(ASSETCHAINS_ENDSUBSIDY[j]);
+                }
+                else
+                {
+                    mapArgs["-ac_reward"] += "," + to_string(ASSETCHAINS_REWARD[j]);
+                    mapArgs["-ac_decay"] += "," + to_string(ASSETCHAINS_DECAY[j]);
+                    mapArgs["-ac_halving"] += "," + to_string(ASSETCHAINS_HALVING[j]);
+                    mapArgs["-ac_end"] += "," + to_string(ASSETCHAINS_ENDSUBSIDY[j]);
+                }
+            }
+        }
+
+        PBAAS_STARTBLOCK = ConnectedChains.ThisChain().startBlock;
+        mapArgs["-startblock"] = to_string(PBAAS_STARTBLOCK);
+        PBAAS_ENDBLOCK = ConnectedChains.ThisChain().endBlock;
+        mapArgs["-endblock"] = to_string(PBAAS_ENDBLOCK);
+
+        return true;
+    }
+    else
+    {
+        return false;
     }
 }
 
@@ -561,17 +592,25 @@ CPBaaSMergeMinedChainData *CConnectedChains::GetChainInfo(uint160 chainID)
     }
 }
 
-// submit all blocks that are present in the header and where the target is met
-vector<pair<string, UniValue>> CConnectedChains::SubmitQualifiedBlocks(const CBlockHeader &bh)
+// get the latest block header and submit one block at a time, returning after there are no more
+// matching blocks to be found
+vector<pair<string, UniValue>> CConnectedChains::SubmitQualifiedBlocks()
 {
     std::set<uint160> inHeader;
-    arith_uint256 blkHash = UintToArith256(bh.GetHash());
-
-    vector<UniValue> toSubmit;
-    vector<CRPCChainData> chainData;
+    bool submissionFound;
+    CPBaaSMergeMinedChainData chainData;
     vector<pair<string, UniValue>>  results;
 
+    CBlockHeader bh;
+    arith_uint256 lastHash;
     CPBaaSBlockHeader pbh;
+
+    {
+        // work through the current latest data once and return
+        LOCK(cs_mergemining);
+        bh = latestBlockHeader;
+        lastHash = latestHash;
+    }
 
     // loop through the existing PBaaS chain ids in the header and add them to ax set
     for (uint32_t i = 0; bh.GetPBaaSHeader(pbh, i); i++)
@@ -580,83 +619,103 @@ vector<pair<string, UniValue>> CConnectedChains::SubmitQualifiedBlocks(const CBl
     }
 
     {
-        LOCK(cs_mergemining);
-        for (auto chainIt = mergeMinedTargets.lower_bound(blkHash); chainIt != mergeMinedTargets.end(); chainIt++)
+        do
         {
-            uint160 chainID = chainIt->second->GetChainID();
-            if (inHeader.count(chainID))
+            submissionFound = false;
             {
-                // get block, remove the block from merged headers, replace header, and submit
-                CBlock &block = chainIt->second->block;
-
-                CPBaaSPreHeader preHeader(block);
-
-                *(CBlockHeader *)&block = bh;
-
-                block.hashPrevBlock = preHeader.hashPrevBlock;
-                block.hashFinalSaplingRoot = preHeader.hashFinalSaplingRoot;
-                block.nBits = preHeader.nBits;
-                block.nNonce = preHeader.nNonce;
-                block.hashMerkleRoot = preHeader.hashMerkleRoot;
-
-                // check if it can be submitted, if not, there is some error, or the block was updated since
-                // the win
-                arith_uint256 target;
-                target.SetCompact(block.nBits);
-                if (UintToArith256(block.GetHash()) > target)
+                LOCK(cs_mergemining);
+                for (auto chainIt = mergeMinedTargets.lower_bound(lastHash); !submissionFound && chainIt != mergeMinedTargets.end(); chainIt++)
                 {
-                    LogPrintf("Unable to submit merge mined block for %s chain\n", chainIt->second->chainDefinition.name.c_str());
-                    continue;
+                    uint160 chainID = chainIt->second->GetChainID();
+                    if (inHeader.count(chainID))
+                    {
+                        // first, check that the winning header matches the block that is there
+                        CPBaaSPreHeader preHeader(chainIt->second->block);
+                        preHeader.SetBlockData(bh);
+
+                        // check if the block header matches the block's specific data, only then can we create a submission from this block
+                        if (bh.CheckNonCanonicalData())
+                        {
+                            // save block as is, remove the block from merged headers, replace header, and submit
+                            chainData = *chainIt->second;
+
+                            *(CBlockHeader *)&chainData.block = bh;
+
+                            // once it is going to be submitted, remove it until it is added again
+                            RemoveMergedBlock(chainID);
+
+                            submissionFound = true;
+                        }
+                    }
                 }
-
-                // once it is going to be submitted, remove it until it is added again
-                RemoveMergedBlock(chainID);
-
-                UniValue submitParams(UniValue::VARR);
-
-                // TODO: setup one submission worth of UniValue parameters
-
-                // push completed submit parameters and chain data
-                toSubmit.push_back(submitParams);
-                chainData.push_back(*chainIt->second);
             }
-        }
-    }
+            if (submissionFound)
+            {
+                // submit one block and loop again. this approach allows multiple threads
+                // to collectively empty the submission queue, mitigating the impact of
+                // any one stalled daemon
+                UniValue submitParams(UniValue::VARR);
+                submitParams.push_back(EncodeHexBlk(chainData.block));
+                UniValue result = RPCCall("submitblock", submitParams, chainData.rpcUserPass, chainData.rpcPort, chainData.rpcHost);
+                results.push_back(make_pair(chainData.chainDefinition.name, result));
+                if (result.isStr())
+                {
+                    printf("Submission results for %s chain: %s\n", chainData.chainDefinition.name.c_str(), result.get_str().c_str());
+                }
+                else
+                {
+                    printf("Successfully submitted block to %s chain\n", chainData.chainDefinition.name.c_str());
 
-    for (int i = 0; i < toSubmit.size(); i++)
-    {
-        results.push_back(make_pair(chainData[i].chainDefinition.name, 
-                                    RPCCall("submitblock", toSubmit[i], chainData[i].rpcUserPass, chainData[i].rpcPort, chainData[i].rpcHost)));
+                }
+            }
+        } while (submissionFound);
     }
     return results;
 }
 
-// add all merge mined chain PBaaS headers into the blockheader and return the total number
+// add all merge mined chain PBaaS headers into the blockheader and return the easiest nBits target in the header
 uint32_t CConnectedChains::CombineBlocks(CBlockHeader &bh)
 {
     vector<uint160> inHeader;
     vector<UniValue> toCombine;
     arith_uint256 blkHash = UintToArith256(bh.GetHash());
+    arith_uint256 target(0);
     
     CPBaaSBlockHeader pbh;
 
-    for (uint32_t i = 0; bh.GetPBaaSHeader(pbh, i); i++)
-    {
-        inHeader.push_back(pbh.chainID);
-    }
-
-    // loop through the existing PBaaS chain ids in the header
-    // remove any not either this Chain ID or in our local collection and then add all that are present
-    for (uint32_t i = 0; i < inHeader.size(); i++)
-    {
-        if (inHeader[i] != ASSETCHAINS_CHAINID && !mergeMinedChains.count(inHeader[i]))
-        {
-            bh.DeletePBaaSHeader(i);
-        }
-    }
-
     {
         LOCK(cs_mergemining);
+
+        CPBaaSSolutionDescriptor descr = CVerusSolutionVector::solutionTools.GetDescriptor(bh.nSolution);
+
+        for (uint32_t i = 0; i < descr.numPBaaSHeaders; i++)
+        {
+            if (bh.GetPBaaSHeader(pbh, i))
+            {
+                inHeader.push_back(pbh.chainID);
+            }
+        }
+
+        // loop through the existing PBaaS chain ids in the header
+        // remove any not either this Chain ID or in our local collection and then add all that are present
+        for (uint32_t i = 0; i < inHeader.size(); i++)
+        {
+            auto it = mergeMinedChains.find(inHeader[i]);
+            if (inHeader[i] != ASSETCHAINS_CHAINID && (it == mergeMinedChains.end()))
+            {
+                bh.DeletePBaaSHeader(i);
+            }
+            else
+            {
+                arith_uint256 t;
+                t.SetCompact(it->second.block.nBits);
+                if (t > target)
+                {
+                    target = t;
+                }
+            }
+        }
+
         for (auto chain : mergeMinedChains)
         {
             // get the native PBaaS header for each chain and put it into the
@@ -667,11 +726,21 @@ uint32_t CConnectedChains::CombineBlocks(CBlockHeader &bh)
                 if (!bh.AddUpdatePBaaSHeader(pbh))
                 {
                     LogPrintf("Failure to add PBaaS block header for %s chain\n", chain.second.chainDefinition.name.c_str());
+                    break;
+                }
+                else
+                {
+                    arith_uint256 t;
+                    t.SetCompact(chain.second.block.nBits);
+                    if (t > target)
+                    {
+                        target = t;
+                    }
                 }
             }
         }
     }
-    return CConstVerusSolutionVector::GetDescriptor(bh.nSolution).numPBaaSHeaders;
+    return target.GetCompact();
 }
 
 bool CConnectedChains::IsVerusPBaaSAvailable()
@@ -679,13 +748,21 @@ bool CConnectedChains::IsVerusPBaaSAvailable()
     return notaryChainVersion > "0.6";
 }
 
+extern string PBAAS_HOST, PBAAS_USERPASS;
+extern int32_t PBAAS_PORT;
 bool CConnectedChains::CheckVerusPBaaSAvailable(UniValue &rpcGetInfoResult)
 {
-    UniValue uniVer = find_value(rpcGetInfoResult, "VRSCversion");
-    if (uniVer.isStr())
+    UniValue info = find_value(rpcGetInfoResult, "result");
+    if (info.isObject())
     {
-        notaryChainVersion = uni_get_str(uniVer);
-        notaryChainHeight = uni_get_int(find_value(rpcGetInfoResult, "blocks"));
+        UniValue uniVer = find_value(info, "VRSCversion");
+        if (uniVer.isStr())
+        {
+            notaryChainVersion = uni_get_str(uniVer);
+            notaryChainHeight = uni_get_int(find_value(info, "blocks"));
+            CPBaaSChainDefinition chainDef(info);
+            notaryChain = CRPCChainData(chainDef, PBAAS_HOST, PBAAS_PORT, PBAAS_USERPASS);
+        }
     }
     return IsVerusPBaaSAvailable();
 }
@@ -741,7 +818,7 @@ void CConnectedChains::SubmissionThread()
                         }
                         if (submit)
                         {
-                            SubmitQualifiedBlocks(latestBlockHeader);
+                            SubmitQualifiedBlocks();
                         }
                     }
                 }

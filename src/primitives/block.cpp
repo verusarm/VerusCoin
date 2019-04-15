@@ -136,6 +136,33 @@ bool CBlockHeader::CheckNonCanonicalData() const
     return false;
 }
 
+// returns -1 on failure, upon failure, pbbh is undefined and likely corrupted
+int32_t CBlockHeader::GetPBaaSHeader(CPBaaSBlockHeader &pbh, const uint160 &cID) const
+{
+    // find the specified PBaaS header in the solution and return its index if present
+    // if not present, return -1
+    if (nVersion == VERUS_V2)
+    {
+        // search in the solution for this header index and return it if found
+        CPBaaSSolutionDescriptor d = CVerusSolutionVector::solutionTools.GetDescriptor(nSolution);
+        if (CVerusSolutionVector::solutionTools.IsPBaaS(nSolution) != 0)
+        {
+            int32_t len = CVerusSolutionVector::solutionTools.ExtraDataLen(nSolution);
+            int32_t numHeaders = d.numPBaaSHeaders;
+            const CPBaaSBlockHeader *ppbbh = CVerusSolutionVector::solutionTools.GetFirstPBaaSHeader(nSolution);
+            for (int32_t i = 0; i < numHeaders; i++)
+            {
+                if ((ppbbh + i)->chainID == cID)
+                {
+                    pbh = *(ppbbh + i);
+                    return i;
+                }
+            }
+        }
+    }
+    return -1;
+}
+
 // returns the index of the new header if added, otherwise, -1
 int32_t CBlockHeader::AddPBaaSHeader(const CPBaaSBlockHeader &pbh)
 {
@@ -184,7 +211,9 @@ bool CBlockHeader::AddUpdatePBaaSHeader(uint256 prevMMRRoot)
         CPBaaSBlockHeader pbh(ASSETCHAINS_CHAINID, pbph, prevMMRRoot);
 
         CPBaaSBlockHeader pbbh;
-        if (int32_t idx = GetPBaaSHeader(pbbh, ASSETCHAINS_CHAINID) != -1)
+        int32_t idx = GetPBaaSHeader(pbbh, ASSETCHAINS_CHAINID);
+
+        if (idx != -1)
         {
             return UpdatePBaaSHeader(pbh);
         }
@@ -223,7 +252,7 @@ uint256 CBlockHeader::GetVerusV2Hash() const
         {
             // in order for this to work, the PBaaS hash of the pre-header must match the header data
             // otherwise, it cannot clear the canonical data and hash in a chain-independent manner
-            if (CConstVerusSolutionVector::IsPBaaS(nSolution) == 1 && CheckNonCanonicalData())
+            if (CConstVerusSolutionVector::IsPBaaS(nSolution) && CheckNonCanonicalData())
             {
                 CBlockHeader bh = CBlockHeader(*this);
                 bh.ClearNonCanonicalData();
