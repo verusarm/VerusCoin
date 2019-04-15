@@ -278,9 +278,9 @@ bool CreateEarnedNotarization(CMutableTransaction &mnewTx, CTransaction &lastTx,
     }
 
     uint256 lastNotarizationID;
-    lastNotarizationID.SetHex((uv1.get_str());
+    lastNotarizationID.SetHex((uv1.get_str()));
     uint256 crossNotarizationID;
-    crossNotarizationID.SetHex((uv2.get_str());
+    crossNotarizationID.SetHex((uv2.get_str()));
 
     if (lastNotarizationID.IsNull() || crossNotarizationID.IsNull() || !DecodeHexTx(crossTx, uv3.get_str()))
     {
