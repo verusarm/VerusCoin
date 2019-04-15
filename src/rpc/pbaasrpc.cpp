@@ -286,6 +286,9 @@ bool GetNotarizationData(uint160 chainID, uint32_t ecode, CChainNotarizationData
 
     // look for unspent notarization finalization outputs for the requested chain
     CKeyID keyID(CCrossChainRPCData::GetConditionID(chainID, EVAL_FINALIZENOTARIZATION));
+
+    printf("CKeyID: %s\n", keyID.GetHex().c_str());
+
     std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> > unspentOutputs;
     CPBaaSChainDefinition chainDef;
 
@@ -477,7 +480,7 @@ UniValue getnotarizationdata(const UniValue& params, bool fHelp)
     {
         try
         {
-            chainID = uint160(ParseHex(params[0].get_str()));
+            chainID.SetHex(params[0].get_str());
         }
         catch(const std::exception& e)
         {
@@ -552,12 +555,14 @@ UniValue getcrossnotarization(const UniValue& params, bool fHelp)
     {
         try
         {
-            chainID = uint160(ParseHex(params[0].get_str()));
+            chainID.SetHex(params[0].get_str());
         }
         catch(const std::exception& e)
         {
         }
     }
+
+    printf("ChainID: %s\n", chainID.GetHex().c_str());
 
     if (chainID.IsNull())
     {
@@ -890,6 +895,12 @@ UniValue definechain(const UniValue& params, bool fHelp)
     cp = CCinit(&CC, EVAL_FINALIZENOTARIZATION);
     pk = CPubKey(std::vector<unsigned char>(CC.CChexstr, CC.CChexstr + strlen(CC.CChexstr)));
     dests = std::vector<CTxDestination>({CKeyID(newChain.GetConditionID(EVAL_FINALIZENOTARIZATION))});
+
+    CKeyID testOut1 = CKeyID(newChain.GetConditionID(EVAL_FINALIZENOTARIZATION));
+    CKeyID testOut2 = GetDestinationID(dests[0]);
+    printf("CKeyID1: %s\n", testOut1.GetHex().c_str());
+    printf("CKeyID2: %s\n", testOut2.GetHex().c_str());
+
     CNotarizationFinalization nf(0);
     CTxOut finalizationOut = MakeCC1of1Vout(EVAL_FINALIZENOTARIZATION, DEFAULT_TRANSACTION_FEE, pk, dests, nf);
     outputs.push_back(CRecipient({finalizationOut.scriptPubKey, CPBaaSChainDefinition::DEFAULT_OUTPUT_VALUE, false}));
