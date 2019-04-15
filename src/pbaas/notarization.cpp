@@ -83,7 +83,7 @@ CPBaaSNotarization::CPBaaSNotarization(const CTransaction &tx, bool validate)
 CPBaaSNotarization::CPBaaSNotarization(const UniValue &obj)
 {
     nVersion = (uint32_t)uni_get_int(find_value(obj, "version"));
-    chainID = uint160(ParseHex(uni_get_str(find_value(obj, "chainid"))));
+    chainID.SetHex(uni_get_str(find_value(obj, "chainid")));
     rewardPerBlock = uni_get_int64(find_value(obj, "rewardperblock"));
     notarizationHeight = uni_get_int(find_value(obj, "notarizationheight"));
     mmrRoot = uint256S(uni_get_str(find_value(obj, "mmrroot")));
@@ -241,7 +241,12 @@ bool CreateEarnedNotarization(CMutableTransaction &mnewTx, CTransaction &lastTx,
     }
 
     UniValue params(UniValue::VARR);
-    params.push_back(VERUS_CHAINID.GetHex());
+    params.push_back(ASSETCHAINS_CHAINID.GetHex());
+
+    printf("ChainID original: %s\n", ASSETCHAINS_CHAINID.GetHex().c_str());
+    uint160 chainID;
+    chainID.SetHex(ASSETCHAINS_CHAINID.GetHex());
+    printf("ChainID transformed: %s\n", chainID.GetHex().c_str());
 
     CChainNotarizationData cnd;
 
@@ -272,8 +277,11 @@ bool CreateEarnedNotarization(CMutableTransaction &mnewTx, CTransaction &lastTx,
         return false;
     }
 
-    uint256 lastNotarizationID = uint256(ParseHex(uv1.get_str()));
-    uint256 crossNotarizationID = uint256(ParseHex(uv2.get_str()));
+    uint256 lastNotarizationID;
+    lastNotarizationID.SetHex((uv1.get_str());
+    uint256 crossNotarizationID;
+    crossNotarizationID.SetHex((uv2.get_str());
+
     if (lastNotarizationID.IsNull() || crossNotarizationID.IsNull() || !DecodeHexTx(crossTx, uv3.get_str()))
     {
         return false;
