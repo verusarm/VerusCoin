@@ -332,7 +332,8 @@ bool GetNotarizationData(uint160 chainID, uint32_t ecode, CChainNotarizationData
                     auto blkit = mapBlockIndex.find(blkHash);
                     if (blkit != mapBlockIndex.end())
                     {
-                        sorted.emplace(blkit->second->GetHeight(), make_pair(blkit->first, notarization));
+                        // sort by block height, index by transaction id
+                        sorted.emplace(blkit->second->GetHeight(), make_pair(it->first.txhash, notarization));
                     }
                 }
             }
