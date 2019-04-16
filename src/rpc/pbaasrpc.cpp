@@ -787,8 +787,8 @@ UniValue getcrossnotarization(const UniValue& params, bool fHelp)
                                                                  orp,
                                                                  nodes);
 
-            // we now have the chain objects, all associated proofs, and notarization data
-            // make a partial transaction and return it
+            // we now have the chain objects, all associated proofs, and notarization data, return it
+            ret.push_back(Pair("notarization", notarization.ToUniValue()));
         }
     }
     return ret;

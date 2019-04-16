@@ -266,7 +266,7 @@ bool CreateEarnedNotarization(CMutableTransaction &mnewTx, CTransaction &lastTx,
     UniValue result;
     try
     {
-        result = RPCCallRoot("getcrossnotarization", params);
+        result = find_value(RPCCallRoot("getcrossnotarization", params), "result");
     } catch (exception e)
     {
         result = NullUniValue;
@@ -276,7 +276,7 @@ bool CreateEarnedNotarization(CMutableTransaction &mnewTx, CTransaction &lastTx,
     auto uv1 = find_value(result, "crosstxid");
     auto uv2 = find_value(result, "txid");
     auto uv3 = find_value(result, "rawtx");
-    auto uv4 = find_value(result, "newtx");
+    auto uv4 = find_value(result, "notarization");
 
     // if we passed no prior notarizations, the crosstxid returned can be null
     if ((!uv1.isStr() && (cnd.vtx.size() != 0)) || !uv2.isStr() || !uv3.isStr() || !uv4.isStr())
