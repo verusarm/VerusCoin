@@ -756,16 +756,16 @@ bool CConnectedChains::IsVerusPBaaSAvailable()
 
 extern string PBAAS_HOST, PBAAS_USERPASS;
 extern int32_t PBAAS_PORT;
-bool CConnectedChains::CheckVerusPBaaSAvailable(UniValue &chainInfo, UniValue &chainDef)
+bool CConnectedChains::CheckVerusPBaaSAvailable(UniValue &chainInfoUni, UniValue &chainDefUni)
 {
-    if (chainInfo.isObject() && chainDef.isObject())
+    if (chainInfoUni.isObject() && chainDefUni.isObject())
     {
-        UniValue uniVer = find_value(chainInfo, "VRSCversion");
+        UniValue uniVer = find_value(chainInfoUni, "VRSCversion");
         if (uniVer.isStr())
         {
             notaryChainVersion = uni_get_str(uniVer);
-            notaryChainHeight = uni_get_int(find_value(chainInfo, "blocks"));
-            CPBaaSChainDefinition chainDef(chainDef);
+            notaryChainHeight = uni_get_int(find_value(chainInfoUni, "blocks"));
+            CPBaaSChainDefinition chainDef(chainDefUni);
             notaryChain = CRPCChainData(chainDef, PBAAS_HOST, PBAAS_PORT, PBAAS_USERPASS);
         }
     }
