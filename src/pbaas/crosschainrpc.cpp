@@ -290,3 +290,33 @@ std::vector<UniValue> uni_getValues(UniValue uv, std::vector<UniValue> def)
     }
 }
 
+uint160 CCrossChainRPCData::GetConditionID(uint160 cid, int32_t condition)
+{
+    printf("Condition: %d, ChainID: %s, ", condition, cid.GetHex().c_str());
+
+    CHashWriter hw(SER_GETHASH, PROTOCOL_VERSION);
+    hw << condition;
+    hw << cid;
+    uint256 chainHash = hw.GetHash();
+
+    uint160 output = Hash160(chainHash.begin(), chainHash.end());
+    printf("ConditionID: %s\n", output.GetHex().c_str());
+
+    return Hash160(chainHash.begin(), chainHash.end());
+}
+
+uint160 CCrossChainRPCData::GetConditionID(std::string name, int32_t condition)
+{
+    uint160 cid = GetChainID(name);
+    printf("Condition: %d, Name %s, ChainID: %s, ", condition, name.c_str(), cid.GetHex().c_str());
+
+    CHashWriter hw(SER_GETHASH, PROTOCOL_VERSION);
+    hw << condition;
+    hw << cid;
+    uint256 chainHash = hw.GetHash();
+
+    uint160 output = Hash160(chainHash.begin(), chainHash.end());
+    printf("ConditionID: %s\n", output.GetHex().c_str());
+
+    return Hash160(chainHash.begin(), chainHash.end());
+}

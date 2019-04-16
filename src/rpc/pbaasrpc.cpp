@@ -901,10 +901,13 @@ UniValue definechain(const UniValue& params, bool fHelp)
     pk = CPubKey(std::vector<unsigned char>(CC.CChexstr, CC.CChexstr + strlen(CC.CChexstr)));
     dests = std::vector<CTxDestination>({CKeyID(newChain.GetConditionID(EVAL_FINALIZENOTARIZATION))});
 
-    CKeyID testOut1 = CKeyID(newChain.GetConditionID(EVAL_FINALIZENOTARIZATION));
+    CKeyID testOut1 = CKeyID(newChain.GetConditionID(EVAL_ACCEPTEDNOTARIZATION));
     CKeyID testOut2 = GetDestinationID(dests[0]);
-    printf("CKeyID1: %s\n", testOut1.GetHex().c_str());
-    printf("CKeyID2: %s\n", testOut2.GetHex().c_str());
+    CKeyID testOut2a = CKeyID(CCrossChainRPCData::GetConditionID(newChain.GetChainID(), EVAL_FINALIZENOTARIZATION));
+    printf("Name: %s\n", newChain.name.c_str());
+    printf("ChainID: %s\n", newChain.GetChainID().GetHex().c_str());
+    printf("ConditionID EVAL_ACCEPTEDNOTARIZATION: %s\n", testOut1.GetHex().c_str());
+    printf("ConditionID EVAL_FINALIZENOTARIZATION: %s, %s\n", testOut2.GetHex().c_str(), testOut2a.GetHex().c_str());
 
     CNotarizationFinalization nf(0);
     CTxOut finalizationOut = MakeCC1of1Vout(EVAL_FINALIZENOTARIZATION, DEFAULT_TRANSACTION_FEE, pk, dests, nf);

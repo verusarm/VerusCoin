@@ -49,19 +49,8 @@ public:
         return Hash160(chainHash.begin(), chainHash.end());
     }
 
-    inline static uint160 GetConditionID(uint160 &cid, int32_t condition)
-    {
-        const char *condStr = itostr(condition).c_str();
-        uint256 chainHash = Hash(condStr, condStr + strlen(condStr), (char *)&cid, ((char *)&cid) + sizeof(cid));
-        return Hash160(chainHash.begin(), chainHash.end());
-    }
-    inline static uint160 GetConditionID(std::string name, int32_t condition)
-    {
-        uint160 cid = GetChainID(name);
-        const char *condStr = itostr(condition).c_str();
-        uint256 chainHash = Hash(condStr, condStr + strlen(condStr), (char *)&cid, ((char *)&cid) + sizeof(cid));
-        return Hash160(chainHash.begin(), chainHash.end());
-    }
+    static uint160 GetConditionID(uint160 cid, int32_t condition);
+    static uint160 GetConditionID(std::string name, int32_t condition);
 
     UniValue ToUniValue() const;
 };
