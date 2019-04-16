@@ -617,7 +617,7 @@ UniValue getcrossnotarization(const UniValue& params, bool fHelp)
         bool found = false;
 
         // if we are the first earned notarization on this chain, we don't have to find a match, chain definition is the match
-        if (txids.size() == 0 && ecode == EVAL_ACCEPTEDNOTARIZATION && !nData.IsConfirmed() && !nData.vtx.size() != 0)
+        if (txids.size() == 0 && ecode == EVAL_ACCEPTEDNOTARIZATION && !nData.IsConfirmed() && nData.vtx.size() != 0)
         {
             if (GetTransaction(nData.vtx[0].first, tx, blkHash, true) && (ourLast = CPBaaSNotarization(tx)).IsValid())
             {
