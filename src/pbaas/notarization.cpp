@@ -232,6 +232,7 @@ UniValue CChainNotarizationData::ToUniValue() const
 // we refer to the transactions on the Verus chain and on our chain with which we agree, and if we have added the
 // 10th validation to a notarization in our lineage, we finalize it as validated and finalize any conflicting notarizations
 // as invalidated.
+// Currently may return with insufficient or excess input relative to outputs.
 bool CreateEarnedNotarization(CMutableTransaction &mnewTx, CTransaction &lastTx, CTransaction &crossTx, int32_t height, uint256 &prevMMR)
 {
     // we can only create a notarization if there is an available Verus chain
@@ -276,7 +277,7 @@ bool CreateEarnedNotarization(CMutableTransaction &mnewTx, CTransaction &lastTx,
     auto uv1 = find_value(result, "crosstxid");
     auto uv2 = find_value(result, "txid");
     auto uv3 = find_value(result, "rawtx");
-    auto uv4 = find_value(result, "notarization");
+    auto uv4 = find_value(result, "newtx");
 
     // if we passed no prior notarizations, the crosstxid returned can be null
     if ((!uv1.isStr() && (cnd.vtx.size() != 0)) || !uv2.isStr() || !uv3.isStr() || !uv4.isStr())
@@ -297,14 +298,7 @@ bool CreateEarnedNotarization(CMutableTransaction &mnewTx, CTransaction &lastTx,
     CTransaction newTx;
     if (!DecodeHexTx(newTx, uv4.get_str()))
     {
-        return false;
-    }
-
-    CPBaaSNotarization crossNotarizaton(crossTx);
-    CPBaaSChainDefinition chainDef(crossTx);
-    if (crossNotarizaton.prevNotarization.IsNull() && !chainDef.IsValid())
-    {
-        // must either have a prior notarization or be the definition
+        LogPrintf("CreateEarnedNotarization: Invalid transaction decode.\n");
         return false;
     }
 
@@ -312,22 +306,37 @@ bool CreateEarnedNotarization(CMutableTransaction &mnewTx, CTransaction &lastTx,
     mnewTx = CMutableTransaction(newTx);
     CPBaaSNotarization pbn;
 
-    int i;
-    for (i = 0; i < mnewTx.vout.size(); i++)
+    // we need to update our earned notarization and finalization outputs, which should both be present and incomplete
+    // add up inputs, and make sure that the main notarization output holds any excess over minimum, if not enough, we need
+    // to spend a coinbase instant spend
+    int finalizeOut = -1, notarizeOut = -1;
+    for (int outIdx = 0; outIdx < mnewTx.vout.size(); outIdx++)
     {
-        COptCCParams p;
         uint32_t ecode;
-        if (mnewTx.vout[i].scriptPubKey.IsPayToCryptoCondition(&ecode) &&
-            ecode == EVAL_EARNEDNOTARIZATION && 
-            IsPayToCryptoCondition(mnewTx.vout[i].scriptPubKey, p, pbn))
+        if (mnewTx.vout[outIdx].scriptPubKey.IsPayToCryptoCondition(&ecode))
         {
-            break;
+            if (ecode == EVAL_EARNEDNOTARIZATION)
+            {
+                COptCCParams p;
+                notarizeOut = outIdx;
+                IsPayToCryptoCondition(mnewTx.vout[outIdx].scriptPubKey, p, pbn);
+            }
+            else if (ecode == EVAL_FINALIZENOTARIZATION)
+            {
+                finalizeOut = outIdx;
+            }
         }
     }
-
-    // if i == vout.size(), we didn't find the expected notarization, should never happen
-    if (!pbn.IsValid() || pbn.nVersion != PBAAS_VERSION)
+    if (finalizeOut == -1 || notarizeOut == -1 || !pbn.IsValid() || pbn.nVersion != PBAAS_VERSION)
     {
+        LogPrintf("CreateEarnedNotarization: transaction template should have valid finalization and notarization outputs.\n");
+    }
+
+    CPBaaSNotarization crossNotarizaton(crossTx);
+    CPBaaSChainDefinition chainDef(crossTx);        // only matters if we get no cross notarization prior
+    if (crossNotarizaton.prevNotarization.IsNull() && !chainDef.IsValid())
+    {
+        // must either have a prior notarization or be the definition
         return false;
     }
 
@@ -353,8 +362,10 @@ bool CreateEarnedNotarization(CMutableTransaction &mnewTx, CTransaction &lastTx,
     }
 
     // determine all finalized transactions that should be spent as input
+    // TODO: move to function for common use and validation
     set<int32_t> finalized;
     int32_t confirmedIdx = -1;
+    int32_t confirmedInput = -1;
 
     // now, create inputs from lastTx and the finalization outputs that we either confirm or invalidate
     for (int j = 0; j < cnd.forks.size(); j++)
@@ -372,6 +383,7 @@ bool CreateEarnedNotarization(CMutableTransaction &mnewTx, CTransaction &lastTx,
                 if (k == 10)
                 {
                     confirmedIdx = cnd.forks[j][1];
+                    finalized.insert(confirmedIdx);
                     // if we would add the 10th confirmation to the second in this fork, we are confirming 
                     // a new notarization, spend it's finalization output and all those that disagree with it
                     // the only chains that are confirmed to disagree will have a different index in the
@@ -384,7 +396,7 @@ bool CreateEarnedNotarization(CMutableTransaction &mnewTx, CTransaction &lastTx,
                         {
                             for (int m = 1; m < cnd.forks[l].size(); m++)
                             {
-                                // put indexes of all orphans into the set
+                                // put indexes of all orphans into the finalized set
                                 finalized.insert(cnd.forks[l][m]);
                             }
                         }
@@ -418,15 +430,16 @@ bool CreateEarnedNotarization(CMutableTransaction &mnewTx, CTransaction &lastTx,
     // if this isn't the first notarization, setup inputs
     if (!lastNotarizationID.IsNull())
     {
+        // spend notarization output of the last notarization
         mnewTx.vin.push_back(CTxIn(lastNotarizationID, j, CScript()));
 
         for (auto nidx : finalized)
         {
             // we need to reload all transactions and get their finalization outputs
             // this could be made more efficient by keeping them earlier or standardizing output numbers
-            CTransaction orphanTx;
+            CTransaction finalizedTx;
             uint256 hblk;
-            if (!GetTransaction(cnd.vtx[nidx].first, orphanTx, hblk, true))
+            if (!GetTransaction(cnd.vtx[nidx].first, finalizedTx, hblk, true))
             {
                 // if this fails, we can't follow consensus and must fail
                 return false;
@@ -435,20 +448,21 @@ bool CreateEarnedNotarization(CMutableTransaction &mnewTx, CTransaction &lastTx,
             for (k = 0; k < lastTx.vout.size(); k++)
             {
                 uint32_t code;
-                if (orphanTx.vout[k].scriptPubKey.IsPayToCryptoCondition(&code) && code == EVAL_FINALIZENOTARIZATION)
+                if (finalizedTx.vout[k].scriptPubKey.IsPayToCryptoCondition(&code) && code == EVAL_FINALIZENOTARIZATION)
                 {
                     break;
                 }
             }
-            assert(k < orphanTx.vout.size());
+            assert(k < finalizedTx.vout.size());
 
             // spend all of them
             mnewTx.vin.push_back(CTxIn(cnd.vtx[nidx].first, k, CScript()));
+            if (nidx == confirmedIdx)
+            {
+                confirmedInput = mnewTx.vin.size() - 1;
+            }
         }
     }
-
-    // we need our earned notarization and finalization outputs
-    // add up inputs, and make sure that the main notarization output holds any excess over minimum
 
     CCcontract_info CC;
     CCcontract_info *cp;
@@ -460,20 +474,19 @@ bool CreateEarnedNotarization(CMutableTransaction &mnewTx, CTransaction &lastTx,
     CPubKey pk = CPubKey(std::vector<unsigned char>(CC.CChexstr, CC.CChexstr + strlen(CC.CChexstr)));
 
     vKeys.push_back(CTxDestination(CKeyID(CCrossChainRPCData::GetConditionID(VERUS_CHAINID, EVAL_EARNEDNOTARIZATION))));
-
-    // update crypto condition with final notarization output data
-    mnewTx.vout.push_back(MakeCC1of1Vout(EVAL_EARNEDNOTARIZATION, PBAAS_MINNOTARIZATIONOUTPUT, pk, vKeys, pbn));
-
+    mnewTx.vout[notarizeOut] = MakeCC1of1Vout(EVAL_EARNEDNOTARIZATION, PBAAS_MINNOTARIZATIONOUTPUT, pk, vKeys, pbn);
     
     // make the finalization output
     cp = CCinit(&CC, EVAL_FINALIZENOTARIZATION);
-    // need to be able to send this to EVAL_PBAASDEFINITION address as a destination, locked by the default pubkey
     pk = CPubKey(std::vector<unsigned char>(CC.CChexstr, CC.CChexstr + strlen(CC.CChexstr)));
+
+    // we need to store the input that we confirmed if we spent finalization outputs
+    CNotarizationFinalization nf(confirmedInput);
 
     vKeys[0] = CTxDestination(CKeyID(CCrossChainRPCData::GetConditionID(VERUS_CHAINID, EVAL_FINALIZENOTARIZATION)));
 
     // update crypto condition with final notarization output data
-    mnewTx.vout.push_back(MakeCC1of1Vout(EVAL_FINALIZENOTARIZATION, PBAAS_MINNOTARIZATIONOUTPUT, pk, vKeys, pbn));
+    mnewTx.vout[finalizeOut] = MakeCC1of1Vout(EVAL_FINALIZENOTARIZATION, PBAAS_MINNOTARIZATIONOUTPUT, pk, vKeys, nf);
 
     return true;
 }

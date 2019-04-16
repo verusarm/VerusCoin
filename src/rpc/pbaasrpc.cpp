@@ -590,6 +590,17 @@ UniValue getcrossnotarization(const UniValue& params, bool fHelp)
         }
     }
 
+    uint32_t crosscode;
+    if (ecode == EVAL_ACCEPTEDNOTARIZATION)
+    {
+        crosscode = EVAL_EARNEDNOTARIZATION;
+    }
+    else
+    {
+        crosscode = EVAL_ACCEPTEDNOTARIZATION;
+    }
+    
+
     if (params[1].type() != UniValue::VARR)
     {
         throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid second parameter object type: " + itostr(params[1].type()));
@@ -787,8 +798,34 @@ UniValue getcrossnotarization(const UniValue& params, bool fHelp)
                                                                  orp,
                                                                  nodes);
 
-            // we now have the chain objects, all associated proofs, and notarization data, return it
-            ret.push_back(Pair("notarization", notarization.ToUniValue()));
+            // we now have the chain objects, all associated proofs, and notarization data, make an appropriate transactiontemplate with opret
+            // and return it. notarization will need to be completed, so the only thing we really need to construct on this chain is the opret
+            CMutableTransaction newNotarization;
+
+            CCcontract_info CC;
+            CCcontract_info *cp;
+
+            // make the output for the other chain's notarization
+            cp = CCinit(&CC, crosscode);
+            // signed by public key of cc
+            CPubKey pk = CPubKey(std::vector<unsigned char>(CC.CChexstr, CC.CChexstr + strlen(CC.CChexstr)));
+            CKeyID id = CCrossChainRPCData::GetConditionID(chainID, crosscode);
+            std::vector<CTxDestination> dests({id});
+
+            newNotarization.vout.push_back(MakeCC1of1Vout(crosscode, CPBaaSChainDefinition::DEFAULT_OUTPUT_VALUE, pk, dests, notarization));
+
+            // make the finalization output
+            cp = CCinit(&CC, EVAL_FINALIZENOTARIZATION);
+            pk = CPubKey(std::vector<unsigned char>(CC.CChexstr, CC.CChexstr + strlen(CC.CChexstr)));
+            dests = std::vector<CTxDestination>({CKeyID(CCrossChainRPCData::GetConditionID(chainID, EVAL_FINALIZENOTARIZATION))});
+
+            CNotarizationFinalization nf;
+            newNotarization.vout.push_back(MakeCC1of1Vout(EVAL_FINALIZENOTARIZATION, DEFAULT_TRANSACTION_FEE, pk, dests, nf));
+
+            newNotarization.vout.push_back(CTxOut(0, StoreOpRetArray(chainObjects)));
+
+            CTransaction newTx(newNotarization);
+            ret.push_back(Pair("newtx", EncodeHexTx(newTx)));
         }
     }
     return ret;
@@ -934,7 +971,7 @@ UniValue definechain(const UniValue& params, bool fHelp)
     printf("ConditionID EVAL_ACCEPTEDNOTARIZATION: %s\n", testOut1.GetHex().c_str());
     printf("ConditionID EVAL_FINALIZENOTARIZATION: %s, %s\n", testOut2.GetHex().c_str(), testOut2a.GetHex().c_str());
 
-    CNotarizationFinalization nf(0);
+    CNotarizationFinalization nf;
     CTxOut finalizationOut = MakeCC1of1Vout(EVAL_FINALIZENOTARIZATION, DEFAULT_TRANSACTION_FEE, pk, dests, nf);
     outputs.push_back(CRecipient({finalizationOut.scriptPubKey, CPBaaSChainDefinition::DEFAULT_OUTPUT_VALUE, false}));
 

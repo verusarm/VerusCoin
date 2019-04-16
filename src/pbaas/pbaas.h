@@ -372,7 +372,7 @@ std::vector<unsigned char> StoreChainObject(const SERIALIZABLE &obj)
 }
 
 // this adds an opret to a mutable transaction that provides the necessary evidence of a signed, cheating stake transaction
-CScript StoreOpRetArray(std::vector<const CBaseChainObject *> &objPtrs);
+CScript StoreOpRetArray(std::vector<CBaseChainObject *> &objPtrs);
 
 std::vector<CBaseChainObject *> RetrieveOpRetArray(const CScript &opRetScript);
 

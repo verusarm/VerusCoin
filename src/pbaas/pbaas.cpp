@@ -172,7 +172,7 @@ int8_t ObjTypeCode(COpRetRef &obj)
 }
 
 // this adds an opret to a mutable transaction that provides the necessary evidence of a signed, cheating stake transaction
-CScript StoreOpRetArray(std::vector<const CBaseChainObject *> &objPtrs)
+CScript StoreOpRetArray(std::vector<CBaseChainObject *> &objPtrs)
 {
     CScript vData;
     CDataStream s = CDataStream(SER_NETWORK, PROTOCOL_VERSION);
