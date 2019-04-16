@@ -1230,7 +1230,7 @@ void static VerusStaker(CWallet *pwallet)
             {
                 // wait to try another staking block until after the tip moves again
                 while ( chainActive.LastTip() == pindexPrev )
-                    MilliSleep(100);
+                    MilliSleep(250);
                 continue;
             }
 
@@ -1437,8 +1437,8 @@ void static BitcoinMiner_noeq()
             if ( ptr == 0 )
             {
                 static uint32_t counter;
-                if ( counter++ < 100 )
-                    fprintf(stderr,"created illegal block, retry\n");
+                if ( (counter++ < 10) || (counter % 40 == 0) )
+                    fprintf(stderr,"Unable to create valid block... will continue to try\n");
                 MilliSleep(500);
                 continue;
             }
