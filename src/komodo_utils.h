@@ -1839,7 +1839,7 @@ void komodo_args(char *argv0)
                             printf("%s : %s\n", keys[i].c_str(), values[i].getValStr().c_str());
                         }
                     }
-                    printf("Failure to read chain definition from %s blockchain.", PBAAS_TESTMODE ? "VRSCTEST" : "VRSC");
+                    printf("Failure to read chain definition from config file or %s blockchain.\n", PBAAS_TESTMODE ? "VRSCTEST" : "VRSC");
                     throw runtime_error("Cannot load config");
                 }
             }

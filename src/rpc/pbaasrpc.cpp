@@ -287,6 +287,7 @@ bool GetNotarizationData(uint160 chainID, uint32_t ecode, CChainNotarizationData
     // look for unspent notarization finalization outputs for the requested chain
     CKeyID keyID(CCrossChainRPCData::GetConditionID(chainID, EVAL_FINALIZENOTARIZATION));
 
+    printf("CChainID: %s\n", chainID.GetHex().c_str());
     printf("CKeyID: %s\n", keyID.GetHex().c_str());
 
     std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> > unspentOutputs;
@@ -304,19 +305,23 @@ bool GetNotarizationData(uint160 chainID, uint32_t ecode, CChainNotarizationData
         // chain definition
         for (auto it = unspentOutputs.begin(); it != unspentOutputs.end(); it++)
         {
+            printf("txid: %s\n", it->first.txhash.GetHex().c_str());
+
             CTransaction ntx;
             uint256 blkHash;
 
             if (myGetTransaction(it->first.txhash, ntx, blkHash))
             {
                 // try to make a chain definition out of each transaction, and keep the first one that is valid
+                chainDef = CPBaaSChainDefinition(ntx);
                 if (!chainDef.IsValid())
                 {
-                    chainDef = CPBaaSChainDefinition(ntx);
+                    printf("Chain definition is not valid.\n");
                 }
                 CPBaaSNotarization notarization = CPBaaSNotarization(ntx);
                 if (notarization.IsValid())
                 {
+                    printf("Chain notarization is valid.\n");
                     auto blkit = mapBlockIndex.find(blkHash);
                     if (blkit != mapBlockIndex.end())
                     {

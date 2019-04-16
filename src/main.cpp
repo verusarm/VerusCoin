@@ -3353,7 +3353,7 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
                     
                     // record receiving activity
                     addressIndex.push_back(make_pair(CAddressIndexKey(1, Hash160(hashBytes), pindex->GetHeight(), i, txhash, k, false), out.nValue));
-                    
+
                     // record unspent output
                     addressUnspentIndex.push_back(make_pair(CAddressUnspentKey(1, Hash160(hashBytes), txhash, k), CAddressUnspentValue(out.nValue, out.scriptPubKey, pindex->GetHeight())));
                     
@@ -3374,8 +3374,8 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
                     addressIndex.push_back(make_pair(CAddressIndexKey(1, hashBytes, pindex->GetHeight(), i, txhash, k, false), out.nValue));
                     
                     // record unspent output
+                    printf("Making unspent output cryptocondition to %s\n", hashBytes.GetHex());
                     addressUnspentIndex.push_back(make_pair(CAddressUnspentKey(1, hashBytes, txhash, k), CAddressUnspentValue(out.nValue, out.scriptPubKey, pindex->GetHeight())));
-                    
                 }
                 else {
                     continue;
