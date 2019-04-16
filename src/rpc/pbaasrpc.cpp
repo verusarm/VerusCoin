@@ -46,7 +46,7 @@ extern bool VERUS_MINTBLOCKS;
 extern uint8_t NOTARY_PUBKEY33[33];
 extern uint160 ASSETCHAINS_CHAINID;
 extern uint160 VERUS_CHAINID;
-extern char VERUS_CHAINNAME[KOMODO_ASSETCHAIN_MAXLEN];
+extern std::string VERUS_CHAINNAME;
 
 arith_uint256 komodo_PoWtarget(int32_t *percPoSp,arith_uint256 target,int32_t height,int32_t goalperc);
 

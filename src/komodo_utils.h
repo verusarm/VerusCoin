@@ -1853,7 +1853,8 @@ void komodo_args(char *argv0)
         }
     }
 
-    VERUS_CHAINID = CCrossChainRPCData::GetChainID((PBAAS_TESTMODE ? "VRSCTEST" : "VRSC"));
+    VERUS_CHAINNAME = PBAAS_TESTMODE ? "VRSCTEST" : "VRSC";
+    VERUS_CHAINID = CCrossChainRPCData::GetChainID(VERUS_CHAINNAME);
 
     /*
     KOMODO_STOPAT = GetArg("-stopat",0);
