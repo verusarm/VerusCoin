@@ -550,7 +550,7 @@ boost::filesystem::path GetDefaultDataDir()
         }
         else
         {
-            pathRet /= (PBAAS_TESTMODE ? "VerusTest" : "Verus") / "PBAAS";
+            pathRet = (pathRet / (PBAAS_TESTMODE ? "VerusTest" : "Verus")) / "PBAAS";
             TryCreateDirectory(pathRet);
         }
         return pathRet / symbol;

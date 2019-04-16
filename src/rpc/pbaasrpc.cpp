@@ -294,7 +294,7 @@ bool GetNotarizationData(uint160 chainID, uint32_t ecode, CChainNotarizationData
     // look for unspent notarization finalization outputs for the requested chain
     CKeyID keyID(CCrossChainRPCData::GetConditionID(chainID, EVAL_FINALIZENOTARIZATION));
 
-    printf("CChainID: %s\n", chainID.GetHex().c_str());
+    printf("ChainID: %s\n", chainID.GetHex().c_str());
     printf("CKeyID: %s\n", keyID.GetHex().c_str());
 
     std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> > unspentOutputs;
@@ -643,6 +643,7 @@ UniValue getcrossnotarization(const UniValue& params, bool fHelp)
                     ret.push_back(Pair("crosstxid", nzp.second.crossNotarization.GetHex()));
                     ret.push_back(Pair("txid", nzp.first.GetHex()));
                     ret.push_back(Pair("rawtx", EncodeHexTx(tx)));
+                    break;
                 }
             }
         }
@@ -682,18 +683,23 @@ UniValue getcrossnotarization(const UniValue& params, bool fHelp)
             }
 
             uint256 txHash = tx.GetHash();
-            int i;
-            for (i = 0; i < addressIndex.size(); i++)
+            unsigned int txIndex;
+            for (txIndex = 0; txIndex < addressIndex.size(); txIndex++)
             {
-                if (addressIndex[i].first.txhash == txHash)
+                if (addressIndex[txIndex].first.txhash == txHash)
                 {
                     break;
                 }
             }
 
-            if (i == addressIndex.size())
+            if (txIndex == addressIndex.size())
             {
                 throw JSONRPCError(RPC_INTERNAL_ERROR, "Notarization not found in address index - possible corruption");
+            }
+            else
+            {
+                // get index in the block as our transaction index for proofs
+                txIndex = addressIndex[txIndex].first.txindex;
             }
 
             // if bock headers are merge mined, keep header refs, not headers
@@ -714,7 +720,7 @@ UniValue getcrossnotarization(const UniValue& params, bool fHelp)
             orp.AddObject(bh, chainActive[proofheight]->GetBlockHash());
 
             // get a proof of the prior notarizaton from the MMR root of this notarization
-            CMerkleBranch txProof(i, block.GetMerkleBranch(addressIndex[i].first.txindex));
+            CMerkleBranch txProof(txIndex, block.GetMerkleBranch(addressIndex[i].first.txindex));
             chainActive.GetMerkleProof(mmv, txProof, prevHeight);
 
             // include the last notarization tx, minus its opret in the new notarization's opret
