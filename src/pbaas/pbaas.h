@@ -51,8 +51,9 @@
 
 static const uint32_t PBAAS_VERSION = 1;
 static const uint32_t PBAAS_VERSION_INVALID = 0;
-static const uint32_t PBAAS_NODESPERNOTARIZATION = 2; // number of nodes to reference in each notarization
-static const int64_t PBAAS_MINNOTARIZATIONOUTPUT = 10000; // enough for one fee worth to finalization and notarization thread
+static const uint32_t PBAAS_NODESPERNOTARIZATION = 2;       // number of nodes to reference in each notarization
+static const int64_t PBAAS_MINNOTARIZATIONOUTPUT = 10000;   // enough for one fee worth to finalization and notarization thread
+static const int32_t PBAAS_MINSTARTBLOCKDELTA = 100;        // minimum number of blocks to wait for starting a chain after definition
 
 enum CURRENCY_OPTIONS {
     CURRENCY_FUNGIBLE = 1,
@@ -901,7 +902,7 @@ public:
         return thisChain;
     }
 
-    bool CheckVerusPBaaSAvailable(UniValue &rpcGetInfoResult);
+    bool CheckVerusPBaaSAvailable(UniValue &chainInfo, UniValue &chainDef);
     bool CheckVerusPBaaSAvailable();      // may use RPC to call Verus
     bool IsVerusPBaaSAvailable();
 };

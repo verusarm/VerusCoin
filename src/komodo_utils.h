@@ -1814,10 +1814,11 @@ void komodo_args(char *argv0)
                 }
                 UniValue params(UniValue::VARR);
                 params.push_back(name);
-                UniValue result = RPCCallRoot("getchaindefinition", params);
 
+                UniValue result;
                 try
                 {
+                    result = RPCCallRoot("getchaindefinition", params);
                     // set local parameters
                     result = find_value(result, "result");
                     if (result.isNull() || !SetThisChain(result))
@@ -1840,13 +1841,14 @@ void komodo_args(char *argv0)
                         }
                     }
                     printf("Failure to read chain definition from config file or %s blockchain.\n", PBAAS_TESTMODE ? "VRSCTEST" : "VRSC");
-                    throw runtime_error("Cannot load config");
+                    printf("Cannot load config\n");
+                    exit(1);
                 }
             }
             else
             {
                 printf("Config file for %s not found. Cannot load %s information from blockchain.\n", PBAAS_TESTMODE ? "VRSCTEST" : "VRSC", name.c_str());
-                throw runtime_error("Cannot load config");
+                exit(1);
             }
         }
     }

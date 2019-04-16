@@ -263,7 +263,14 @@ bool CreateEarnedNotarization(CMutableTransaction &mnewTx, CTransaction &lastTx,
 
     params.push_back(txidArr);
 
-    auto result = RPCCallRoot("getcrossnotarization", params);
+    UniValue result;
+    try
+    {
+        result = RPCCallRoot("getcrossnotarization", params);
+    } catch (exception e)
+    {
+        result = NullUniValue;
+    }
 
     // if no error, prepare notarization
     auto uv1 = find_value(result, "crosstxid");

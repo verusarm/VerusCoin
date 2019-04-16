@@ -46,6 +46,7 @@ extern bool VERUS_MINTBLOCKS;
 extern uint8_t NOTARY_PUBKEY33[33];
 extern uint160 ASSETCHAINS_CHAINID;
 extern uint160 VERUS_CHAINID;
+extern char VERUS_CHAINNAME[KOMODO_ASSETCHAIN_MAXLEN];
 
 arith_uint256 komodo_PoWtarget(int32_t *percPoSp,arith_uint256 target,int32_t height,int32_t goalperc);
 
@@ -90,6 +91,12 @@ bool GetChainDefinition(string &name, CPBaaSChainDefinition &chainDef)
 {
     CCcontract_info CC;
     CCcontract_info *cp;
+
+    if (name == ASSETCHAINS_SYMBOL)
+    {
+        chainDef = ConnectedChains.ThisChain();
+        return true;
+    }
 
     // make the chain definition output
     cp = CCinit(&CC, EVAL_PBAASDEFINITION);
@@ -835,9 +842,20 @@ UniValue definechain(const UniValue& params, bool fHelp)
 
     CPBaaSChainDefinition newChain(params[0]);
 
-    if (!newChain.startBlock)
+    if (!newChain.IsValid())
     {
-        newChain.startBlock = chainActive.Height() + 100;
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid chain definition. see help.");
+    }
+
+    CPBaaSChainDefinition checkDef;
+    if (GetChainDefinition(newChain.name, checkDef))
+    {
+        throw JSONRPCError(RPC_INVALID_PARAMETER, newChain.name + " chain already defined. see help.");
+    }
+
+    if (!newChain.startBlock || newChain.startBlock < (chainActive.Height() + PBAAS_MINSTARTBLOCKDELTA))
+    {
+        newChain.startBlock = chainActive.Height() + PBAAS_MINSTARTBLOCKDELTA;
     }
 
     if (newChain.billingPeriod < CPBaaSChainDefinition::MIN_BILLING_PERIOD || (newChain.notarizationReward / newChain.billingPeriod) < CPBaaSChainDefinition::MIN_PER_BLOCK_NOTARIZATION)

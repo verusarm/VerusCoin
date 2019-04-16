@@ -129,6 +129,7 @@ extern int32_t VERUS_MIN_STAKEAGE, ASSETCHAINS_ALGO, ASSETCHAINS_EQUIHASH, ASSET
 extern char ASSETCHAINS_SYMBOL[KOMODO_ASSETCHAIN_MAXLEN];
 extern uint160 ASSETCHAINS_CHAINID;
 extern uint160 VERUS_CHAINID;
+extern char VERUS_CHAINNAME[KOMODO_ASSETCHAIN_MAXLEN];
 extern int32_t PBAAS_STARTBLOCK, PBAAS_ENDBLOCK;
 extern string PBAAS_HOST, PBAAS_USERPASS;
 extern int32_t PBAAS_PORT;
@@ -1564,7 +1565,14 @@ void static BitcoinMiner_noeq()
                         params.push_back(PBAAS_HOST);
                         params.push_back(PBAAS_PORT);
                         params.push_back(PBAAS_USERPASS);
-                        params = RPCCallRoot("addmergedblock", params);
+                        try
+                        {
+                            params = RPCCallRoot("addmergedblock", params);
+                        } catch (std::exception e)
+                        {
+                            printf("Failed to connect to %s chain\n", ConnectedChains.notaryChain.chainDefinition.name.c_str());
+                            params = UniValue(e.what());
+                        }
                         if (mergeMining = params.isNull())
                         {
                             printf("Merge mining -- deferring to %s as the actual mining chain\n", ConnectedChains.notaryChain.chainDefinition.name.c_str());

@@ -353,6 +353,7 @@ extern uint64_t ASSETCHAINS_TIMELOCKGTE;
 extern int64_t ASSETCHAINS_SUPPLY, ASSETCHAINS_REWARD[3], ASSETCHAINS_DECAY[3], ASSETCHAINS_HALVING[3], ASSETCHAINS_ENDSUBSIDY[3];
 extern int32_t PBAAS_STARTBLOCK, PBAAS_ENDBLOCK, ASSETCHAINS_LWMAPOS, ASSETCHAINS_TIMEUNLOCKFROM, ASSETCHAINS_TIMEUNLOCKTO;
 extern uint32_t ASSETCHAINS_ALGO, ASSETCHAINS_VERUSHASH, ASSETCHAINS_LASTERA;
+extern char VERUS_CHAINNAME[KOMODO_ASSETCHAIN_MAXLEN];
 
 // adds the chain definition for this chain and nodes as well
 // this also sets up the notarization chain, if there is one
@@ -653,7 +654,15 @@ vector<pair<string, UniValue>> CConnectedChains::SubmitQualifiedBlocks()
                 // any one stalled daemon
                 UniValue submitParams(UniValue::VARR);
                 submitParams.push_back(EncodeHexBlk(chainData.block));
-                UniValue result = RPCCall("submitblock", submitParams, chainData.rpcUserPass, chainData.rpcPort, chainData.rpcHost);
+                UniValue result;
+                try
+                {
+                    result = RPCCall("submitblock", submitParams, chainData.rpcUserPass, chainData.rpcPort, chainData.rpcHost);
+                }
+                catch (exception e)
+                {
+                    result = UniValue(e.what());
+                }
                 results.push_back(make_pair(chainData.chainDefinition.name, result));
                 if (result.isStr())
                 {
@@ -747,17 +756,16 @@ bool CConnectedChains::IsVerusPBaaSAvailable()
 
 extern string PBAAS_HOST, PBAAS_USERPASS;
 extern int32_t PBAAS_PORT;
-bool CConnectedChains::CheckVerusPBaaSAvailable(UniValue &rpcGetInfoResult)
+bool CConnectedChains::CheckVerusPBaaSAvailable(UniValue &chainInfo, UniValue &chainDef)
 {
-    UniValue info = find_value(rpcGetInfoResult, "result");
-    if (info.isObject())
+    if (chainInfo.isObject() && chainDef.isObject())
     {
-        UniValue uniVer = find_value(info, "VRSCversion");
+        UniValue uniVer = find_value(chainInfo, "VRSCversion");
         if (uniVer.isStr())
         {
             notaryChainVersion = uni_get_str(uniVer);
-            notaryChainHeight = uni_get_int(find_value(info, "blocks"));
-            CPBaaSChainDefinition chainDef(info);
+            notaryChainHeight = uni_get_int(find_value(chainInfo, "blocks"));
+            CPBaaSChainDefinition chainDef(chainDef);
             notaryChain = CRPCChainData(chainDef, PBAAS_HOST, PBAAS_PORT, PBAAS_USERPASS);
         }
     }
@@ -773,13 +781,26 @@ bool CConnectedChains::CheckVerusPBaaSAvailable()
     else
     {
         // if this is a PBaaS chain, poll for presence of Verus / root chain and current Verus block and version number
-        UniValue result;
-        result = RPCCallRoot("getinfo", UniValue(UniValue::VARR));
-        if (CheckVerusPBaaSAvailable(result))
+        UniValue chainInfo, chainDef;
+        try
         {
-            return true;
+            UniValue params(UniValue::VARR);
+            chainInfo = find_value(RPCCallRoot("getinfo", params), "result");
+            if (!chainInfo.isNull())
+            {
+                params.push_back(VERUS_CHAINNAME);
+                chainDef = find_value(RPCCallRoot("getdefinedchain", params), "result");
+
+                if (!chainDef.isNull() && CheckVerusPBaaSAvailable(chainInfo, chainDef))
+                {
+                    return true;
+                }
+            }
+        } catch (exception e)
+        {
         }
     }
+    notaryChainVersion = "";
     return false;
 }
 
@@ -829,8 +850,7 @@ void CConnectedChains::SubmissionThread()
                 UniValue result;
 
                 // if this is a PBaaS chain, poll for presence of Verus / root chain and current Verus block and version number
-                result = RPCCallRoot("getinfo", UniValue(UniValue::VARR));
-                CheckVerusPBaaSAvailable(result);
+                CheckVerusPBaaSAvailable();
                 sleep(3);
             }
 
