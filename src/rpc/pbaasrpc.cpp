@@ -720,7 +720,7 @@ UniValue getcrossnotarization(const UniValue& params, bool fHelp)
             orp.AddObject(bh, chainActive[proofheight]->GetBlockHash());
 
             // get a proof of the prior notarizaton from the MMR root of this notarization
-            CMerkleBranch txProof(txIndex, block.GetMerkleBranch(addressIndex[i].first.txindex));
+            CMerkleBranch txProof(txIndex, block.GetMerkleBranch(txIndex));
             chainActive.GetMerkleProof(mmv, txProof, prevHeight);
 
             // include the last notarization tx, minus its opret in the new notarization's opret
@@ -755,7 +755,7 @@ UniValue getcrossnotarization(const UniValue& params, bool fHelp)
                 LOCK(cs_vNodes);
                 if (!vNodes.empty())
                 {
-                    for (int j = 0; j < vNodes.size(); i++)
+                    for (int i = 0; i < vNodes.size(); i++)
                     {
                         CNodeStats stats;
                         vNodes[i]->copyStats(stats);
