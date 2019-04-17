@@ -775,10 +775,10 @@ CBlockTemplate* CreateNewBlock(const CScript& _scriptPubKeyIn, int32_t gpucount,
             CMutableTransaction mntx(pblock->vtx[pbaasNotarizationTx]);
 
             // determine number of CB outputs
-            int numOutputs = txNew.vout.size() - (txNew.vout[txNew.vout.size() - 1].scriptPubKey.IsOpReturn() ? 1 : 0);
+            int numNotaryOutputs = mntx.vout.size() - (mntx.vout[mntx.vout.size() - 1].scriptPubKey.IsOpReturn() ? 1 : 0);
 
             int64_t needed = pbaasTransparentOut - pbaasTransparentIn;
-            if (needed > PBAAS_MINNOTARIZATIONOUTPUT * numOutputs)
+            if (needed > PBAAS_MINNOTARIZATIONOUTPUT * numNotaryOutputs)
             {
                 fprintf(stderr,"CreateNewBlock: too much output from earned notarization transaction\n");
                 return NULL;
@@ -791,13 +791,9 @@ CBlockTemplate* CreateNewBlock(const CScript& _scriptPubKeyIn, int32_t gpucount,
             if (needed > 0)
             {
                 // the new instant spend out will go where at the end and before any opret
-                pbaasCoinbaseInstantSpendOut = numOutputs;
+                pbaasCoinbaseInstantSpendOut = txNew.vout.size() - (txNew.vout[txNew.vout.size() - 1].scriptPubKey.IsOpReturn() ? 1 : 0);
 
-                auto coinbaseOutIt = txNew.vout.begin() + txNew.vout.size();
-                if (txNew.vout.back().scriptPubKey.IsOpReturn())
-                {
-                    coinbaseOutIt -= 1;
-                }
+                auto coinbaseOutIt = txNew.vout.begin() + pbaasCoinbaseInstantSpendOut;
 
                 CCcontract_info CC;
                 CCcontract_info *cp;
