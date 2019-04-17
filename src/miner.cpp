@@ -351,7 +351,7 @@ CBlockTemplate* CreateNewBlock(const CScript& _scriptPubKeyIn, int32_t gpucount,
         // we should make an earned notarization, make it and set index to non-zero value
         int32_t pbaasNotarizationTx = 0;
         int64_t pbaasTransparentIn = 0;
-        int32_t pbaasCoinbaseInstantSpendOut = 0;
+        int64_t pbaasTransparentOut = 0;
         if (!IsVerusActive())
         {
             // if we don't have a connected root PBaaS chain, we can't properly check
@@ -367,9 +367,11 @@ CBlockTemplate* CreateNewBlock(const CScript& _scriptPubKeyIn, int32_t gpucount,
                 if (CreateEarnedNotarization(newNotarizationTx, prevTx, crossTx, nHeight, mmrRoot))
                 {
                     // we have a valid, earned notarization transaction. we still need to verify:
-                    // 1. it has enough input for its outputs. it can be returned with less than enough, 
-                    // and if so, take it as instant-spend from the coinbase. instant-spend and notarization 
-                    // threads on a PBaaS chain can only be used for notarization, and can never convert to 
+                    // 1. it has matching input for its outputs, since it can be returned with less than enough, 
+                    // if there is not enough, take it as instant-spend from the coinbase. if there is too much,
+                    // increase the output on the main notarization thread.
+                    // instant-spend and notarization 
+                    // transaction threads on a PBaaS chain can only be used for notarization, and can never convert to 
                     // available supply
 
                     // Fetch previous transactions (inputs):
@@ -379,6 +381,36 @@ CBlockTemplate* CreateNewBlock(const CScript& _scriptPubKeyIn, int32_t gpucount,
                         const CCoins *pcoins = view.AccessCoins(prevHash); // this is certainly allowed to fail
                         pbaasTransparentIn += pcoins && (pcoins->vout.size() > txin.prevout.n) ? pcoins->vout[txin.prevout.n].nValue : 0;
                     }
+
+                    for (auto txout : newNotarizationTx.vout)
+                    {
+                        pbaasTransparentOut += txout.nValue;
+                    }
+
+                    if (pbaasTransparentOut < pbaasTransparentIn)
+                    {
+                        // add excess to the notarization output
+                        int notarizeOut = -1;
+                        for (int outIdx = 0; outIdx < newNotarizationTx.vout.size(); outIdx++)
+                        {
+                            uint32_t ecode;
+                            if (newNotarizationTx.vout[outIdx].scriptPubKey.IsPayToCryptoCondition(&ecode))
+                            {
+                                if (ecode == EVAL_EARNEDNOTARIZATION)
+                                {
+                                    newNotarizationTx.vout[outIdx].nValue += pbaasTransparentIn - pbaasTransparentOut;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    
+                    if (pbaasTransparentOut > pbaasTransparentIn)
+                    {
+                        // add an incomplete input to spend a coinbase instant spend output to fund the notarization
+                        newNotarizationTx.vin.push_back(CTxIn());
+                    }
+
                     pblock->vtx.push_back(CTransaction(newNotarizationTx));
                     pblocktemplate->vTxFees.push_back(0);
                     pblocktemplate->vTxSigOps.push_back(-1); // updated at end
@@ -733,7 +765,7 @@ CBlockTemplate* CreateNewBlock(const CScript& _scriptPubKeyIn, int32_t gpucount,
             //printf("autocreate commision vout\n");
         }
 
-        // if we need an instant out to be a source of funds for the notarization transaction, make it here
+        // add final notarization and instant spend fixups
         if (pbaasNotarizationTx)
         {
             extern CWallet *pwalletMain;
@@ -741,25 +773,28 @@ CBlockTemplate* CreateNewBlock(const CScript& _scriptPubKeyIn, int32_t gpucount,
 
             // now add an input from the coinbase to the notarization
             CMutableTransaction mntx(pblock->vtx[pbaasNotarizationTx]);
-            CTransaction ntx = pblock->vtx[pbaasNotarizationTx];
 
-            int64_t pbaasTxValueOut = ntx.GetValueOut();
-            int numOutputs = ntx.vout.size() - (ntx.vout[ntx.vout.size() - 1].scriptPubKey.IsOpReturn() ? 1 : 0);
-            if (pbaasNotarizationTx != 0 && pbaasTxValueOut > pbaasTransparentIn)
+            int numOutputs = mntx.vout.size() - (mntx.vout[mntx.vout.size() - 1].scriptPubKey.IsOpReturn() ? 1 : 0);
+
+            int64_t needed = pbaasTransparentOut - pbaasTransparentIn;
+            if (needed > PBAAS_MINNOTARIZATIONOUTPUT * numOutputs)
             {
-                int64_t needed = pbaasTxValueOut - pbaasTransparentIn;
-                if (needed > PBAAS_MINNOTARIZATIONOUTPUT * numOutputs)
-                {
-                    fprintf(stderr,"CreateNewBlock: too much output from earned notarization transaction\n");
-                    return NULL;
-                }
+                fprintf(stderr,"CreateNewBlock: too much output from earned notarization transaction\n");
+                return NULL;
+            }
 
-                auto coinbaseOutIt = txNew.vout.end();
-                pbaasCoinbaseInstantSpendOut = txNew.vout.size();
-                if ((coinbaseOutIt - 1)->scriptPubKey.IsOpReturn())
+            uint256 cbHash;
+            int32_t pbaasCoinbaseInstantSpendOut;
+
+            // if we need an instant out to be a source of funds for the notarization transaction, make it here
+            if (needed > 0)
+            {
+                pbaasCoinbaseInstantSpendOut = numOutputs - 1;
+
+                auto coinbaseOutIt = txNew.vout.begin() + txNew.vout.size() - 1;
+                if (coinbaseOutIt->scriptPubKey.IsOpReturn())
                 {
                     coinbaseOutIt -= 1;
-                    pbaasCoinbaseInstantSpendOut -= 1;
                 }
 
                 CCcontract_info CC;
@@ -775,24 +810,37 @@ CBlockTemplate* CreateNewBlock(const CScript& _scriptPubKeyIn, int32_t gpucount,
 
                 // output duplicate notarization as coinbase output for instant spend to notarization
                 // these coins will never join the supply pool, so they do not need to be considered as
-                // part of the total value out sum of this coinbase
-                CPBaaSNotarization pbn(ntx);
-                txNew.vout.insert(coinbaseOutIt, MakeCC1of1Vout(EVAL_EARNEDNOTARIZATION, PBAAS_MINNOTARIZATIONOUTPUT, pk, vKeys, pbn));
-                mntx.vin.push_back(CTxIn(txNew.GetHash(), pbaasCoinbaseInstantSpendOut));
+                // part of the total value of this coinbase
+                CPBaaSNotarization pbn(pblock->vtx[pbaasNotarizationTx]);
+                txNew.vout.insert(coinbaseOutIt, MakeCC1of1Vout(EVAL_EARNEDNOTARIZATION, needed, pk, vKeys, pbn));
+                cbHash = txNew.GetHash();
+                mntx.vin[mntx.vin.size() - 1] = CTxIn(txNew.GetHash(), pbaasCoinbaseInstantSpendOut);
+
+                // put notarization back in the block
+                pblock->vtx[pbaasNotarizationTx] = mntx;
             }
 
-            // we need to sign mntx and put it back
-            int nIn = 0;
-            ntx = CTransaction(mntx);
+            CTransaction ntx(mntx);
 
             for (int i = 0; i < ntx.vin.size(); i++)
             {
                 bool signSuccess;
-                const CCoins *coins = view.AccessCoins(ntx.vin[i].prevout.hash);
-                const CScript& scriptPubKey = coins->vout[ntx.vin[i].prevout.n].scriptPubKey;
                 SignatureData sigdata;
-
-                signSuccess = ProduceSignature(TransactionSignatureCreator(pwalletMain, &ntx, i, coins->vout[ntx.vin[i].prevout.n].nValue, SIGHASH_ALL), scriptPubKey, sigdata, consensusBranchId);
+                CAmount value;
+                const CScript *pScriptPubKey;
+                if (needed > 0 && cbHash == ntx.vin[i].prevout.hash)
+                {
+                    pScriptPubKey = &txNew.vout[pbaasCoinbaseInstantSpendOut].scriptPubKey;
+                    value = txNew.vout[pbaasCoinbaseInstantSpendOut].nValue;
+                }
+                else
+                {
+                    const CCoins *coins = view.AccessCoins(ntx.vin[i].prevout.hash);
+                    pScriptPubKey = &coins->vout[ntx.vin[i].prevout.n].scriptPubKey;
+                    value = coins->vout[ntx.vin[i].prevout.n].nValue;
+                }
+                
+                signSuccess = ProduceSignature(TransactionSignatureCreator(pwalletMain, &ntx, i, value, SIGHASH_ALL), *pScriptPubKey, sigdata, consensusBranchId);
 
                 if (!signSuccess)
                 {
@@ -802,7 +850,6 @@ CBlockTemplate* CreateNewBlock(const CScript& _scriptPubKeyIn, int32_t gpucount,
                     UpdateTransaction(mntx, i, sigdata);
                 }
             }
-            pblock->vtx[pbaasNotarizationTx] = mntx;
             pblocktemplate->vTxSigOps[pbaasNotarizationTx] = GetLegacySigOpCount(mntx);
         }
 
@@ -812,7 +859,7 @@ CBlockTemplate* CreateNewBlock(const CScript& _scriptPubKeyIn, int32_t gpucount,
         // if not Verus stake, setup nonce, otherwise, leave it alone
         if (!isStake || ASSETCHAINS_LWMAPOS == 0)
         {
-            // Randomise nonce
+            // Randomize nonce
             arith_uint256 nonce = UintToArith256(GetRandHash());
 
             // Clear the top 16 and bottom 16 or 24 bits (for local use as thread flags and counters)

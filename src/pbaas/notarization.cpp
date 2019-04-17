@@ -290,7 +290,7 @@ bool CreateEarnedNotarization(CMutableTransaction &mnewTx, CTransaction &lastTx,
     uint256 crossNotarizationID;
     crossNotarizationID.SetHex((uv2.get_str()));
 
-    if ((lastNotarizationID.IsNull() && (cnd.vtx.size() != 0)) || crossNotarizationID.IsNull() || !DecodeHexTx(crossTx, uv3.get_str()))
+    if (((cnd.vtx.size() != 0) && lastNotarizationID.IsNull()) || crossNotarizationID.IsNull() || !DecodeHexTx(crossTx, uv3.get_str()))
     {
         return false;
     }
@@ -303,7 +303,17 @@ bool CreateEarnedNotarization(CMutableTransaction &mnewTx, CTransaction &lastTx,
     }
 
     // we have more work to do on it
-    mnewTx = CMutableTransaction(newTx);
+    mnewTx = CreateNewContextualCMutableTransaction(Params().GetConsensus(), height);
+    // copy the inputs and outputs to the new transaction
+    for (auto input : mnewTx.vin)
+    {
+        mnewTx.vin.push_back(input);
+    }
+    for (auto output : mnewTx.vout)
+    {
+        mnewTx.vout.push_back(output);
+    }
+
     CPBaaSNotarization pbn;
 
     // we need to update our earned notarization and finalization outputs, which should both be present and incomplete
