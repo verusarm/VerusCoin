@@ -305,11 +305,11 @@ bool CreateEarnedNotarization(CMutableTransaction &mnewTx, CTransaction &lastTx,
     // we have more work to do on it
     mnewTx = CreateNewContextualCMutableTransaction(Params().GetConsensus(), height);
     // copy the inputs and outputs to the new transaction
-    for (auto input : mnewTx.vin)
+    for (auto input : newTx.vin)
     {
         mnewTx.vin.push_back(input);
     }
-    for (auto output : mnewTx.vout)
+    for (auto output : newTx.vout)
     {
         mnewTx.vout.push_back(output);
     }
