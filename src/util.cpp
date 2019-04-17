@@ -615,7 +615,7 @@ boost::filesystem::path GetDefaultDataDir(std::string chainName)
     }
     else
     {
-        pathRet /= (PBAAS_TESTMODE ? "VerusTest" : "Verus") / "PBAAS";
+        pathRet = (pathRet / (PBAAS_TESTMODE ? "VerusTest" : "Verus")) / "PBAAS";
         TryCreateDirectory(pathRet);
     }
     return pathRet / symbol;
