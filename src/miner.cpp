@@ -774,7 +774,8 @@ CBlockTemplate* CreateNewBlock(const CScript& _scriptPubKeyIn, int32_t gpucount,
             // now add an input from the coinbase to the notarization
             CMutableTransaction mntx(pblock->vtx[pbaasNotarizationTx]);
 
-            int numOutputs = mntx.vout.size() - (mntx.vout[mntx.vout.size() - 1].scriptPubKey.IsOpReturn() ? 1 : 0);
+            // determine number of CB outputs
+            int numOutputs = txNew.vout.size() - (txNew.vout[txNew.vout.size() - 1].scriptPubKey.IsOpReturn() ? 1 : 0);
 
             int64_t needed = pbaasTransparentOut - pbaasTransparentIn;
             if (needed > PBAAS_MINNOTARIZATIONOUTPUT * numOutputs)
@@ -789,10 +790,11 @@ CBlockTemplate* CreateNewBlock(const CScript& _scriptPubKeyIn, int32_t gpucount,
             // if we need an instant out to be a source of funds for the notarization transaction, make it here
             if (needed > 0)
             {
-                pbaasCoinbaseInstantSpendOut = numOutputs - 1;
+                // the new instant spend out will go where at the end and before any opret
+                pbaasCoinbaseInstantSpendOut = numOutputs;
 
-                auto coinbaseOutIt = txNew.vout.begin() + txNew.vout.size() - 1;
-                if (coinbaseOutIt->scriptPubKey.IsOpReturn())
+                auto coinbaseOutIt = txNew.vout.begin() + txNew.vout.size();
+                if (txNew.vout.back().scriptPubKey.IsOpReturn())
                 {
                     coinbaseOutIt -= 1;
                 }
