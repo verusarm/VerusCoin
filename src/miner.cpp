@@ -1095,7 +1095,7 @@ static bool ProcessBlockFound(CBlock* pblock)
                 fprintf(stderr,"%02x",((uint8_t *)&hash)[i]);
             fprintf(stderr," <- chainTip (stale)\n");
             
-            return error("KomodoMiner: generated block is stale");
+            return error("VerusMiner: generated block is stale");
         }
     }
     
@@ -1121,7 +1121,7 @@ static bool ProcessBlockFound(CBlock* pblock)
     // Process this block the same as if we had received it from another node
     CValidationState state;
     if (!ProcessNewBlock(1,chainActive.LastTip()->GetHeight()+1,state, NULL, pblock, true, NULL))
-        return error("KomodoMiner: ProcessNewBlock, block not accepted");
+        return error("VerusMiner: ProcessNewBlock, block not accepted");
     
     TrackMinedBlock(pblock->GetHash());
     komodo_broadcast(pblock,16);
@@ -1728,6 +1728,7 @@ void static BitcoinMiner_noeq()
                             break;
                         }
                     }
+                    break;
                 }
                 else
                 {
