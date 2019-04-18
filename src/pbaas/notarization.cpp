@@ -244,11 +244,6 @@ bool CreateEarnedNotarization(CMutableTransaction &mnewTx, CTransaction &lastTx,
     UniValue params(UniValue::VARR);
     params.push_back(ASSETCHAINS_CHAINID.GetHex());
 
-    printf("ChainID original: %s\n", ASSETCHAINS_CHAINID.GetHex().c_str());
-    uint160 chainID;
-    chainID.SetHex(ASSETCHAINS_CHAINID.GetHex());
-    printf("ChainID transformed: %s\n", chainID.GetHex().c_str());
-
     CChainNotarizationData cnd;
 
     UniValue txidArr(UniValue::VARR);
