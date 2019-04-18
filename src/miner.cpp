@@ -1630,8 +1630,8 @@ void static BitcoinMiner_noeq()
                         }
                         if (mergeMining = params.isNull())
                         {
-                            printf("Merge mining -- deferring to %s as the actual mining chain\n", ConnectedChains.notaryChain.chainDefinition.name.c_str());
-                            LogPrintf("Merge mining -- deferring to %s\n",ASSETCHAINS_ALGORITHMS[ASSETCHAINS_ALGO]);
+                            printf("Merge mining with %s as the actual mining chain\n", ConnectedChains.notaryChain.chainDefinition.name.c_str());
+                            LogPrintf("Merge mining with %s\n",ASSETCHAINS_ALGORITHMS[ASSETCHAINS_ALGO]);
                         }
                     }
                 }
@@ -1700,7 +1700,7 @@ void static BitcoinMiner_noeq()
                     for (uint64_t i = 0; i < 240; i++)
                     {
                         boost::this_thread::interruption_point();
-                        MilliSleep(250);
+                        MilliSleep(1000);
 
                         if (vNodes.empty() && chainparams.MiningRequiresPeers())
                         {
@@ -1711,7 +1711,9 @@ void static BitcoinMiner_noeq()
                             }
                         }
 
-                        if (mempool.GetTransactionsUpdated() != nTransactionsUpdatedLast && GetTime() - nStart > 60)
+                        // update every few minutes, regardless
+                        int64_t elapsed = GetTime() - nStart;
+                        if ((mempool.GetTransactionsUpdated() != nTransactionsUpdatedLast && elapsed > 60) || elapsed > 240)
                         {
                             break;
                         }

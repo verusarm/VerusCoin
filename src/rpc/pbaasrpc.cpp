@@ -1030,8 +1030,6 @@ UniValue addmergedblock(const UniValue& params, bool fHelp)
         throw JSONRPCError(RPC_INVALID_PARAMETER, "must provide valid RPC connection parameters to merge mine");
     }
 
-    ConnectedChains.PruneOldChains(GetAdjustedTime() - 60000);
-
     uint160 chainID = CCrossChainRPCData::GetChainID(name);
 
     // confirm data from blockchain

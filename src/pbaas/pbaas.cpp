@@ -816,12 +816,13 @@ void CConnectedChains::SubmissionThread()
             lastHash = latestHash;
         }
 
-        // wait for something to checkon, then submit blocks that should be submitted
+        // wait for something to check on, then submit blocks that should be submitted
         while (true)
         {
             if (IsVerusActive())
             {
-                ConnectedChains.PruneOldChains(GetAdjustedTime() - 60000);
+                // blocks get discarded after no refresh for 5 minutes by default
+                ConnectedChains.PruneOldChains(GetAdjustedTime() - 300);
                 if (mergeMinedChains.size() > 0)
                 {
                     sem_submitthread.wait();
