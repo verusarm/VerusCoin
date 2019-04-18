@@ -591,6 +591,14 @@ CPBaaSMergeMinedChainData *CConnectedChains::GetChainInfo(uint160 chainID)
     }
 }
 
+bool CConnectedChains::QueueNewBlockHeader(CBlockHeader &bh)
+{
+    LOCK(cs_mergemining);
+    latestHash = UintToArith256(bh.GetHash());
+    latestBlockHeader = bh;
+    sem_submitthread.post();
+}
+
 // get the latest block header and submit one block at a time, returning after there are no more
 // matching blocks to be found
 vector<pair<string, UniValue>> CConnectedChains::SubmitQualifiedBlocks()

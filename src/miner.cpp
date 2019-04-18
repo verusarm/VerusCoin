@@ -1697,8 +1697,13 @@ void static BitcoinMiner_noeq()
                 if (mergeMining)
                 {
                     // loop for about one minute before refreshing the block
-                    for (uint64_t i = 0; i < 240; i++)
+                    while (true)
                     {
+                        // if PBaaS is no longer available, we can't count on merge mining
+                        if (!ConnectedChains.IsVerusPBaaSAvailable())
+                        {
+                            break;
+                        }
                         boost::this_thread::interruption_point();
                         MilliSleep(1000);
 

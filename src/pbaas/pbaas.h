@@ -886,13 +886,7 @@ public:
     static void SubmissionThreadStub();
     std::vector<std::pair<std::string, UniValue>> SubmitQualifiedBlocks();
 
-    bool QueueNewBlockHeader(CBlockHeader &bh)
-    {
-        LOCK(cs_mergemining);
-        latestHash = UintToArith256(bh.GetHash());
-        latestBlockHeader = bh;
-        sem_submitthread.post();
-    }
+    bool QueueNewBlockHeader(CBlockHeader &bh);
 
     bool AddMergedBlock(CPBaaSMergeMinedChainData &blkData);
     bool RemoveMergedBlock(uint160 chainID);
