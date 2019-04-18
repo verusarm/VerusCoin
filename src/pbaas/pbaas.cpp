@@ -736,7 +736,7 @@ uint32_t CConnectedChains::CombineBlocks(CBlockHeader &bh)
             // get the native PBaaS header for each chain and put it into the
             // header we are given
             uint160 cid = chain.second.GetChainID();
-            if (chain.second.block.GetPBaaSHeader(pbh, cid))
+            if (chain.second.block.GetPBaaSHeader(pbh, cid) != -1)
             {
                 if (!bh.AddUpdatePBaaSHeader(pbh))
                 {
