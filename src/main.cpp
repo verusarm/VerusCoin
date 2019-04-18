@@ -2895,9 +2895,9 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
         // restore inputs
         if (!tx.IsMint()) {
             const CTxUndo &txundo = blockUndo.vtxundo[i-1];
-            if (txundo.vprevout.size() != tx.vin.size())
+            if (txundo.vprevout.size() != tx.vin.size() && !(IsBlockBoundTransaction(tx) && (txundo.vprevout.size() + 1) == tx.vin.size()))
                 return error("DisconnectBlock(): transaction and undo data inconsistent");
-            for (unsigned int j = tx.vin.size(); j-- > 0;) {
+            for (unsigned int j = txundo.vprevout.size(); j-- > 0;) {
                 const COutPoint &out = tx.vin[j].prevout;
                 const CTxInUndo &undo = txundo.vprevout[j];
                 if (!ApplyTxInUndo(undo, view, out))
