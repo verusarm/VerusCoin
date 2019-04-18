@@ -131,8 +131,9 @@ extern uint160 ASSETCHAINS_CHAINID;
 extern uint160 VERUS_CHAINID;
 extern std::string VERUS_CHAINNAME;
 extern int32_t PBAAS_STARTBLOCK, PBAAS_ENDBLOCK;
-extern string PBAAS_HOST, PBAAS_USERPASS;
+extern string PBAAS_HOST, PBAAS_USERPASS, ASSETCHAINS_RPCHOST, ASSETCHAINS_RPCCREDENTIALS;;
 extern int32_t PBAAS_PORT;
+extern uint16_t ASSETCHAINS_RPCPORT;
 extern std::string NOTARY_PUBKEY,ASSETCHAINS_OVERRIDE_PUBKEY;
 void vcalc_sha256(char deprecated[(256 >> 3) * 2 + 1],uint8_t hash[256 >> 3],uint8_t *src,int32_t len);
 
@@ -1615,20 +1616,23 @@ void static BitcoinMiner_noeq()
                     {
 
                         UniValue params(UniValue::VARR);
+                        UniValue error(UniValue::VARR);
                         params.push_back(EncodeHexBlk(*pblock));
                         params.push_back(ASSETCHAINS_SYMBOL);
-                        params.push_back(PBAAS_HOST);
-                        params.push_back(PBAAS_PORT);
-                        params.push_back(PBAAS_USERPASS);
+                        params.push_back(ASSETCHAINS_RPCHOST);
+                        params.push_back(ASSETCHAINS_RPCPORT);
+                        params.push_back(ASSETCHAINS_RPCCREDENTIALS);
                         try
                         {
-                            params = find_value(RPCCallRoot("addmergedblock", params), "result");
+                            params = RPCCallRoot("addmergedblock", params);
+                            params = find_value(params, "result");
+                            error = find_value(params, "error");
                         } catch (std::exception e)
                         {
                             printf("Failed to connect to %s chain\n", ConnectedChains.notaryChain.chainDefinition.name.c_str());
                             params = UniValue(e.what());
                         }
-                        if (mergeMining = params.isNull())
+                        if (mergeMining = (params.isNull() && error.isNull()))
                         {
                             printf("Merge mining with %s as the actual mining chain\n", ConnectedChains.notaryChain.chainDefinition.name.c_str());
                             LogPrintf("Merge mining with %s\n",ASSETCHAINS_ALGORITHMS[ASSETCHAINS_ALGO]);

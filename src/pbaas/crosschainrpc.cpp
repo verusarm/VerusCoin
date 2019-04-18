@@ -230,12 +230,12 @@ UniValue RPCCallRoot(const string& strMethod, const UniValue& params)
     }
     else if (ReadConfigFile(PBAAS_TESTMODE ? "VRSCTEST" : "VRSC", settings, settingsmulti))
     {
-        credentials = settingsmulti.find("-rpcuser")->second[0] + ":" + settingsmulti.find("-rpcpassword")->second[0];
-        port = atoi(settingsmulti.find("-rpcport")->second[0]);
-        host = settingsmulti.find("-rpchost")->second[0];
-        if (!host.size())
+        PBAAS_USERPASS = settingsmulti.find("-rpcuser")->second[0] + ":" + settingsmulti.find("-rpcpassword")->second[0];
+        PBAAS_PORT = atoi(settingsmulti.find("-rpcport")->second[0]);
+        PBAAS_HOST = settingsmulti.find("-rpchost")->second[0];
+        if (!PBAAS_HOST.size())
         {
-            host = "127.0.0.1";
+            PBAAS_HOST = "127.0.0.1";
         }
         return RPCCall(strMethod, params, credentials, port, host);
     }

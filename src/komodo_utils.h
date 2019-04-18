@@ -1943,6 +1943,8 @@ void komodo_args(char *argv0)
 
             PBAAS_STARTBLOCK = GetArg("-startblock", 0);
             PBAAS_ENDBLOCK = GetArg("-endblock", 0);
+
+            ASSETCHAINS_RPCHOST = GetArg("-rpchost", "127.0.0.1");
         }
 
         MAX_BLOCK_SIGOPS = 60000;
@@ -2042,12 +2044,14 @@ void komodo_args(char *argv0)
         {
             int32_t komodo_baseid(char *origbase);
             extern int COINBASE_MATURITY;
-            if ( (port= komodo_userpass(ASSETCHAINS_USERPASS,ASSETCHAINS_SYMBOL)) != 0 )
+            if ( (port= komodo_userpass(ASSETCHAINS_USERPASS, ASSETCHAINS_SYMBOL)) != 0 )
                 ASSETCHAINS_RPCPORT = port;
             else komodo_configfile(ASSETCHAINS_SYMBOL,ASSETCHAINS_P2PPORT + 1);
             if (ASSETCHAINS_LASTERA == 0 && ASSETCHAINS_REWARD[0] == 0)
                 COINBASE_MATURITY = 1;
             //fprintf(stderr,"ASSETCHAINS_RPCPORT (%s) %u\n",ASSETCHAINS_SYMBOL,ASSETCHAINS_RPCPORT);
+            ASSETCHAINS_RPCCREDENTIALS = string(ASSETCHAINS_USERPASS);
+            ASSETCHAINS_RPCHOST = GetArg("-rpchost", "127.0.0.1");
         }
         if ( ASSETCHAINS_RPCPORT == 0 )
             ASSETCHAINS_RPCPORT = ASSETCHAINS_P2PPORT + 1;
@@ -2094,6 +2098,16 @@ void komodo_args(char *argv0)
                 eras.push_back(era);
             }
             obj.push_back(Pair("eras", eras));
+
+            /* We need to store node information here
+            UniValue nodes(UniValue::VARR);
+            {
+                UniValue node(UniValue::VOBJ);
+                node.push_back(Pair("networkaddress", ));
+                node.push_back(Pair("paymentaddress", ));
+            }
+            obj.push_back(Pair("nodes", nodes));
+            */
 
             SetThisChain(obj);
             paramsLoaded = true;
