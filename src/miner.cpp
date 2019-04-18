@@ -1214,16 +1214,6 @@ CBlockIndex *get_chainactive(int32_t height)
 }
 
 /*
- * When called, this checks to see if Verus daemon is running and available. If so, it calls to get the latest
- * notarization data and all information necessary to make a notarization transaction for the current chain, or the
- * Verus chain.
- */
-void static UpdateNotarizationData()
-{
-
-}
-
-/*
  * A separate thread to stake, while the miner threads mine.
  */
 void static VerusStaker(CWallet *pwallet)
