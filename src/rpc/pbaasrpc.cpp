@@ -808,7 +808,7 @@ UniValue getcrossnotarization(const UniValue& params, bool fHelp)
             // make the output for the other chain's notarization
             cp = CCinit(&CC, crosscode);
             // signed by public key of cc
-            CPubKey pk = CPubKey(std::vector<unsigned char>(CC.CChexstr, CC.CChexstr + strlen(CC.CChexstr)));
+            CPubKey pk(ParseHex(CC.CChexstr));
             CKeyID id = CCrossChainRPCData::GetConditionID(chainID, crosscode);
             std::vector<CTxDestination> dests({id});
 
@@ -816,7 +816,7 @@ UniValue getcrossnotarization(const UniValue& params, bool fHelp)
 
             // make the finalization output
             cp = CCinit(&CC, EVAL_FINALIZENOTARIZATION);
-            pk = CPubKey(std::vector<unsigned char>(CC.CChexstr, CC.CChexstr + strlen(CC.CChexstr)));
+            pk = CPubKey(ParseHex(CC.CChexstr));
             dests = std::vector<CTxDestination>({CKeyID(CCrossChainRPCData::GetConditionID(chainID, EVAL_FINALIZENOTARIZATION))});
 
             CNotarizationFinalization nf;
@@ -921,7 +921,7 @@ UniValue definechain(const UniValue& params, bool fHelp)
     // make the chain definition output
     cp = CCinit(&CC, EVAL_PBAASDEFINITION);
     // need to be able to send this to EVAL_PBAASDEFINITION address as a destination, locked by the default pubkey
-    CPubKey pk = CPubKey(std::vector<unsigned char>(CC.CChexstr, CC.CChexstr + strlen(CC.CChexstr)));
+    CPubKey pk(ParseHex(CC.CChexstr));
     CBitcoinAddress bca(CC.unspendableCCaddr);
     CKeyID id;
     bca.GetKeyID(id);
@@ -953,14 +953,14 @@ UniValue definechain(const UniValue& params, bool fHelp)
                                                 COpRetProof(),
                                                 newChain.nodes);
 
-    pk = CPubKey(std::vector<unsigned char>(CC.CChexstr, CC.CChexstr + strlen(CC.CChexstr)));
+    pk = CPubKey(ParseHex(CC.CChexstr));
     dests = std::vector<CTxDestination>({CKeyID(newChain.GetConditionID(EVAL_ACCEPTEDNOTARIZATION))});
     CTxOut notarizationOut = MakeCC1of1Vout(EVAL_ACCEPTEDNOTARIZATION, nReward, pk, dests, pbn);
     outputs.push_back(CRecipient({notarizationOut.scriptPubKey, newChain.notarizationReward, false}));
 
     // make the finalization output
     cp = CCinit(&CC, EVAL_FINALIZENOTARIZATION);
-    pk = CPubKey(std::vector<unsigned char>(CC.CChexstr, CC.CChexstr + strlen(CC.CChexstr)));
+    pk = CPubKey(ParseHex(CC.CChexstr));
     dests = std::vector<CTxDestination>({CKeyID(newChain.GetConditionID(EVAL_FINALIZENOTARIZATION))});
 
     CKeyID testOut1 = CKeyID(newChain.GetConditionID(EVAL_ACCEPTEDNOTARIZATION));

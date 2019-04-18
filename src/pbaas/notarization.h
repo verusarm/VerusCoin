@@ -260,5 +260,6 @@ bool ValidateAcceptedNotarization(struct CCcontract_info *cp, Eval* eval, const 
 bool IsAcceptedNotarizationInput(const CScript &scriptSig);
 bool ValidateFinalizeNotarization(struct CCcontract_info *cp, Eval* eval, const CTransaction &tx, uint32_t nIn);
 bool IsFinalizeNotarizationInput(const CScript &scriptSig);
+bool IsBlockBoundTransaction(const CTransaction &tx);
 
 #endif

@@ -97,6 +97,14 @@ void FromVector(const std::vector<unsigned char> &vch, SERIALIZABLE &obj)
     obj.Unserialize(s);
 }
 
+template <typename SERIALIZABLE>
+uint256 GetHash(SERIALIZABLE obj)
+{
+    CHashWriter hw(SER_GETHASH, PROTOCOL_VERSION);
+    hw << obj;
+    return hw.GetHash();
+}
+
 // the proof of an opret transaction, which is simply the types of objects and hashes of each
 class COpRetProof
 {
@@ -911,8 +919,8 @@ template <typename TOBJ>
 CTxOut MakeCC1of1Vout(uint8_t evalcode, CAmount nValue, CPubKey pk, std::vector<CTxDestination> vDest, TOBJ &obj)
 {
     CTxOut vout;
-    CC *payoutCond = MakeCCcond1(evalcode,pk);
-    vout = CTxOut(nValue,CCPubKey(payoutCond));
+    CC *payoutCond = MakeCCcond1(evalcode, pk);
+    vout = CTxOut(nValue, CCPubKey(payoutCond));
     cc_free(payoutCond);
 
     std::vector<std::vector<unsigned char>> vvch({::AsVector(obj)});

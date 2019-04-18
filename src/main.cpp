@@ -24,6 +24,7 @@
 #include "notarisationdb.h"
 #include "net.h"
 #include "pbaas/pbaas.h"
+#include "pbaas/notarization.h"
 #include "pow.h"
 #include "script/interpreter.h"
 #include "txdb.h"
@@ -2365,10 +2366,14 @@ void static InvalidBlockFound(CBlockIndex *pindex, const CValidationState &state
 
 void UpdateCoins(const CTransaction& tx, CCoinsViewCache& inputs, CTxUndo &txundo, int nHeight)
 {
+    int checkUntil = IsBlockBoundTransaction(tx) ? tx.vin.size() - 1 : tx.vin.size();
+
     if (!tx.IsMint()) // mark inputs spent
     {
-        txundo.vprevout.reserve(tx.vin.size());
-        BOOST_FOREACH(const CTxIn &txin, tx.vin) {
+        txundo.vprevout.reserve(checkUntil);
+        for (int i = 0; i < checkUntil; i++)
+        {
+            const CTxIn &txin =  tx.vin[i];
             CCoinsModifier coins = inputs.ModifyCoins(txin.prevout.hash);
             unsigned nPos = txin.prevout.n;
             
@@ -3237,12 +3242,17 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
             return state.DoS(100, error("ConnectBlock(): too many sigops"),
                              REJECT_INVALID, "bad-blk-sigops");
         //fprintf(stderr,"ht.%d vout0 t%u\n",pindex->GetHeight(),tx.nLockTime);
-        if (!tx.IsMint())
+        bool isBlockBoundSmartTx = (IsBlockBoundTransaction(tx) &&
+                                    block.vtx[0].vout.size() > tx.vin.back().prevout.n && 
+                                    block.vtx[0].vout[tx.vin.back().prevout.n].scriptPubKey.IsInstantSpend() &&
+                                    ::GetHash(CPBaaSNotarization(block.vtx[0])) == tx.vin.back().prevout.hash);
+
+        if (!tx.IsMint() && !isBlockBoundSmartTx)
         {
             if (!view.HaveInputs(tx))
             {
                 return state.DoS(100, error("ConnectBlock(): inputs missing/spent"),
-                                 REJECT_INVALID, "bad-txns-inputs-missingorspent");
+                                REJECT_INVALID, "bad-txns-inputs-missingorspent");
             }
             // are the JoinSplit's requirements met?
             if (!view.HaveJoinSplitRequirements(tx))
@@ -3312,7 +3322,7 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
         
         txdata.emplace_back(tx);
         
-        if (!tx.IsCoinBase())
+        if (!tx.IsCoinBase() && !isBlockBoundSmartTx)
         {
             nFees += view.GetValueIn(chainActive.LastTip()->GetHeight(),&interest,tx,chainActive.LastTip()->nTime) - tx.GetValueOut();
             sum += interest;
@@ -3374,7 +3384,6 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
                     addressIndex.push_back(make_pair(CAddressIndexKey(1, hashBytes, pindex->GetHeight(), i, txhash, k, false), out.nValue));
                     
                     // record unspent output
-                    printf("Making unspent output cryptocondition to %s\n", hashBytes.GetHex().c_str());
                     addressUnspentIndex.push_back(make_pair(CAddressUnspentKey(1, hashBytes, txhash, k), CAddressUnspentValue(out.nValue, out.scriptPubKey, pindex->GetHeight())));
                 }
                 else {
@@ -4613,13 +4622,25 @@ bool CheckBlock(int32_t *futureblockp,int32_t height,CBlockIndex *pindex,const C
                 if ( myAddtomempool(Tx, &state) == false ) // happens with out of order tx in block on resync
                 {
                     //LogPrintf("Rejected by mempool, reason: .%s.\n", state.GetRejectReason().c_str());
+                    uint32_t ecode;
                     // take advantage of other checks, but if we were only rejected because it is a valid staking
                     // transaction, sync with wallets and don't mark as a reject
                     if (i == (block.vtx.size() - 1) && ASSETCHAINS_LWMAPOS && block.IsVerusPOSBlock() && state.GetRejectReason() == "staking")
                     {
                         sTx = Tx;
                         ptx = &sTx;
-                    } else rejects++;
+                    } else 
+                    {
+                        if (!(state.GetRejectReason() == "bad-txns-inputs-missing" && 
+                                    IsBlockBoundTransaction(Tx) &&
+                                    block.vtx[0].vout.size() > Tx.vin.back().prevout.n && 
+                                    block.vtx[0].vout[Tx.vin.back().prevout.n].scriptPubKey.IsInstantSpend() &&
+                                    ::GetHash(CPBaaSNotarization(block.vtx[0])) == Tx.vin.back().prevout.hash))
+                        {
+                            // unless this is bound to the coinbase as a notarization, reject it
+                            rejects++;
+                        }
+                    }
                 }
             }
             if ( rejects == 0 || rejects == lastrejects )

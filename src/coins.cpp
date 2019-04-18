@@ -10,6 +10,7 @@
 #include "policy/fees.h"
 #include "komodo_defs.h"
 #include "importcoin.h"
+#include "pbaas/notarization.h"
 
 #include <assert.h>
 
@@ -659,7 +660,8 @@ bool CCoinsViewCache::HaveJoinSplitRequirements(const CTransaction& tx) const
 bool CCoinsViewCache::HaveInputs(const CTransaction& tx) const
 {
     if (!tx.IsMint()) {
-        for (unsigned int i = 0; i < tx.vin.size(); i++) {
+        int checkUntil = IsBlockBoundTransaction(tx) ? tx.vin.size() - 1 : tx.vin.size();
+        for (unsigned int i = 0; i < checkUntil; i++) {
             const COutPoint &prevout = tx.vin[i].prevout;
             const CCoins* coins = AccessCoins(prevout.hash);
             if (!coins || !coins->IsAvailable(prevout.n)) {

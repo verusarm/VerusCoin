@@ -165,7 +165,8 @@ static bool SignStepCC(const BaseSignatureCreator& creator, const CScript& scrip
                 {
                     privKey = CKey();
                     std::vector<unsigned char> vch(&(C.CCpriv[0]), C.CCpriv + sizeof(C.CCpriv));
-                    privKey.Set(vch.begin(), vch.end(), false);
+
+                    privKey.Set(vch.begin(), vch.end(), true);
                     pubk = CPubKey(ParseHex(C.CChexstr));
                 }
 
@@ -228,7 +229,7 @@ static bool SignStepCC(const BaseSignatureCreator& creator, const CScript& scrip
                     {
                         privKey = CKey();
                         std::vector<unsigned char> vch(&(C.CCpriv[0]), C.CCpriv + sizeof(C.CCpriv));
-                        privKey.Set(vch.begin(), vch.end(), false);
+                        privKey.Set(vch.begin(), vch.end(), true);
                         break;
                     }
                 }
@@ -351,7 +352,7 @@ static CScript PushAll(const vector<valtype>& values)
 bool ProduceSignature(const BaseSignatureCreator& creator, const CScript& fromPubKey, SignatureData& sigdata, uint32_t consensusBranchId)
 {
     CScript script = fromPubKey;
-    bool solved = true;
+    bool solved;
     std::vector<valtype> result;
     txnouttype whichType;
     solved = SignStep(creator, script, result, whichType, consensusBranchId);

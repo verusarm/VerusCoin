@@ -481,14 +481,14 @@ bool CreateEarnedNotarization(CMutableTransaction &mnewTx, CTransaction &lastTx,
     // make the earned notarization output
     cp = CCinit(&CC, EVAL_EARNEDNOTARIZATION);
     // need to be able to send this to EVAL_PBAASDEFINITION address as a destination, locked by the default pubkey
-    CPubKey pk = CPubKey(std::vector<unsigned char>(CC.CChexstr, CC.CChexstr + strlen(CC.CChexstr)));
+    CPubKey pk(ParseHex(CC.CChexstr));
 
     vKeys.push_back(CTxDestination(CKeyID(CCrossChainRPCData::GetConditionID(VERUS_CHAINID, EVAL_EARNEDNOTARIZATION))));
     mnewTx.vout[notarizeOut] = MakeCC1of1Vout(EVAL_EARNEDNOTARIZATION, PBAAS_MINNOTARIZATIONOUTPUT, pk, vKeys, pbn);
     
     // make the finalization output
     cp = CCinit(&CC, EVAL_FINALIZENOTARIZATION);
-    pk = CPubKey(std::vector<unsigned char>(CC.CChexstr, CC.CChexstr + strlen(CC.CChexstr)));
+    pk = CPubKey(ParseHex(CC.CChexstr));
 
     // we need to store the input that we confirmed if we spent finalization outputs
     CNotarizationFinalization nf(confirmedInput);
@@ -536,6 +536,8 @@ bool ValidateAcceptedNotarization(struct CCcontract_info *cp, Eval* eval, const 
     // if those are true, then check if we have all relevant inputs, including that we properly finalize all necessary transactions
     // we will jump back 10 transactions, if there are that many in our thread, validate the 10th, invalidate
     // any notarizations that do not derive from that notarization, and spend as inputs
+    printf("ValidateAcceptedNotarization\n");
+    return true;
 }
 bool IsAcceptedNotarizationInput(const CScript &scriptSig)
 {
@@ -562,10 +564,12 @@ bool ValidateEarnedNotarization(struct CCcontract_info *cp, Eval* eval, const CT
     // cryptographically correct, and that it spends the proper finalization outputs
     // if the notarization causes a fork, it must include additional proof of blocks and their
     // power based on random block hash bits
+    printf("ValidateEarnedNotarization\n");
     return true;
 }
 bool IsEarnedNotarizationInput(const CScript &scriptSig)
 {
+    // this is an output check, and is incorrect. need to change to input
     uint32_t ecode;
     return scriptSig.IsPayToCryptoCondition(&ecode) && ecode == EVAL_EARNEDNOTARIZATION;
 }
@@ -580,11 +584,59 @@ bool ValidateFinalizeNotarization(struct CCcontract_info *cp, Eval* eval, const 
 {
     // this must be spent by a transaction that is either the correct number of transactions ahead in confirming
     // us, or the correct number ahead in confirming another
+    printf("ValidateFinalizeNotarization\n");
     return true;
 }
 bool IsFinalizeNotarizationInput(const CScript &scriptSig)
 {
+    // this is an output check, and is incorrect. need to change to input
     uint32_t ecode;
     return scriptSig.IsPayToCryptoCondition(&ecode) && ecode == EVAL_FINALIZENOTARIZATION;
 }
 
+/*
+ * Ensures that this transaction has no outputs besides those related to earned notarization, which means it cannot be spent
+ * to supply. This allows it to be safely included in a block, spending a normally unspendable output from the coinbase, without
+ * actually increasing the available supply.
+ */
+bool IsBlockBoundTransaction(const CTransaction &tx)
+{
+    int earnedNotarizations = 0, finalizations = 0, oprets = 0, unknown = 0;
+    uint256 notarizationHash;
+    for (auto output : tx.vout)
+    {
+        uint32_t ecode;
+        if (output.scriptPubKey.IsPayToCryptoCondition(&ecode))
+        {
+            if (ecode == EVAL_FINALIZENOTARIZATION)
+            {
+                finalizations++;
+            }
+            else if (ecode == EVAL_EARNEDNOTARIZATION)
+            {
+                COptCCParams p;
+                CPBaaSNotarization notarization;
+                earnedNotarizations++;
+                IsPayToCryptoCondition(output.scriptPubKey, p, notarization);
+                notarizationHash = ::GetHash(notarization);
+            }
+            else
+            {
+                unknown++;
+                break;
+            }
+        }
+        else if (output.scriptPubKey.IsOpReturn())
+        {
+            oprets++;
+        }
+        else
+        {
+            unknown++;
+            break;
+        }
+    }
+    
+    // no fungible outputs and a notarization that refers to itself and will need to match the coinbase output
+    return earnedNotarizations == 1 && finalizations == 1 & oprets == 1 && unknown == 0 && tx.vin.size() > 0 && tx.vin.back().prevout.hash == notarizationHash;
+}
