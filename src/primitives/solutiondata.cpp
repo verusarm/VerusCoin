@@ -13,7 +13,7 @@ void CConstVerusSolutionVector::SetPBaaSHeader(std::vector<unsigned char> &vch, 
 {
     if (idx < GetDescriptor(vch).numPBaaSHeaders)
     {
-        *((CPBaaSBlockHeader *)(&vch[0] + sizeof(CPBaaSSolutionDescriptor)) + idx) = pbh;
+        *(((CPBaaSBlockHeader *)(&vch[0] + sizeof(CPBaaSSolutionDescriptor))) + idx) = pbh;
     }
 }
 
