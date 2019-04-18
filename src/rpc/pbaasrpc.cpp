@@ -309,7 +309,7 @@ bool GetNotarizationData(uint160 chainID, uint32_t ecode, CChainNotarizationData
         // chain definition
         for (auto it = unspentOutputs.begin(); it != unspentOutputs.end(); it++)
         {
-            printf("txid: %s\n", it->first.txhash.GetHex().c_str());
+            // printf("txid: %s\n", it->first.txhash.GetHex().c_str());
 
             CTransaction ntx;
             uint256 blkHash;
@@ -318,14 +318,9 @@ bool GetNotarizationData(uint160 chainID, uint32_t ecode, CChainNotarizationData
             {
                 // try to make a chain definition out of each transaction, and keep the first one that is valid
                 chainDef = CPBaaSChainDefinition(ntx);
-                if (!chainDef.IsValid())
-                {
-                    printf("Chain definition is not valid.\n");
-                }
                 CPBaaSNotarization notarization = CPBaaSNotarization(ntx);
                 if (notarization.IsValid())
                 {
-                    printf("Chain notarization is valid.\n");
                     auto blkit = mapBlockIndex.find(blkHash);
                     if (blkit != mapBlockIndex.end())
                     {

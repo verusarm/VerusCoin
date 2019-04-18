@@ -561,6 +561,7 @@ bool CConnectedChains::AddMergedBlock(CPBaaSMergeMinedChainData &blkData)
         }
         dirtyCounter++;
     }
+    return true;
 }
 
 bool CConnectedChains::GetChainInfo(uint160 chainID, CRPCChainData &rpcChainData)
