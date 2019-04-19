@@ -136,6 +136,25 @@ bool CBlockHeader::CheckNonCanonicalData() const
     return false;
 }
 
+// checks that the solution stored data for this header matches what is expected, ensuring that the
+// values in the header match the hash of the pre-header. it does not check the prev MMR root
+bool CBlockHeader::CheckNonCanonicalData(uint160 &cID) const
+{
+    CPBaaSPreHeader pbph(hashPrevBlock, hashMerkleRoot, hashFinalSaplingRoot, nNonce, nBits);
+    uint256 dummyMMR;
+    CPBaaSBlockHeader pbbh1 = CPBaaSBlockHeader(cID, pbph, dummyMMR);
+    CPBaaSBlockHeader pbbh2;
+    int32_t idx = GetPBaaSHeader(pbbh2, cID);
+    if (idx != -1)
+    {
+        if (pbbh1.hashPreHeader == pbbh2.hashPreHeader)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 // returns -1 on failure, upon failure, pbbh is undefined and likely corrupted
 int32_t CBlockHeader::GetPBaaSHeader(CPBaaSBlockHeader &pbh, const uint160 &cID) const
 {

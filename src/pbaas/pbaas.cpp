@@ -641,7 +641,7 @@ vector<pair<string, UniValue>> CConnectedChains::SubmitQualifiedBlocks()
                         preHeader.SetBlockData(bh);
 
                         // check if the block header matches the block's specific data, only then can we create a submission from this block
-                        if (bh.CheckNonCanonicalData())
+                        if (bh.CheckNonCanonicalData(chainID))
                         {
                             // save block as is, remove the block from merged headers, replace header, and submit
                             chainData = *chainIt->second;

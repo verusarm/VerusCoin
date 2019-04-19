@@ -232,6 +232,7 @@ public:
     // this confirms that the current header's data matches what would be expected from its preheader hash in the
     // solution
     bool CheckNonCanonicalData() const;
+    bool CheckNonCanonicalData(uint160 &cID) const;
 
     uint256 GetHash() const
     {
