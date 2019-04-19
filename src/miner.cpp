@@ -1790,7 +1790,7 @@ void static BitcoinMiner_noeq()
                         {
                             // Check for stop or if block needs to be rebuilt
                             boost::this_thread::interruption_point();
-                            if ( pindexPrev != chainActive.LastTip() || ConnectedChains.dirtyCounter )
+                            if ( pindexPrev != chainActive.LastTip() )
                             {
                                 if (lastChainTipPrinted != chainActive.LastTip())
                                 {
@@ -1805,7 +1805,10 @@ void static BitcoinMiner_noeq()
                                     LOCK(cs_metrics);
                                     nHashCount += hashesToGo;
                                 }
-                                continue;
+                                if (!ConnectedChains.dirtyCounter)
+                                {
+                                    continue;
+                                }
                             }
                         }
                         else
@@ -1896,11 +1899,16 @@ void static BitcoinMiner_noeq()
                     break;
                 }
 
+                // hashesToGo now has the number of hashes actually done since starting on one nonce mask worth
+                uint64_t hashesPerNonceMask = ASSETCHAINS_NONCEMASK[ASSETCHAINS_ALGO] >> 3;
+                if (!(hashesToGo < hashesPerNonceMask))
+                {
 #ifdef _WIN32
-                printf("%llu mega hashes complete - working\n", ((ASSETCHAINS_NONCEMASK[ASSETCHAINS_ALGO] >> 3) + 1) / 1048576);
+                    printf("%llu mega hashes complete - working\n", (hashesPerNonceMask + 1) / 1048576);
 #else
-                printf("%lu mega hashes complete - working\n", ((ASSETCHAINS_NONCEMASK[ASSETCHAINS_ALGO] >> 3) + 1) / 1048576);
+                    printf("%lu mega hashes complete - working\n", (hashesPerNonceMask + 1) / 1048576);
 #endif
+                }
                 break;
 
             }
