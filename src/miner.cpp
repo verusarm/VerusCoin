@@ -1700,7 +1700,7 @@ void static BitcoinMiner_noeq()
 
                 if (mergeMining)
                 {
-                    // loop for about one minute before refreshing the block
+                    // loop for a few minutes before refreshing the block
                     while (true)
                     {
                         // if PBaaS is no longer available, we can't count on merge mining
