@@ -1722,7 +1722,8 @@ void static BitcoinMiner_noeq()
 
                         // update every few minutes, regardless
                         int64_t elapsed = GetTime() - nStart;
-                        if ((mempool.GetTransactionsUpdated() != nTransactionsUpdatedLast && elapsed > 60) || elapsed > 240)
+                        // this is accelerated for debugging, last check should be increased to at least 2 minutes
+                        if ((mempool.GetTransactionsUpdated() != nTransactionsUpdatedLast && elapsed > 60) || elapsed > 60)
                         {
                             break;
                         }

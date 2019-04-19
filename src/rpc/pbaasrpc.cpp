@@ -331,7 +331,8 @@ bool GetNotarizationData(uint160 chainID, uint32_t ecode, CChainNotarizationData
             }
             else
             {
-                throw JSONRPCError(RPC_TRANSACTION_ERROR, "cannot retrieve transaction");
+                printf("cannot retrieve transaction %s\n", it->first.txhash.GetHex().c_str());
+                return false;
             }
         }
 

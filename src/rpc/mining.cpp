@@ -856,9 +856,17 @@ UniValue submitblock(const UniValue& params, bool fHelp)
         );
 
     CBlock block;
-    //LogPrintStr("Hex block submission: " + params[0].get_str());
-    if (!DecodeHexBlk(block, params[0].get_str()))
+    try
+    {
+        //LogPrintStr("Hex block submission: " + params[0].get_str());
+        if (!DecodeHexBlk(block, params[0].get_str()))
+            throw JSONRPCError(RPC_DESERIALIZATION_ERROR, "Block decode failed");
+    }
+    catch (exception e)
+    {
+        printf("Exception: %s\n", e.what());
         throw JSONRPCError(RPC_DESERIALIZATION_ERROR, "Block decode failed");
+    }
 
     uint256 hash = block.GetHash();
     bool fBlockPresent = false;
