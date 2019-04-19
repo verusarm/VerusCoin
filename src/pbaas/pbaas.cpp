@@ -847,6 +847,7 @@ void CConnectedChains::SubmissionThread()
                         if (submit)
                         {
                             SubmitQualifiedBlocks();
+                            MilliSleep(20);
                         }
                     }
                 }
