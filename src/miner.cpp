@@ -1790,7 +1790,7 @@ void static BitcoinMiner_noeq()
                         {
                             // Check for stop or if block needs to be rebuilt
                             boost::this_thread::interruption_point();
-                            if ( pindexPrev != chainActive.LastTip() )
+                            if ( pindexPrev != chainActive.LastTip() || ConnectedChains.dirtyCounter )
                             {
                                 if (lastChainTipPrinted != chainActive.LastTip())
                                 {

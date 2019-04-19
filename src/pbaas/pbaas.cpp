@@ -754,6 +754,7 @@ uint32_t CConnectedChains::CombineBlocks(CBlockHeader &bh)
                 }
             }
         }
+        dirtyCounter = 0;
     }
     return target.GetCompact();
 }
