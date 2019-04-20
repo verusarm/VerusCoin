@@ -1479,7 +1479,7 @@ void static BitcoinMiner_noeq()
                 if (lastMiningHeight != Mining_height)
                 {
                     lastMiningHeight = Mining_height;
-                    printf("Mining height %d\n", Mining_height);
+                    printf("Mining %s at height %d\n", ASSETCHAINS_SYMBOL, Mining_height);
                 }
                 Mining_start = (uint32_t)time(NULL);
             }
@@ -1648,8 +1648,6 @@ void static BitcoinMiner_noeq()
                         {
                             break;
                         }
-                        boost::this_thread::interruption_point();
-                        MilliSleep(1000);
 
                         if (vNodes.empty() && chainparams.MiningRequiresPeers())
                         {
@@ -1683,6 +1681,8 @@ void static BitcoinMiner_noeq()
                             }
                             break;
                         }
+                        boost::this_thread::interruption_point();
+                        MilliSleep(1000);
                     }
                     break;
                 }
