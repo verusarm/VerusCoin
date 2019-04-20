@@ -1741,6 +1741,7 @@ void static BitcoinMiner_noeq()
                                 LogPrintf("proof-of-work found  \n  hash: %s  \ntarget: %s\n", lastChainTipPrinted->GetBlockHash().GetHex().c_str(), ArithToUint256(ourTarget).GetHex());
                                 printf("Found block %d \n", Mining_height );
                                 printf("mining reward %.8f %s!\n", (double)subsidy / (double)COIN, ASSETCHAINS_SYMBOL);
+                                printf("  hash: %s\ntarget: %s\n", lastChainTipPrinted->GetBlockHash().GetHex().c_str(), ArithToUint256(ourTarget).GetHex());
                             }
                             break;
                         }
@@ -1778,7 +1779,7 @@ void static BitcoinMiner_noeq()
                             }
 
                             arithHash = UintToArith256(hashResult);
-                            totalDone += hashesToGo;
+                            totalDone += hashesToGo + 1;
                             if (blockFound && IsVerusActive())
                             {
                                 ConnectedChains.QueueNewBlockHeader(*pblock);
