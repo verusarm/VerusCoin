@@ -490,6 +490,7 @@ bool CheckChainDefinitionOutput(struct CCcontract_info *cp, Eval* eval, const CT
 
 bool CConnectedChains::RemoveMergedBlock(uint160 chainID)
 {
+    bool retval = false;
     LOCK(cs_mergemining);
     auto chainIt = mergeMinedChains.find(chainID);
     if (chainIt != mergeMinedChains.end())
@@ -506,14 +507,15 @@ bool CConnectedChains::RemoveMergedBlock(uint160 chainID)
             }
         }
         mergeMinedChains.erase(chainID);
-        dirty = true;
+        dirty = retval = true;
 
         // if we get to 0, give the thread a kick to stop waiting for mining
-        if (!mergeMinedChains.size())
-        {
-            sem_submitthread.post();
-        }
+        //if (!mergeMinedChains.size())
+        //{
+        //    sem_submitthread.post();
+        //}
     }
+    return retval;
 }
 
 // remove merge mined chains added and not updated since a specific time
@@ -540,18 +542,16 @@ uint32_t CConnectedChains::PruneOldChains(uint32_t pruneBefore)
 // returns false if failed to add
 bool CConnectedChains::AddMergedBlock(CPBaaSMergeMinedChainData &blkData)
 {
-    bool blockSet = false;
-    int idx = -1;
     // determine if we should replace one or add to the merge mine vector
     {
         LOCK(cs_mergemining);
 
+        arith_uint256 target;
         uint160 cID = blkData.GetChainID();
         auto it = mergeMinedChains.find(cID);
         if (it != mergeMinedChains.end())
         {
             // remove and reinsert target, replace data
-            arith_uint256 target;
             target.SetCompact(it->second.block.nBits);
             for (auto removeRange = mergeMinedTargets.equal_range(target); removeRange.first != removeRange.second; removeRange.first++)
             {
@@ -568,7 +568,6 @@ bool CConnectedChains::AddMergedBlock(CPBaaSMergeMinedChainData &blkData)
         }
         else
         {
-            arith_uint256 target;
             target.SetCompact(blkData.block.nBits);
             mergeMinedTargets.insert(make_pair(target, &(mergeMinedChains.insert(make_pair(cID, blkData)).first->second)));
         }
@@ -633,18 +632,16 @@ vector<pair<string, UniValue>> CConnectedChains::SubmitQualifiedBlocks()
             {
                 LOCK(cs_mergemining);
                 // attempt to submit with the lowest hash answers first to increase the likelihood of submitting
-                // common, merge mined headers for notarization
-                auto headerIt = qualifiedHeaders.begin();
-                for (qualifiedHeaders.size() ? advance(headerIt, qualifiedHeaders.size() - 1), headerIt : headerIt = qualifiedHeaders.end();
-                     !submissionFound && headerIt != qualifiedHeaders.end();
-                     headerIt = qualifiedHeaders.begin(), (qualifiedHeaders.size() ? advance(headerIt, qualifiedHeaders.size() - 1), headerIt : headerIt = qualifiedHeaders.end()))
+                // common, merge mined headers for notarization, drop out on any submission
+                for (auto headerIt = qualifiedHeaders.begin(); !submissionFound && headerIt != qualifiedHeaders.end(); headerIt = qualifiedHeaders.begin())
                 {
-                    // add the existing PBaaS chain ids in the header to a set for search
+                    // add the PBaaS chain ids from this header to a set for search
                     for (uint32_t i = 0; headerIt->second.GetPBaaSHeader(pbh, i); i++)
                     {
                         inHeader.insert(pbh.chainID);
                     }
 
+                    // now look through all targets that are equal to or above the hash of this header
                     for (auto chainIt = mergeMinedTargets.lower_bound(headerIt->first); !submissionFound && chainIt != mergeMinedTargets.end(); chainIt++)
                     {
                         uint160 chainID = chainIt->second->GetChainID();
@@ -662,14 +659,19 @@ vector<pair<string, UniValue>> CConnectedChains::SubmitQualifiedBlocks()
 
                                 *(CBlockHeader *)&chainData.block = headerIt->second;
 
-                                // once it is going to be submitted, remove it until it is added again
+                                // once it is going to be submitted, remove block from this chain until a new one is added again
                                 RemoveMergedBlock(chainID);
 
                                 submissionFound = true;
                             }
+                            else
+                            {
+                                printf("Mismatch in non-canonical data for chain %s\n", chainIt->second->chainDefinition.name.c_str());
+                            }
                         }
                     }
 
+                    // if this header matched no block, discard and move to the next, otherwise, we'll drop through
                     if (!submissionFound)
                     {
                         qualifiedHeaders.erase(headerIt);
@@ -732,22 +734,13 @@ uint32_t CConnectedChains::CombineBlocks(CBlockHeader &bh)
         }
 
         // loop through the existing PBaaS chain ids in the header
-        // remove any not either this Chain ID or in our local collection and then add all that are present
+        // remove any that are not either this Chain ID or in our local collection and then add all that are present
         for (uint32_t i = 0; i < inHeader.size(); i++)
         {
             auto it = mergeMinedChains.find(inHeader[i]);
             if (inHeader[i] != ASSETCHAINS_CHAINID && (it == mergeMinedChains.end()))
             {
                 bh.DeletePBaaSHeader(i);
-            }
-            else
-            {
-                arith_uint256 t;
-                t.SetCompact(it->second.block.nBits);
-                if (t > target)
-                {
-                    target = t;
-                }
             }
         }
 
@@ -817,11 +810,11 @@ bool CConnectedChains::CheckVerusPBaaSAvailable()
         try
         {
             UniValue params(UniValue::VARR);
-            chainInfo = find_value(RPCCallRoot("getinfo", params, 15), "result");
+            chainInfo = find_value(RPCCallRoot("getinfo", params), "result");
             if (!chainInfo.isNull())
             {
                 params.push_back(VERUS_CHAINNAME);
-                chainDef = find_value(RPCCallRoot("getchaindefinition", params, 15), "result");
+                chainDef = find_value(RPCCallRoot("getchaindefinition", params), "result");
 
                 if (!chainDef.isNull() && CheckVerusPBaaSAvailable(chainInfo, chainDef))
                 {
@@ -849,25 +842,18 @@ void CConnectedChains::SubmissionThread()
             {
                 // blocks get discarded after no refresh for 5 minutes by default
                 ConnectedChains.PruneOldChains(GetAdjustedTime() - 300);
-                if (mergeMinedChains.size() > 0)
+                bool submit = false;
                 {
-                    sem_submitthread.wait();
-                    // wait for a new block header win
-                    {
-                        bool submit = false;
-                        {
-                            LOCK(cs_mergemining);
-                            submit = qualifiedHeaders.size() != 0;
-                        }
-                        if (submit)
-                        {
-                            SubmitQualifiedBlocks();
-                        }
-                    }
+                    LOCK(cs_mergemining);
+                    submit = qualifiedHeaders.size() != 0 && mergeMinedChains.size() != 0;
+                }
+                if (submit)
+                {
+                    SubmitQualifiedBlocks();
                 }
                 else
                 {
-                    MilliSleep(500);
+                    sem_submitthread.wait();
                 }
             }
             else

@@ -1550,94 +1550,30 @@ void static BitcoinMiner_noeq()
                 }
                 pblock->AddUpdatePBaaSHeader(mmvRoot);
 
-                if (IsVerusActive())
+                if (!IsVerusActive() && ConnectedChains.IsVerusPBaaSAvailable())
                 {
-                    // combine all merge mined headers into this header
-                    // and get the easiest target of all chains in savebits
-                    if (!(savebits = ConnectedChains.CombineBlocks(*pblock)))
-                    {
-                        savebits = pblock->nBits;
-                    }
 
-                    LOCK(cs_main);
-                    // TODO: REMOVE OR COMMENT TESTS
-                    // tests to validate a few transactions and all past blocks
-                    ChainMerkleMountainView mmv = chainActive.GetMMV();
-                    mmvRoot = mmv.GetRoot();
-                    for (uint32_t i = 1; i <= pindexPrev->GetHeight(); i += 10)
+                    UniValue params(UniValue::VARR);
+                    UniValue error(UniValue::VARR);
+                    params.push_back(EncodeHexBlk(*pblock));
+                    params.push_back(ASSETCHAINS_SYMBOL);
+                    params.push_back(ASSETCHAINS_RPCHOST);
+                    params.push_back(ASSETCHAINS_RPCPORT);
+                    params.push_back(ASSETCHAINS_RPCCREDENTIALS);
+                    try
                     {
-                        CBlockIndex *pindex = chainActive[i - 1];
-                        mmv.resize(i);
-                        uint256 testRoot = mmv.GetRoot();
-                        uint32_t testHeight = ((unsigned char *)&testRoot)[0] < i ? (i - ((unsigned char *)&testRoot)[0]) - 1 : i - 1;
-                        CMerkleBranch branchMerkle, branchBlock;
-                        chainActive.GetBlockProof(mmv, branchBlock, testHeight);
-                        chainActive.GetMerkleProof(mmv, branchMerkle, testHeight);
-                        uint256 merkleAnswer = branchMerkle.SafeCheck(chainActive[testHeight]->hashMerkleRoot);
-                        uint256 blockAnswer = branchBlock.SafeCheck(chainActive[testHeight]->GetBlockHash());
-                        if (merkleAnswer != testRoot)
-                        {
-                            printf("Failed merkle proof at testheight: %u\nexpected:   %s\ncalculated: %s\n", testHeight, testRoot.GetHex().c_str(), merkleAnswer.GetHex().c_str());
-                            printf("Bits for left (0) and right (1): \n");
-                            std::vector<unsigned char> proofBits = ChainMerkleMountainView::GetProofBits(testHeight, i);
-                            printf("right\n");
-                            for (auto bit : proofBits)
-                            {
-                                printf("%s\n", bit ? "left" : "right");
-                            }
-                        }
-                        if (blockAnswer != testRoot)
-                        {
-                            printf("Failed block proof at testheight: %u\nexpected:   %s\ncalculated: %s\n", testHeight, testRoot.GetHex().c_str(), blockAnswer.GetHex().c_str());
-                            printf("Bits for left (0) and right (1): \n");
-                            std::vector<unsigned char> proofBits = ChainMerkleMountainView::GetProofBits(testHeight, i);
-                            printf("left\n");
-                            for (auto bit : proofBits)
-                            {
-                                printf("%s\n", bit ? "left" : "right");
-                            }
-                        }
-                        const CMMRPowerNode *ppower = mmv.GetRootNode();
-                        if (!ppower || ppower->Work() != pindex->chainPower.chainWork)
-                        {
-                            printf("Work did not match:\nexpected:   %s\ncalculated: %s\n", ArithToUint256(pindex->chainPower.chainWork).GetHex().c_str(), ArithToUint256(ppower->Work()).GetHex().c_str());
-                        }
-                        if (!ppower || ppower->Stake() != pindex->chainPower.chainStake)
-                        {
-                            printf("Stake did not match:\nexpected:   %s\ncalculated: %s\n", ArithToUint256(pindex->chainPower.chainStake).GetHex().c_str(), ArithToUint256(ppower->Stake()).GetHex().c_str());
-                        }
+                        params = RPCCallRoot("addmergedblock", params);
+                        params = find_value(params, "result");
+                        error = find_value(params, "error");
+                    } catch (std::exception e)
+                    {
+                        printf("Failed to connect to %s chain\n", ConnectedChains.notaryChain.chainDefinition.name.c_str());
+                        params = UniValue(e.what());
                     }
-                    // END TESTS
-                }
-                else
-                {
-                    // submit the block for merge mining if Verus is present
-                    // otherwise, mine solo
-                    if (ConnectedChains.IsVerusPBaaSAvailable())
+                    if (mergeMining = (params.isNull() && error.isNull()))
                     {
-
-                        UniValue params(UniValue::VARR);
-                        UniValue error(UniValue::VARR);
-                        params.push_back(EncodeHexBlk(*pblock));
-                        params.push_back(ASSETCHAINS_SYMBOL);
-                        params.push_back(ASSETCHAINS_RPCHOST);
-                        params.push_back(ASSETCHAINS_RPCPORT);
-                        params.push_back(ASSETCHAINS_RPCCREDENTIALS);
-                        try
-                        {
-                            params = RPCCallRoot("addmergedblock", params);
-                            params = find_value(params, "result");
-                            error = find_value(params, "error");
-                        } catch (std::exception e)
-                        {
-                            printf("Failed to connect to %s chain\n", ConnectedChains.notaryChain.chainDefinition.name.c_str());
-                            params = UniValue(e.what());
-                        }
-                        if (mergeMining = (params.isNull() && error.isNull()))
-                        {
-                            printf("Merge mining with %s as the actual mining chain\n", ConnectedChains.notaryChain.chainDefinition.name.c_str());
-                            LogPrintf("Merge mining with %s\n",ASSETCHAINS_ALGORITHMS[ASSETCHAINS_ALGO]);
-                        }
+                        printf("Merge mining with %s as the actual mining chain\n", ConnectedChains.notaryChain.chainDefinition.name.c_str());
+                        LogPrintf("Merge mining with %s\n",ASSETCHAINS_ALGORITHMS[ASSETCHAINS_ALGO]);
                     }
                 }
             }
@@ -1651,7 +1587,6 @@ void static BitcoinMiner_noeq()
 
             arith_uint256 hashTarget = arith_uint256().SetCompact(savebits);
             uint256 uintTarget = ArithToUint256(hashTarget);
-
             arith_uint256 ourTarget;
             ourTarget.SetCompact(pblock->nBits);
 
@@ -1756,13 +1691,24 @@ void static BitcoinMiner_noeq()
                     // check NONCEMASK at a time
                     for (uint64_t i = 0; i < count; i++)
                     {
-                        // this is the merge mining loop, which enables us to drop out and queue a header anytime we earn a block that is good enough for a
+                        // this is the actual mining loop, which enables us to drop out and queue a header anytime we earn a block that is good enough for a
                         // merge mined block, but not our own
                         bool blockFound;
                         arith_uint256 arithHash;
                         totalDone = 0;
                         do
                         {
+                            // pickup/remove any new/deleted headers
+                            if (ConnectedChains.dirty)
+                            {
+                                if (!(savebits = ConnectedChains.CombineBlocks(*pblock)))
+                                {
+                                    savebits = pblock->nBits;
+                                }
+                                hashTarget.SetCompact(savebits);
+                                uintTarget = ArithToUint256(hashTarget);
+                            }
+
                             // hashesToGo gets updated with actual number run for metrics
                             hashesToGo = ASSETCHAINS_HASHESPERROUND[ASSETCHAINS_ALGO];
                             uint64_t start = i * hashesToGo + totalDone;
@@ -1794,7 +1740,7 @@ void static BitcoinMiner_noeq()
                                     uintTarget = ArithToUint256(hashTarget);
                                 }
                             }
-                        } while (blockFound && arithHash > ourTarget && !ConnectedChains.dirty);
+                        } while (blockFound && arithHash > ourTarget);
 
                         if (!blockFound || arithHash > ourTarget)
                         {
