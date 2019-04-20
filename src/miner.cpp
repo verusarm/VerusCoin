@@ -1426,9 +1426,6 @@ void static BitcoinMiner_noeq()
             break;
     }
 
-    // make sure that we have checked for PBaaS availability
-    ConnectedChains.CheckVerusPBaaSAvailable();
-
     SetThreadPriority(THREAD_PRIORITY_LOWEST);
 
     // try a nice clean peer connection to start
@@ -1439,6 +1436,9 @@ void static BitcoinMiner_noeq()
         waitForPeers(chainparams);
         pindexCur = chainActive.LastTip();
     } while (pindexPrev != pindexCur);
+
+    // make sure that we have checked for PBaaS availability
+    ConnectedChains.CheckVerusPBaaSAvailable();
 
     // this will not stop printing more than once in all cases, but it will allow us to print in all cases
     // and print duplicates rarely without having to synchronize
