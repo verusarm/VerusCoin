@@ -1426,6 +1426,9 @@ void static BitcoinMiner_noeq()
             break;
     }
 
+    // make sure that we have checked for PBaaS availability
+    ConnectedChains.CheckVerusPBaaSAvailable();
+
     SetThreadPriority(THREAD_PRIORITY_LOWEST);
 
     // try a nice clean peer connection to start
@@ -1791,7 +1794,7 @@ void static BitcoinMiner_noeq()
                                     uintTarget = ArithToUint256(hashTarget);
                                 }
                             }
-                        } while (blockFound && arithHash > ourTarget);
+                        } while (blockFound && arithHash > ourTarget && !ConnectedChains.dirty);
 
                         if (!blockFound || arithHash > ourTarget)
                         {

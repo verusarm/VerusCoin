@@ -63,7 +63,7 @@ UniValue RPCCall(const std::string& strMethod,
                  const std::string host="127.0.0.1", 
                  int timeout=DEFAULT_RPC_TIMEOUT);
 
-UniValue RPCCallRoot(const std::string& strMethod, const UniValue& params);
+UniValue RPCCallRoot(const std::string& strMethod, const UniValue& params, int timeout=DEFAULT_RPC_TIMEOUT);
 
 int32_t uni_get_int(UniValue uv, int32_t def=0);
 int64_t uni_get_int64(UniValue uv, int64_t def =0);

@@ -217,7 +217,7 @@ UniValue RPCCall(const string& strMethod, const UniValue& params, const string c
     return reply;
 }
 
-UniValue RPCCallRoot(const string& strMethod, const UniValue& params)
+UniValue RPCCallRoot(const string& strMethod, const UniValue& params, int timeout)
 {
     string host, credentials;
     int port;
@@ -237,7 +237,7 @@ UniValue RPCCallRoot(const string& strMethod, const UniValue& params)
         {
             PBAAS_HOST = "127.0.0.1";
         }
-        return RPCCall(strMethod, params, credentials, port, host);
+        return RPCCall(strMethod, params, credentials, port, host, timeout);
     }
     return UniValue(UniValue::VNULL);
 }

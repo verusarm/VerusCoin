@@ -24,8 +24,8 @@ public:
 // dummy for linking - used only in server
 UniValue RPCCall(const string& strMethod, const UniValue& params, const string credentials, int port, const string host, int timeout)
 {assert(false);}
-UniValue RPCCallRoot(const string& strMethod, const UniValue& params)
-{assert(false);}
+UniValue RPCCallRoot(const string& strMethod, const UniValue& params, int timeout)
+{return NullUniValue;}
 bool SetThisChain(UniValue &chainDefinition)
 {}
 

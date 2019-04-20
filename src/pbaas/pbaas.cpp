@@ -793,6 +793,7 @@ bool CConnectedChains::CheckVerusPBaaSAvailable(UniValue &chainInfoUni, UniValue
         UniValue uniVer = find_value(chainInfoUni, "VRSCversion");
         if (uniVer.isStr())
         {
+            LOCK(cs_mergemining);
             notaryChainVersion = uni_get_str(uniVer);
             notaryChainHeight = uni_get_int(find_value(chainInfoUni, "blocks"));
             CPBaaSChainDefinition chainDef(chainDefUni);
@@ -811,15 +812,16 @@ bool CConnectedChains::CheckVerusPBaaSAvailable()
     else
     {
         // if this is a PBaaS chain, poll for presence of Verus / root chain and current Verus block and version number
+        // tolerate only 15 second timeout
         UniValue chainInfo, chainDef;
         try
         {
             UniValue params(UniValue::VARR);
-            chainInfo = find_value(RPCCallRoot("getinfo", params), "result");
+            chainInfo = find_value(RPCCallRoot("getinfo", params, 15), "result");
             if (!chainInfo.isNull())
             {
                 params.push_back(VERUS_CHAINNAME);
-                chainDef = find_value(RPCCallRoot("getchaindefinition", params), "result");
+                chainDef = find_value(RPCCallRoot("getchaindefinition", params, 15), "result");
 
                 if (!chainDef.isNull() && CheckVerusPBaaSAvailable(chainInfo, chainDef))
                 {
