@@ -697,7 +697,7 @@ vector<pair<string, UniValue>> CConnectedChains::SubmitQualifiedBlocks()
                 results.push_back(make_pair(chainData.chainDefinition.name, result));
                 if (result.isStr())
                 {
-                    printf("Submission results for %s chain: %s\n", chainData.chainDefinition.name.c_str(), result.get_str().c_str());
+                    printf("Error submitting block to %s chain: %s\n", chainData.chainDefinition.name.c_str(), result.get_str().c_str());
                 }
                 else
                 {

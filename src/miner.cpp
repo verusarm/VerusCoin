@@ -1572,8 +1572,8 @@ void static BitcoinMiner_noeq()
                     }
                     if (mergeMining = (params.isNull() && error.isNull()))
                     {
-                        printf("Merge mining with %s as the actual mining chain\n", ConnectedChains.notaryChain.chainDefinition.name.c_str());
-                        LogPrintf("Merge mining with %s\n",ASSETCHAINS_ALGORITHMS[ASSETCHAINS_ALGO]);
+                        printf("Merge mining %s with %s as the hashing chain\n", ASSETCHAINS_SYMBOL, ConnectedChains.notaryChain.chainDefinition.name.c_str());
+                        LogPrintf("Merge mining with %s as the hashing chain\n", ConnectedChains.notaryChain.chainDefinition.name.c_str());
                     }
                 }
             }
@@ -1643,6 +1643,22 @@ void static BitcoinMiner_noeq()
                     // loop for a few minutes before refreshing the block
                     while (true)
                     {
+                        if ( pindexPrev != chainActive.LastTip() )
+                        {
+                            if (lastChainTipPrinted != chainActive.LastTip())
+                            {
+                                lastChainTipPrinted = chainActive.LastTip();
+                                printf("Block %d added to chain\n\n", lastChainTipPrinted->GetHeight());
+                                arith_uint256 target;
+                                target.SetCompact(lastChainTipPrinted->nBits);
+                                LogPrintf("proof-of-work found  \n  hash: %s  \ntarget: %s\n", lastChainTipPrinted->GetBlockHash().GetHex().c_str(), ArithToUint256(ourTarget).GetHex().c_str());
+                                printf("Found block %d \n", Mining_height );
+                                printf("mining reward %.8f %s!\n", (double)subsidy / (double)COIN, ASSETCHAINS_SYMBOL);
+                                printf("  hash: %s\ntarget: %s\n", lastChainTipPrinted->GetBlockHash().GetHex().c_str(), ArithToUint256(ourTarget).GetHex().c_str());
+                            }
+                            break;
+                        }
+
                         // if PBaaS is no longer available, we can't count on merge mining
                         if (!ConnectedChains.IsVerusPBaaSAvailable())
                         {
@@ -1660,29 +1676,14 @@ void static BitcoinMiner_noeq()
 
                         // update every few minutes, regardless
                         int64_t elapsed = GetTime() - nStart;
-                        // this is accelerated for debugging, last check should be increased to at least 2 minutes
-                        if ((mempool.GetTransactionsUpdated() != nTransactionsUpdatedLast && elapsed > 60) || elapsed > 60)
+
+                        if ((mempool.GetTransactionsUpdated() != nTransactionsUpdatedLast && elapsed > 60) || elapsed > 120)
                         {
                             break;
                         }
 
-                        if ( pindexPrev != chainActive.LastTip() )
-                        {
-                            if (lastChainTipPrinted != chainActive.LastTip())
-                            {
-                                lastChainTipPrinted = chainActive.LastTip();
-                                printf("Block %d added to chain\n\n", lastChainTipPrinted->GetHeight());
-                                arith_uint256 target;
-                                target.SetCompact(lastChainTipPrinted->nBits);
-                                LogPrintf("proof-of-work found  \n  hash: %s  \ntarget: %s\n", lastChainTipPrinted->GetBlockHash().GetHex().c_str(), ArithToUint256(ourTarget).GetHex().c_str());
-                                printf("Found block %d \n", Mining_height );
-                                printf("mining reward %.8f %s!\n", (double)subsidy / (double)COIN, ASSETCHAINS_SYMBOL);
-                                printf("  hash: %s\ntarget: %s\n", lastChainTipPrinted->GetBlockHash().GetHex().c_str(), ArithToUint256(ourTarget).GetHex().c_str());
-                            }
-                            break;
-                        }
                         boost::this_thread::interruption_point();
-                        MilliSleep(1000);
+                        MilliSleep(500);
                     }
                     break;
                 }
@@ -1755,16 +1756,13 @@ void static BitcoinMiner_noeq()
                                 }
                                 break;
                             }
-                            else
+                            else if ((i + 1) < count)
                             {
+                                // if we'll not drop through, update hashcount
                                 {
                                     LOCK(cs_metrics);
                                     nHashCount += totalDone;
                                     totalDone = 0;
-                                }
-                                if (!ConnectedChains.dirty)
-                                {
-                                    continue;
                                 }
                             }
                         }
