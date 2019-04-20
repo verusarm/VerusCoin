@@ -24,6 +24,7 @@
 #ifdef ENABLE_WALLET
 #include "wallet/wallet.h"
 #endif
+#include "pbaas/pbaas.h"
 
 #include <stdint.h>
 
@@ -880,6 +881,8 @@ UniValue submitblock(const UniValue& params, bool fHelp)
             CBlockIndex *pindex = mi->second;
             if (pindex)
             {
+                printf("Already have block %s\n", block.GetHash().GetHex().c_str());
+
                 if (pindex->IsValid(BLOCK_VALID_SCRIPTS))
                     return "duplicate";
                 if (pindex->nStatus & BLOCK_FAILED_MASK)
@@ -896,6 +899,11 @@ UniValue submitblock(const UniValue& params, bool fHelp)
     //printf("submitblock, height=%d, coinbase sequence: %d, scriptSig: %s\n", chainActive.LastTip()->GetHeight()+1, block.vtx[0].vin[0].nSequence, block.vtx[0].vin[0].scriptSig.ToString().c_str());
     bool fAccepted = ProcessNewBlock(1,chainActive.LastTip()->GetHeight()+1,state, NULL, &block, true, NULL);
     UnregisterValidationInterface(&sc);
+    if (fBlockPresent || !fAccepted || !sc.found)
+    {
+        printf("Block was not accepted %s\n", state.GetRejectReason().c_str());
+        ConnectedChains.lastSubmissionFailed = true;
+    }
     if (fBlockPresent)
     {
         if (fAccepted && !sc.found)

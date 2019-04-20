@@ -862,12 +862,13 @@ public:
     CPBaaSChainDefinition thisChain;
 
     bool dirty;
+    bool lastSubmissionFailed;                  // if we submit a failed block, make another
     std::map<arith_uint256, CBlockHeader> qualifiedHeaders;
 
     CCriticalSection cs_mergemining;
     CSemaphore sem_submitthread;
 
-    CConnectedChains() : sem_submitthread(0), dirty(0) {}
+    CConnectedChains() : sem_submitthread(0), dirty(0), lastSubmissionFailed(0) {}
 
     arith_uint256 LowestTarget()
     {

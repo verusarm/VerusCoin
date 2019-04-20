@@ -685,24 +685,25 @@ vector<pair<string, UniValue>> CConnectedChains::SubmitQualifiedBlocks()
                 // any one stalled daemon
                 UniValue submitParams(UniValue::VARR);
                 submitParams.push_back(EncodeHexBlk(chainData.block));
-                UniValue result;
+                UniValue result, error;
                 try
                 {
                     result = RPCCall("submitblock", submitParams, chainData.rpcUserPass, chainData.rpcPort, chainData.rpcHost);
+                    result = find_value(result, "result");
+                    error = find_value(result, "error");
                 }
                 catch (exception e)
                 {
                     result = UniValue(e.what());
                 }
                 results.push_back(make_pair(chainData.chainDefinition.name, result));
-                if (result.isStr())
+                if (result.isStr() || !error.isNull())
                 {
-                    printf("Error submitting block to %s chain: %s\n", chainData.chainDefinition.name.c_str(), result.get_str().c_str());
+                    printf("Error submitting block to %s chain: %s\n", chainData.chainDefinition.name.c_str(), result.isStr() ? result.get_str().c_str() : error.get_str().c_str());
                 }
                 else
                 {
                     printf("Successfully submitted block to %s chain\n", chainData.chainDefinition.name.c_str());
-
                 }
             }
         } while (submissionFound);

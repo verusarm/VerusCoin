@@ -1562,6 +1562,7 @@ void static BitcoinMiner_noeq()
                     params.push_back(ASSETCHAINS_RPCCREDENTIALS);
                     try
                     {
+                        ConnectedChains.lastSubmissionFailed = false;
                         params = RPCCallRoot("addmergedblock", params);
                         params = find_value(params, "result");
                         error = find_value(params, "error");
@@ -1677,8 +1678,9 @@ void static BitcoinMiner_noeq()
                         // update every few minutes, regardless
                         int64_t elapsed = GetTime() - nStart;
 
-                        if ((mempool.GetTransactionsUpdated() != nTransactionsUpdatedLast && elapsed > 60) || elapsed > 120)
+                        if ((mempool.GetTransactionsUpdated() != nTransactionsUpdatedLast && elapsed > 60) || elapsed > 120 || ConnectedChains.lastSubmissionFailed)
                         {
+
                             break;
                         }
 
