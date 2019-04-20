@@ -1738,7 +1738,7 @@ void komodo_args(char *argv0)
     name = GetArg("-ac_name", name);
     if (PBAAS_TESTMODE && name == "VRSC")
     {
-        name = "VRSCTEST";
+        PBAAS_TESTMODE = false;
     }
     else if (name == "VRSCTEST" && !PBAAS_TESTMODE)
     {
