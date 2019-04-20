@@ -861,14 +861,13 @@ public:
 
     CPBaaSChainDefinition thisChain;
 
-    uint32_t dirtyCounter;                      // monotonically increasing dirty counter
-    arith_uint256 latestHash;                   // latest hash won for the latest block header
-    CBlockHeader latestBlockHeader;             // latest winning merge mined header
+    bool dirty;
+    std::map<arith_uint256, CBlockHeader> qualifiedHeaders;
 
     CCriticalSection cs_mergemining;
     CSemaphore sem_submitthread;
 
-    CConnectedChains() : sem_submitthread(0), dirtyCounter(0) {}
+    CConnectedChains() : sem_submitthread(0), dirty(0) {}
 
     arith_uint256 LowestTarget()
     {

@@ -1464,7 +1464,7 @@ void static BitcoinMiner_noeq()
             {
                 do {
                     pindexPrev = chainActive.LastTip();
-                    MilliSleep(3000 + rand() % 3000);
+                    MilliSleep(2000 + rand() % 2000);
                 } while (pindexPrev != chainActive.LastTip());
             }
 
@@ -1493,7 +1493,7 @@ void static BitcoinMiner_noeq()
                 static uint32_t counter;
                 if ( (counter++ < 10) || (counter % 40 == 0) )
                     fprintf(stderr,"Unable to create valid block... will continue to try\n");
-                MilliSleep(500);
+                MilliSleep(2000);
                 continue;
             }
 
@@ -1510,8 +1510,6 @@ void static BitcoinMiner_noeq()
                 return;
             }
             CBlock *pblock = &pblocktemplate->block;
-
-
 
             uint32_t savebits;
             bool mergeMining = false;
@@ -1676,7 +1674,10 @@ void static BitcoinMiner_noeq()
                 fprintf(stderr," PoW for staked coin PoS %d%% vs target %d%%\n",percPoS,(int32_t)ASSETCHAINS_STAKED);
             }
 
-            uint64_t count, hashesToGo = 0;
+            uint64_t count;
+            uint64_t hashesToGo = 0;
+            uint64_t totalDone = 0;
+
             if (!verusHashV2)
             {
                 // must not be in sync
@@ -1685,6 +1686,7 @@ void static BitcoinMiner_noeq()
                 continue;
             }
 
+            int64_t subsidy = (int64_t)(pblock->vtx[0].GetValueOut());
             count = ((ASSETCHAINS_NONCEMASK[ASSETCHAINS_ALGO] >> 3) + 1) / ASSETCHAINS_HASHESPERROUND[ASSETCHAINS_ALGO];
             CVerusHashV2 *vh2 = &ss2.GetState();
             u128 *hashKey;
@@ -1730,11 +1732,6 @@ void static BitcoinMiner_noeq()
 
                         if ( pindexPrev != chainActive.LastTip() )
                         {
-                            if (lastChainTipPrinted != chainActive.LastTip())
-                            {
-                                lastChainTipPrinted = chainActive.LastTip();
-                                printf("Block %d added to chain\n\n", lastChainTipPrinted->GetHeight());
-                            }
                             break;
                         }
                     }
@@ -1747,14 +1744,14 @@ void static BitcoinMiner_noeq()
                     {
                         // this is the merge mining loop, which enables us to drop out and queue a header anytime we earn a block that is good enough for a
                         // merge mined block, but not our own
-                        uint64_t totalDone = 0;
                         bool blockFound;
                         arith_uint256 arithHash;
+                        totalDone = 0;
                         do
                         {
                             // hashesToGo gets updated with actual number run for metrics
                             hashesToGo = ASSETCHAINS_HASHESPERROUND[ASSETCHAINS_ALGO];
-                            uint64_t start = i * hashesToGo;
+                            uint64_t start = i * hashesToGo + totalDone;
                             hashesToGo -= totalDone;
 
                             if (verusSolutionV3)
@@ -1783,7 +1780,6 @@ void static BitcoinMiner_noeq()
                                     uintTarget = ArithToUint256(hashTarget);
                                 }
                             }
-                            hashesToGo = totalDone;
                         } while (blockFound && arithHash > ourTarget);
 
                         if (!blockFound || arithHash > ourTarget)
@@ -1796,6 +1792,15 @@ void static BitcoinMiner_noeq()
                                 {
                                     lastChainTipPrinted = chainActive.LastTip();
                                     printf("Block %d added to chain\n", lastChainTipPrinted->GetHeight());
+                                    if (mergeMining)
+                                    {
+                                        printf("Block %d added to chain\n\n", lastChainTipPrinted->GetHeight());
+                                        arith_uint256 target;
+                                        target.SetCompact(lastChainTipPrinted->nBits);
+                                        LogPrintf("proof-of-work found  \n  hash: %s  \ntarget: %s\n", lastChainTipPrinted->GetBlockHash().GetHex().c_str(), ArithToUint256(ourTarget).GetHex());
+                                        printf("Found block %d \n", Mining_height );
+                                        printf("mining reward %.8f %s!\n", (double)subsidy / (double)COIN, ASSETCHAINS_SYMBOL);
+                                    }
                                 }
                                 break;
                             }
@@ -1803,9 +1808,10 @@ void static BitcoinMiner_noeq()
                             {
                                 {
                                     LOCK(cs_metrics);
-                                    nHashCount += hashesToGo;
+                                    nHashCount += totalDone;
+                                    totalDone = 0;
                                 }
-                                if (!ConnectedChains.dirtyCounter)
+                                if (!ConnectedChains.dirty)
                                 {
                                     continue;
                                 }
@@ -1825,7 +1831,6 @@ void static BitcoinMiner_noeq()
                             SetThreadPriority(THREAD_PRIORITY_NORMAL);
 
                             int32_t unlockTime = komodo_block_unlocktime(Mining_height);
-                            int64_t subsidy = (int64_t)(pblock->vtx[0].vout[0].nValue);
 
 #ifdef VERUSHASHDEBUG
                             std::string validateStr = hashResult.GetHex();
@@ -1866,7 +1871,7 @@ void static BitcoinMiner_noeq()
 
                     {
                         LOCK(cs_metrics);
-                        nHashCount += hashesToGo;
+                        nHashCount += totalDone;
                     }
                 }
                 
@@ -1899,9 +1904,9 @@ void static BitcoinMiner_noeq()
                     break;
                 }
 
-                // hashesToGo now has the number of hashes actually done since starting on one nonce mask worth
+                // totalDone now has the number of hashes actually done since starting on one nonce mask worth
                 uint64_t hashesPerNonceMask = ASSETCHAINS_NONCEMASK[ASSETCHAINS_ALGO] >> 3;
-                if (!(hashesToGo < hashesPerNonceMask))
+                if (!(totalDone < hashesPerNonceMask))
                 {
 #ifdef _WIN32
                     printf("%llu mega hashes complete - working\n", (hashesPerNonceMask + 1) / 1048576);

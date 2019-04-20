@@ -506,7 +506,7 @@ bool CConnectedChains::RemoveMergedBlock(uint160 chainID)
             }
         }
         mergeMinedChains.erase(chainID);
-        dirtyCounter++;
+        dirty = true;
 
         // if we get to 0, give the thread a kick to stop waiting for mining
         if (!mergeMinedChains.size())
@@ -559,7 +559,7 @@ bool CConnectedChains::AddMergedBlock(CPBaaSMergeMinedChainData &blkData)
             target.SetCompact(blkData.block.nBits);
             mergeMinedTargets.insert(make_pair(target, &(mergeMinedChains.insert(make_pair(cID, blkData)).first->second)));
         }
-        dirtyCounter++;
+        dirty = true;
     }
     return true;
 }
@@ -593,9 +593,10 @@ CPBaaSMergeMinedChainData *CConnectedChains::GetChainInfo(uint160 chainID)
 
 bool CConnectedChains::QueueNewBlockHeader(CBlockHeader &bh)
 {
-    LOCK(cs_mergemining);
-    latestHash = UintToArith256(bh.GetHash());
-    latestBlockHeader = bh;
+    {
+        LOCK(cs_mergemining);
+        qualifiedHeaders[UintToArith256(bh.GetHash())] = bh;
+    }
     sem_submitthread.post();
 }
 
@@ -613,46 +614,52 @@ vector<pair<string, UniValue>> CConnectedChains::SubmitQualifiedBlocks()
     CPBaaSBlockHeader pbh;
 
     {
-        // work through the current latest data once and return
-        LOCK(cs_mergemining);
-        bh = latestBlockHeader;
-        lastHash = latestHash;
-    }
-
-    // loop through the existing PBaaS chain ids in the header and add them to ax set
-    for (uint32_t i = 0; bh.GetPBaaSHeader(pbh, i); i++)
-    {
-        inHeader.insert(pbh.chainID);
-    }
-
-    {
         do
         {
             submissionFound = false;
             {
                 LOCK(cs_mergemining);
-                for (auto chainIt = mergeMinedTargets.lower_bound(lastHash); !submissionFound && chainIt != mergeMinedTargets.end(); chainIt++)
+                // attempt to submit with the lowest hash answers first to increase the likelihood of submitting
+                // common, merge mined headers for notarization
+                auto headerIt = qualifiedHeaders.begin();
+                for (qualifiedHeaders.size() ? advance(headerIt, qualifiedHeaders.size() - 1), headerIt : headerIt = qualifiedHeaders.end();
+                     !submissionFound && headerIt != qualifiedHeaders.end();
+                     headerIt = qualifiedHeaders.begin(), (qualifiedHeaders.size() ? advance(headerIt, qualifiedHeaders.size() - 1), headerIt : headerIt = qualifiedHeaders.end()))
                 {
-                    uint160 chainID = chainIt->second->GetChainID();
-                    if (inHeader.count(chainID))
+                    // add the existing PBaaS chain ids in the header to a set for search
+                    for (uint32_t i = 0; headerIt->second.GetPBaaSHeader(pbh, i); i++)
                     {
-                        // first, check that the winning header matches the block that is there
-                        CPBaaSPreHeader preHeader(chainIt->second->block);
-                        preHeader.SetBlockData(bh);
+                        inHeader.insert(pbh.chainID);
+                    }
 
-                        // check if the block header matches the block's specific data, only then can we create a submission from this block
-                        if (bh.CheckNonCanonicalData(chainID))
+                    for (auto chainIt = mergeMinedTargets.lower_bound(headerIt->first); !submissionFound && chainIt != mergeMinedTargets.end(); chainIt++)
+                    {
+                        uint160 chainID = chainIt->second->GetChainID();
+                        if (inHeader.count(chainID))
                         {
-                            // save block as is, remove the block from merged headers, replace header, and submit
-                            chainData = *chainIt->second;
+                            // first, check that the winning header matches the block that is there
+                            CPBaaSPreHeader preHeader(chainIt->second->block);
+                            preHeader.SetBlockData(headerIt->second);
 
-                            *(CBlockHeader *)&chainData.block = bh;
+                            // check if the block header matches the block's specific data, only then can we create a submission from this block
+                            if (headerIt->second.CheckNonCanonicalData(chainID))
+                            {
+                                // save block as is, remove the block from merged headers, replace header, and submit
+                                chainData = *chainIt->second;
 
-                            // once it is going to be submitted, remove it until it is added again
-                            RemoveMergedBlock(chainID);
+                                *(CBlockHeader *)&chainData.block = headerIt->second;
 
-                            submissionFound = true;
+                                // once it is going to be submitted, remove it until it is added again
+                                RemoveMergedBlock(chainID);
+
+                                submissionFound = true;
+                            }
                         }
+                    }
+
+                    if (!submissionFound)
+                    {
+                        qualifiedHeaders.erase(headerIt);
                     }
                 }
             }
@@ -754,7 +761,7 @@ uint32_t CConnectedChains::CombineBlocks(CBlockHeader &bh)
                 }
             }
         }
-        dirtyCounter = 0;
+        dirty = false;
     }
     return target.GetCompact();
 }
@@ -820,11 +827,6 @@ void CConnectedChains::SubmissionThread()
     {
         arith_uint256 lastHash;
         
-        {
-            LOCK(cs_mergemining);
-            lastHash = latestHash;
-        }
-
         // wait for something to check on, then submit blocks that should be submitted
         while (true)
         {
@@ -840,15 +842,11 @@ void CConnectedChains::SubmissionThread()
                         bool submit = false;
                         {
                             LOCK(cs_mergemining);
-                            if (lastHash != latestHash)
-                            {
-                                submit = true;
-                            }
+                            submit = qualifiedHeaders.size() != 0;
                         }
                         if (submit)
                         {
                             SubmitQualifiedBlocks();
-                            MilliSleep(20);
                         }
                     }
                 }
@@ -863,7 +861,11 @@ void CConnectedChains::SubmissionThread()
 
                 // if this is a PBaaS chain, poll for presence of Verus / root chain and current Verus block and version number
                 CheckVerusPBaaSAvailable();
-                sleep(3);
+                for (int i = 0; i < 10; i++)
+                {
+                    boost::this_thread::interruption_point();
+                    sleep(1);
+                }
             }
 
             boost::this_thread::interruption_point();
