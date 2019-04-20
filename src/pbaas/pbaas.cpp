@@ -550,8 +550,21 @@ bool CConnectedChains::AddMergedBlock(CPBaaSMergeMinedChainData &blkData)
         auto it = mergeMinedChains.find(cID);
         if (it != mergeMinedChains.end())
         {
-            // replace data
+            // remove and reinsert target, replace data
+            arith_uint256 target;
+            target.SetCompact(it->second.block.nBits);
+            for (auto removeRange = mergeMinedTargets.equal_range(target); removeRange.first != removeRange.second; removeRange.first++)
+            {
+                // make sure we don't just match by target
+                if (removeRange.first->second->GetChainID() == cID)
+                {
+                    mergeMinedTargets.erase(removeRange.first);
+                    break;
+                }
+            }
             it->second = blkData;
+            target.SetCompact(blkData.block.nBits);
+            mergeMinedTargets.insert(make_pair(target, &it->second));
         }
         else
         {
