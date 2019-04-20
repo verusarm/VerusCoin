@@ -1732,6 +1732,16 @@ void static BitcoinMiner_noeq()
 
                         if ( pindexPrev != chainActive.LastTip() )
                         {
+                            if (lastChainTipPrinted != chainActive.LastTip())
+                            {
+                                lastChainTipPrinted = chainActive.LastTip();
+                                printf("Block %d added to chain\n\n", lastChainTipPrinted->GetHeight());
+                                arith_uint256 target;
+                                target.SetCompact(lastChainTipPrinted->nBits);
+                                LogPrintf("proof-of-work found  \n  hash: %s  \ntarget: %s\n", lastChainTipPrinted->GetBlockHash().GetHex().c_str(), ArithToUint256(ourTarget).GetHex());
+                                printf("Found block %d \n", Mining_height );
+                                printf("mining reward %.8f %s!\n", (double)subsidy / (double)COIN, ASSETCHAINS_SYMBOL);
+                            }
                             break;
                         }
                     }
@@ -1792,15 +1802,6 @@ void static BitcoinMiner_noeq()
                                 {
                                     lastChainTipPrinted = chainActive.LastTip();
                                     printf("Block %d added to chain\n", lastChainTipPrinted->GetHeight());
-                                    if (mergeMining)
-                                    {
-                                        printf("Block %d added to chain\n\n", lastChainTipPrinted->GetHeight());
-                                        arith_uint256 target;
-                                        target.SetCompact(lastChainTipPrinted->nBits);
-                                        LogPrintf("proof-of-work found  \n  hash: %s  \ntarget: %s\n", lastChainTipPrinted->GetBlockHash().GetHex().c_str(), ArithToUint256(ourTarget).GetHex());
-                                        printf("Found block %d \n", Mining_height );
-                                        printf("mining reward %.8f %s!\n", (double)subsidy / (double)COIN, ASSETCHAINS_SYMBOL);
-                                    }
                                 }
                                 break;
                             }
