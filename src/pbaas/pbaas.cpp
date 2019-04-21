@@ -605,6 +605,7 @@ CPBaaSMergeMinedChainData *CConnectedChains::GetChainInfo(uint160 chainID)
 
 bool CConnectedChains::QueueNewBlockHeader(CBlockHeader &bh)
 {
+    printf("QueueNewBlockHeader %s\n", bh.GetHash().GetHex().c_str());
     {
         LOCK(cs_mergemining);
         qualifiedHeaders[UintToArith256(bh.GetHash())] = bh;
@@ -664,10 +665,10 @@ vector<pair<string, UniValue>> CConnectedChains::SubmitQualifiedBlocks()
 
                                 submissionFound = true;
                             }
-                            else
-                            {
-                                printf("Mismatch in non-canonical data for chain %s\n", chainIt->second->chainDefinition.name.c_str());
-                            }
+                            //else // not an error condition. code was here for debugging
+                            //{
+                            //    printf("Mismatch in non-canonical data for chain %s\n", chainIt->second->chainDefinition.name.c_str());
+                            //}
                         }
                     }
 

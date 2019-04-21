@@ -901,7 +901,7 @@ UniValue submitblock(const UniValue& params, bool fHelp)
     UnregisterValidationInterface(&sc);
     if (fBlockPresent || !fAccepted || !sc.found)
     {
-        printf("Block was not accepted %s\n", state.GetRejectReason().c_str());
+        //printf("Block was not accepted %s\n", state.GetRejectReason().c_str());
         ConnectedChains.lastSubmissionFailed = true;
     }
     if (fBlockPresent)

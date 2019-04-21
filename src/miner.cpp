@@ -1013,6 +1013,8 @@ void IncrementExtraNonce(CBlock* pblock, CBlockIndex* pindexPrev, unsigned int& 
     
     pblock->vtx[0] = txCoinbase;
     pblock->hashMerkleRoot = pblock->BuildMerkleTree();
+
+    UpdateTime(pblock, Params().GetConsensus(), pindexPrev);
 }
 
 #ifdef ENABLE_WALLET
