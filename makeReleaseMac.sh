@@ -7,7 +7,6 @@ cp src/fiat/verus \
    src/verusd \
    doc/man/verus-cli/mac/README.txt \
    zcutil/fetch-params.sh \
-   zcutil/upgrade-agama.sh \
    verus-cli
 mv verus-cli/fetch-params.sh verus-cli/fetch-params
 chmod +x ${KMD_DIR}/fetch-params
@@ -28,7 +27,7 @@ do
     for dylib in ${DYLIBS}; do cp -rf ${dylib} ${KMD_DIR}; done
 done
 
-libraries=("libgcc_s.1.dylib" "libgomp.1.dylib" "libidn2.0.dylib" "libstdc++.6.dylib")
+libraries=("libgcc_s.1.dylib" "libgomp.1.dylib" "libidn2.4.dylib" "libstdc++.6.dylib")
 
 for binary in "${libraries[@]}";
 do
