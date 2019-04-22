@@ -24,6 +24,7 @@
 #ifdef ENABLE_WALLET
 #include "wallet/wallet.h"
 #endif
+#include "pbaas/pbaas.h"
 
 #include <stdint.h>
 
@@ -37,6 +38,7 @@ extern int32_t ASSETCHAINS_ALGO, ASSETCHAINS_EQUIHASH, ASSETCHAINS_LWMAPOS;
 extern uint64_t ASSETCHAINS_STAKED;
 extern int32_t KOMODO_MININGTHREADS;
 extern bool VERUS_MINTBLOCKS;
+extern char ASSETCHAINS_SYMBOL[KOMODO_ASSETCHAIN_MAXLEN];
 arith_uint256 komodo_PoWtarget(int32_t *percPoSp,arith_uint256 target,int32_t height,int32_t goalperc);
 
 /**
@@ -856,9 +858,19 @@ UniValue submitblock(const UniValue& params, bool fHelp)
         );
 
     CBlock block;
-    //LogPrintStr("Hex block submission: " + params[0].get_str());
-    if (!DecodeHexBlk(block, params[0].get_str()))
+    try
+    {
+        //LogPrintStr("Hex block submission: " + params[0].get_str());
+        if (!DecodeHexBlk(block, params[0].get_str()))
+            throw JSONRPCError(RPC_DESERIALIZATION_ERROR, "Block decode failed");
+    }
+    catch (exception e)
+    {
+        printf("Exception: %s\n", e.what());
         throw JSONRPCError(RPC_DESERIALIZATION_ERROR, "Block decode failed");
+    }
+
+    printf("Received block submission for %s\nhash %s\n", ASSETCHAINS_SYMBOL, block.GetHash().GetHex().c_str());
 
     uint256 hash = block.GetHash();
     bool fBlockPresent = false;
@@ -869,6 +881,8 @@ UniValue submitblock(const UniValue& params, bool fHelp)
             CBlockIndex *pindex = mi->second;
             if (pindex)
             {
+                printf("Already have block %s\n", block.GetHash().GetHex().c_str());
+
                 if (pindex->IsValid(BLOCK_VALID_SCRIPTS))
                     return "duplicate";
                 if (pindex->nStatus & BLOCK_FAILED_MASK)
@@ -885,6 +899,11 @@ UniValue submitblock(const UniValue& params, bool fHelp)
     //printf("submitblock, height=%d, coinbase sequence: %d, scriptSig: %s\n", chainActive.LastTip()->GetHeight()+1, block.vtx[0].vin[0].nSequence, block.vtx[0].vin[0].scriptSig.ToString().c_str());
     bool fAccepted = ProcessNewBlock(1,chainActive.LastTip()->GetHeight()+1,state, NULL, &block, true, NULL);
     UnregisterValidationInterface(&sc);
+    if (fBlockPresent || !fAccepted || !sc.found)
+    {
+        //printf("Block was not accepted %s\n", state.GetRejectReason().c_str());
+        ConnectedChains.lastSubmissionFailed = true;
+    }
     if (fBlockPresent)
     {
         if (fAccepted && !sc.found)

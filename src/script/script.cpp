@@ -10,6 +10,7 @@
 #include "script/cc.h"
 #include "cc/eval.h"
 #include "cryptoconditions/include/cryptoconditions.h"
+#include "standard.h"
 
 using namespace std;
 
@@ -375,7 +376,48 @@ bool CScript::IsPayToCryptoCondition(CScript *pCCSubScript) const
 
 bool CScript::IsPayToCryptoCondition() const
 {
-    return IsPayToCryptoCondition(NULL);
+    return IsPayToCryptoCondition((CScript *)NULL);
+}
+
+bool CScript::IsInstantSpend() const
+{
+    uint32_t ecode;
+    if (IsPayToCryptoCondition(&ecode))
+    {
+        switch(ecode)
+        {
+            case EVAL_EARNEDNOTARIZATION:
+            case EVAL_FINALIZENOTARIZATION:
+                return true;
+        }
+    }
+    return false;
+}
+
+bool CScript::IsPayToCryptoCondition(CScript *ccSubScript, std::vector<std::vector<unsigned char>> &vParams, COptCCParams &optParams) const
+{
+    if (IsPayToCryptoCondition(ccSubScript, vParams))
+    {
+        if (vParams.size() > 0)
+        {
+            optParams = COptCCParams(vParams[0]);
+            return optParams.IsValid();
+        }
+    }
+    return false;
+}
+
+bool CScript::IsPayToCryptoCondition(uint32_t *ecode) const
+{
+    CScript sub;
+    std::vector<std::vector<unsigned char>> vParams;
+    COptCCParams p;
+    if (IsPayToCryptoCondition(&sub, vParams, p))
+    {
+        *ecode = p.evalCode;
+        return true;
+    }
+    return false;
 }
 
 bool CScript::MayAcceptCryptoCondition() const
@@ -388,7 +430,9 @@ bool CScript::MayAcceptCryptoCondition() const
     if (!(opcode > OP_0 && opcode < OP_PUSHDATA1)) return false;
     CC *cond = cc_readConditionBinary(data.data(), data.size());
     if (!cond) return false;
+
     bool out = IsSupportedCryptoCondition(cond);
+
     cc_free(cond);
     return out;
 }

@@ -21,6 +21,8 @@
 #define OPRETTYPE_TIMELOCK 1
 #define OPRETTYPE_STAKEPARAMS 2
 #define OPRETTYPE_STAKECHEAT 3
+#define OPRETTYPE_OBJECT 4
+#define OPRETTYPE_OBJECTARR 5
 
 static const unsigned int MAX_SCRIPT_ELEMENT_SIZE = 520; // bytes
 
@@ -362,6 +364,7 @@ private:
 };
 
 typedef prevector<28, unsigned char> CScriptBase;
+class COptCCParams;
 
 /** Serialized script, used inside transaction inputs and outputs */
 class CScript : public CScriptBase
@@ -581,11 +584,15 @@ public:
     bool IsOpReturn() const { return size() > 0 && (*this)[0] == OP_RETURN; }
     bool GetOpretData(std::vector<std::vector<unsigned char>>& vData) const;
 
-    bool IsPayToCryptoCondition(CScript *ccSubScript, std::vector<std::vector<unsigned char>>& vSolutions) const;
+    bool IsPayToCryptoCondition(CScript *ccSubScript, std::vector<std::vector<unsigned char>> &vParams, COptCCParams &optParams) const;
+    bool IsPayToCryptoCondition(CScript *ccSubScript, std::vector<std::vector<unsigned char>> &vParams) const;
     bool IsPayToCryptoCondition(CScript *ccSubScript) const;
+    bool IsPayToCryptoCondition(uint32_t *ecode) const;
     bool IsPayToCryptoCondition() const;
     bool IsCoinImport() const;
     bool MayAcceptCryptoCondition() const;
+    bool IsInstantSpend() const;
+
 
     /** Called by IsStandardTx and P2SH/BIP62 VerifyScript (which makes it consensus-critical). */
     bool IsPushOnly() const;
