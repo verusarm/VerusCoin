@@ -6469,7 +6469,10 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
         return true;
     }
 
-    //printf("netmsg: %s\n", strCommand.c_str());
+    if (!(strCommand == "ping" || strCommand == "pong"))
+    {
+        printf("netmsg: %s\n", strCommand.c_str());
+    }
 
     if (strCommand == "version")
     {
