@@ -1441,6 +1441,11 @@ void komodo_configfile(char *symbol,uint16_t rpcport)
                     fprintf(fp,"ac_eras=%s\n", (charPtr = mapArgs["-ac_eras"].c_str())[0] == 0 ? "1" : charPtr);
                     fprintf(fp,"ac_end=%s\n", (charPtr = mapArgs["-ac_end"].c_str())[0] == 0 ? "0" : charPtr);
 
+                    if (GetArg("-port", 0))
+                    {
+                        fprintf(fp,"port=%s\n", mapArgs["-port"].c_str());
+                    }
+
                     auto nodeIt = mapMultiArgs.find("-seednode");
                     if (nodeIt != mapMultiArgs.end())
                     {
@@ -1532,6 +1537,13 @@ uint32_t komodo_assetmagic(char *symbol,uint64_t supply,uint8_t *extraptr,int32_
 
 uint16_t komodo_assetport(uint32_t magic,int32_t extralen)
 {
+    if (!IsVerusActive())
+    {
+        if (uint16_t retVal = GetArg("-port", 0))
+        {
+            return retVal;
+        }
+    }
     if ( magic == 0x8de4eef9 )
         return(7770);
     else if ( extralen == 0 )
@@ -2030,6 +2042,7 @@ void komodo_args(char *argv0)
 
         //printf("baseid.%d MAX_MONEY.%s %.8f\n",baseid,ASSETCHAINS_SYMBOL,(double)MAX_MONEY/SATOSHIDEN);
         ASSETCHAINS_P2PPORT = komodo_port(ASSETCHAINS_SYMBOL,ASSETCHAINS_SUPPLY,&ASSETCHAINS_MAGIC,extraptr,extralen);
+
         while ( (dirname= (char *)GetDataDir(false).string().c_str()) == 0 || dirname[0] == 0 )
         {
             fprintf(stderr,"waiting for datadir\n");

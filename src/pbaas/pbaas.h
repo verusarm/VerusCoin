@@ -519,6 +519,8 @@ public:
     }
 
     UniValue ToUniValue() const;
+
+    int GetDefinedPort() const;
 };
 
 // This data structure is used on an output that provides proof of stake validation for other crypto conditions

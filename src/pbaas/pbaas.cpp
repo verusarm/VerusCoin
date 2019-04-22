@@ -348,6 +348,21 @@ UniValue CPBaaSChainDefinition::ToUniValue() const
     return obj;
 }
 
+int CPBaaSChainDefinition::GetDefinedPort() const
+{
+    int port;
+    string host;
+    for (node : nodes)
+    {
+        SplitHostPort(node.networkAddress, port, host);
+        if (port)
+        {
+            return port;
+        }
+    }
+    return 0;
+}
+
 #define _ASSETCHAINS_TIMELOCKOFF 0xffffffffffffffff
 extern uint64_t ASSETCHAINS_TIMELOCKGTE, ASSETCHAINS_TIMEUNLOCKFROM, ASSETCHAINS_TIMEUNLOCKTO;
 extern int64_t ASSETCHAINS_SUPPLY, ASSETCHAINS_REWARD[3], ASSETCHAINS_DECAY[3], ASSETCHAINS_HALVING[3], ASSETCHAINS_ENDSUBSIDY[3];
@@ -372,6 +387,10 @@ bool SetThisChain(UniValue &chainDefinition)
         if (nodeStrs.size())
         {
             mapMultiArgs["-seednode"] = nodeStrs;
+        }
+        if (int port = GetDefinedPort())
+        {
+            mapArgs["-port"] = to_string(port);
         }
 
         ASSETCHAINS_SUPPLY = ConnectedChains.ThisChain().premine;
