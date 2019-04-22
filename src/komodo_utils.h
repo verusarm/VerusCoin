@@ -1537,7 +1537,7 @@ uint32_t komodo_assetmagic(char *symbol,uint64_t supply,uint8_t *extraptr,int32_
 
 uint16_t komodo_assetport(uint32_t magic,int32_t extralen)
 {
-    if (!IsVerusActive())
+    if (!_IsVerusActive())
     {
         if (uint16_t retVal = GetArg("-port", 0))
         {
