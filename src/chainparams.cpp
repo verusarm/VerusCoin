@@ -286,7 +286,7 @@ void *chainparams_commandline(void *ptr)
         {
             if (strcmp(ASSETCHAINS_SYMBOL,"VRSCTEST") == 0 || strcmp(ASSETCHAINS_SYMBOL,"VERUSTEST") == 0)
             {
-                mainParams.consensus.nMinimumChainWork = uint256S("0x0000000000000000000000000000000000000000000000000000000000001f7e");
+                mainParams.consensus.nMinimumChainWork = uint256S("0x0000000000000000000000000000000000000000000000000000000000000020");
             }
             mainParams.consensus.vUpgrades[Consensus::UPGRADE_SAPLING].nActivationHeight = ASSETCHAINS_SAPLING;
             mainParams.consensus.vUpgrades[Consensus::UPGRADE_OVERWINTER].nActivationHeight = ASSETCHAINS_OVERWINTER;

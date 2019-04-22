@@ -2174,15 +2174,14 @@ bool IsInitialBlockDownload()
     bool state;
     arith_uint256 bigZero = arith_uint256();
     arith_uint256 minWork = UintToArith256(chainParams.GetConsensus().nMinimumChainWork);
-    CBlockIndex *ptr = chainActive.Tip();
+    CBlockIndex *ptr = chainActive.LastTip();
 
     if (ptr == NULL)
         return true;
     if (ptr->chainPower < CChainPower(ptr, bigZero, minWork))
         return true;
 
-    state = ((chainActive.Height() < ptr->GetHeight() - 24*60) ||
-             ptr->GetBlockTime() < (GetTime() - nMaxTipAge));
+    state = ptr->GetBlockTime() < (GetTime() - nMaxTipAge);
 
     //fprintf(stderr,"state.%d  ht.%d vs %d, t.%u %u\n",state,(int32_t)chainActive.Height(),(uint32_t)ptr->GetHeight(),(int32_t)ptr->GetBlockTime(),(uint32_t)(GetTime() - chainParams.MaxTipAge()));
     if (!state)
