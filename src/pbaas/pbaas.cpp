@@ -352,7 +352,7 @@ int CPBaaSChainDefinition::GetDefinedPort() const
 {
     int port;
     string host;
-    for (node : nodes)
+    for (auto node : nodes)
     {
         SplitHostPort(node.networkAddress, port, host);
         if (port)
@@ -388,7 +388,7 @@ bool SetThisChain(UniValue &chainDefinition)
         {
             mapMultiArgs["-seednode"] = nodeStrs;
         }
-        if (int port = GetDefinedPort())
+        if (int port = ConnectedChains.ThisChain().GetDefinedPort())
         {
             mapArgs["-port"] = to_string(port);
         }
