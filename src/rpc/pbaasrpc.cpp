@@ -850,7 +850,7 @@ UniValue definechain(const UniValue& params, bool fHelp)
             "         \"billingperiod\" : \"n\",    (int,    optional) number of blocks in each billing period\n"
             "         \"nodes\"      : \"[obj, ..]\", (objectarray, optional) up to 2 nodes that can be used to connect to the blockchain"
             "         [{\n"
-            "            \"nodeaddress\" : \"txid\", (string,  optional) internet, TOR, or other supported address for node\n"
+            "            \"networkaddress\" : \"txid\", (string,  optional) internet, TOR, or other supported address for node\n"
             "            \"paymentaddress\" : \"n\", (int,     optional) rewards payment address\n"
             "          }, .. ]\n"
             "      }\n"

@@ -645,89 +645,87 @@ vector<pair<string, UniValue>> CConnectedChains::SubmitQualifiedBlocks()
     arith_uint256 lastHash;
     CPBaaSBlockHeader pbh;
 
+    do
     {
-        do
+        submissionFound = false;
         {
-            submissionFound = false;
+            LOCK(cs_mergemining);
+            // attempt to submit with the lowest hash answers first to increase the likelihood of submitting
+            // common, merge mined headers for notarization, drop out on any submission
+            for (auto headerIt = qualifiedHeaders.begin(); !submissionFound && headerIt != qualifiedHeaders.end(); headerIt = qualifiedHeaders.begin())
             {
-                LOCK(cs_mergemining);
-                // attempt to submit with the lowest hash answers first to increase the likelihood of submitting
-                // common, merge mined headers for notarization, drop out on any submission
-                for (auto headerIt = qualifiedHeaders.begin(); !submissionFound && headerIt != qualifiedHeaders.end(); headerIt = qualifiedHeaders.begin())
+                // add the PBaaS chain ids from this header to a set for search
+                for (uint32_t i = 0; headerIt->second.GetPBaaSHeader(pbh, i); i++)
                 {
-                    // add the PBaaS chain ids from this header to a set for search
-                    for (uint32_t i = 0; headerIt->second.GetPBaaSHeader(pbh, i); i++)
-                    {
-                        inHeader.insert(pbh.chainID);
-                    }
+                    inHeader.insert(pbh.chainID);
+                }
 
-                    // now look through all targets that are equal to or above the hash of this header
-                    for (auto chainIt = mergeMinedTargets.lower_bound(headerIt->first); !submissionFound && chainIt != mergeMinedTargets.end(); chainIt++)
+                // now look through all targets that are equal to or above the hash of this header
+                for (auto chainIt = mergeMinedTargets.lower_bound(headerIt->first); !submissionFound && chainIt != mergeMinedTargets.end(); chainIt++)
+                {
+                    uint160 chainID = chainIt->second->GetChainID();
+                    if (inHeader.count(chainID))
                     {
-                        uint160 chainID = chainIt->second->GetChainID();
-                        if (inHeader.count(chainID))
+                        // first, check that the winning header matches the block that is there
+                        CPBaaSPreHeader preHeader(chainIt->second->block);
+                        preHeader.SetBlockData(headerIt->second);
+
+                        // check if the block header matches the block's specific data, only then can we create a submission from this block
+                        if (headerIt->second.CheckNonCanonicalData(chainID))
                         {
-                            // first, check that the winning header matches the block that is there
-                            CPBaaSPreHeader preHeader(chainIt->second->block);
-                            preHeader.SetBlockData(headerIt->second);
+                            // save block as is, remove the block from merged headers, replace header, and submit
+                            chainData = *chainIt->second;
 
-                            // check if the block header matches the block's specific data, only then can we create a submission from this block
-                            if (headerIt->second.CheckNonCanonicalData(chainID))
-                            {
-                                // save block as is, remove the block from merged headers, replace header, and submit
-                                chainData = *chainIt->second;
+                            *(CBlockHeader *)&chainData.block = headerIt->second;
 
-                                *(CBlockHeader *)&chainData.block = headerIt->second;
+                            // once it is going to be submitted, remove block from this chain until a new one is added again
+                            RemoveMergedBlock(chainID);
 
-                                // once it is going to be submitted, remove block from this chain until a new one is added again
-                                RemoveMergedBlock(chainID);
-
-                                submissionFound = true;
-                            }
-                            //else // not an error condition. code was here for debugging
-                            //{
-                            //    printf("Mismatch in non-canonical data for chain %s\n", chainIt->second->chainDefinition.name.c_str());
-                            //}
+                            submissionFound = true;
                         }
+                        //else // not an error condition. code was here for debugging
+                        //{
+                        //    printf("Mismatch in non-canonical data for chain %s\n", chainIt->second->chainDefinition.name.c_str());
+                        //}
                     }
+                }
 
-                    // if this header matched no block, discard and move to the next, otherwise, we'll drop through
-                    if (!submissionFound)
-                    {
-                        qualifiedHeaders.erase(headerIt);
-                    }
+                // if this header matched no block, discard and move to the next, otherwise, we'll drop through
+                if (!submissionFound)
+                {
+                    qualifiedHeaders.erase(headerIt);
                 }
             }
-            if (submissionFound)
+        }
+        if (submissionFound)
+        {
+            // submit one block and loop again. this approach allows multiple threads
+            // to collectively empty the submission queue, mitigating the impact of
+            // any one stalled daemon
+            UniValue submitParams(UniValue::VARR);
+            submitParams.push_back(EncodeHexBlk(chainData.block));
+            UniValue result, error;
+            try
             {
-                // submit one block and loop again. this approach allows multiple threads
-                // to collectively empty the submission queue, mitigating the impact of
-                // any one stalled daemon
-                UniValue submitParams(UniValue::VARR);
-                submitParams.push_back(EncodeHexBlk(chainData.block));
-                UniValue result, error;
-                try
-                {
-                    result = RPCCall("submitblock", submitParams, chainData.rpcUserPass, chainData.rpcPort, chainData.rpcHost);
-                    result = find_value(result, "result");
-                    error = find_value(result, "error");
-                }
-                catch (exception e)
-                {
-                    result = UniValue(e.what());
-                }
-                results.push_back(make_pair(chainData.chainDefinition.name, result));
-                if (result.isStr() || !error.isNull())
-                {
-                    printf("Error submitting block to %s chain: %s\n", chainData.chainDefinition.name.c_str(), result.isStr() ? result.get_str().c_str() : error.get_str().c_str());
-                }
-                else
-                {
-                    printf("Successfully submitted block to %s chain\n", chainData.chainDefinition.name.c_str());
-                }
+                result = RPCCall("submitblock", submitParams, chainData.rpcUserPass, chainData.rpcPort, chainData.rpcHost);
+                result = find_value(result, "result");
+                error = find_value(result, "error");
             }
-        } while (submissionFound);
-    }
+            catch (exception e)
+            {
+                result = UniValue(e.what());
+            }
+            results.push_back(make_pair(chainData.chainDefinition.name, result));
+            if (result.isStr() || !error.isNull())
+            {
+                printf("Error submitting block to %s chain: %s\n", chainData.chainDefinition.name.c_str(), result.isStr() ? result.get_str().c_str() : error.get_str().c_str());
+            }
+            else
+            {
+                printf("Successfully submitted block to %s chain\n", chainData.chainDefinition.name.c_str());
+            }
+        }
+    } while (submissionFound);
     return results;
 }
 
