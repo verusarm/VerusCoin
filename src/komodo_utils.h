@@ -2063,7 +2063,6 @@ void komodo_args(char *argv0)
             if (ASSETCHAINS_LASTERA == 0 && ASSETCHAINS_REWARD[0] == 0)
                 COINBASE_MATURITY = 1;
             //fprintf(stderr,"ASSETCHAINS_RPCPORT (%s) %u\n",ASSETCHAINS_SYMBOL,ASSETCHAINS_RPCPORT);
-            ASSETCHAINS_RPCCREDENTIALS = string(ASSETCHAINS_USERPASS);
             ASSETCHAINS_RPCHOST = GetArg("-rpchost", "127.0.0.1");
         }
         if ( ASSETCHAINS_RPCPORT == 0 )
@@ -2088,6 +2087,8 @@ void komodo_args(char *argv0)
             ASSETCHAINS_CC = 2;
             fprintf(stderr,"smart utxo CC contracts will activate at height.%d\n",KOMODO_CCACTIVATE);
         }
+
+        ASSETCHAINS_RPCCREDENTIALS = string(ASSETCHAINS_USERPASS);
 
         if (!paramsLoaded)
         {

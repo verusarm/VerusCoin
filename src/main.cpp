@@ -6473,6 +6473,8 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
     //    printf("netmsg: %s\n", strCommand.c_str());
     //}
 
+    int nHeight = GetHeight();
+
     if (strCommand == "version")
     {
         // Each connection can only send one version message
@@ -6491,8 +6493,6 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
         vRecv >> nVersion >> pfrom->nServices >> nTime >> addrMe;
         if (nVersion == 10300)
             nVersion = 300;
-
-        int nHeight = GetHeight();
 
         if (CConstVerusSolutionVector::activationHeight.ActiveVersion(nHeight) >= CConstVerusSolutionVector::activationHeight.SOLUTION_VERUSV3 ? 
                                                                                  nVersion < MIN_PBAAS_VERSION : 
@@ -6568,7 +6568,9 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
         
         // Change version
         pfrom->PushMessage("verack");
-        pfrom->ssSend.SetVersion(min(pfrom->nVersion, PROTOCOL_VERSION));
+        pfrom->ssSend.SetVersion(min(pfrom->nVersion, CConstVerusSolutionVector::activationHeight.ActiveVersion(nHeight) >= CConstVerusSolutionVector::activationHeight.SOLUTION_VERUSV3 ? 
+                                                                                 MIN_PBAAS_VERSION : 
+                                                                                 MIN_PEER_PROTO_VERSION));
         
         if (!pfrom->fInbound)
         {
@@ -6636,7 +6638,9 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
     
     else if (strCommand == "verack")
     {
-        pfrom->SetRecvVersion(min(pfrom->nVersion, PROTOCOL_VERSION));
+        pfrom->SetRecvVersion(min(pfrom->nVersion, CConstVerusSolutionVector::activationHeight.ActiveVersion(nHeight) >= CConstVerusSolutionVector::activationHeight.SOLUTION_VERUSV3 ? 
+                                                                                 MIN_PBAAS_VERSION : 
+                                                                                 MIN_PEER_PROTO_VERSION));
         
         // Mark this node as currently connected, so we update its timestamp later.
         if (pfrom->fNetworkNode) {

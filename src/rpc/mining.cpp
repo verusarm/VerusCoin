@@ -429,7 +429,21 @@ UniValue getmininginfo(const UniValue& params, bool fHelp)
     obj.push_back(Pair("chain",            Params().NetworkIDString()));
 #ifdef ENABLE_MINING
     obj.push_back(Pair("staking",          VERUS_MINTBLOCKS));
-    obj.push_back(Pair("generate",         GetBoolArg("-gen", false)));
+    bool mining = GetBoolArg("-gen", false);
+    auto chains = ConnectedChains.GetMergeMinedChains();
+    bool mergeMining = mining && ((!IsVerusActive() && ConnectedChains.IsVerusPBaaSAvailable()) || (IsVerusActive() && chains.size()));
+    int numChains = mergeMining ? (IsVerusActive() ? chains.size() + 1 : 1) : 0;
+    obj.push_back(Pair("generate",         mining));
+    obj.push_back(Pair("mergemining",      numChains));
+    if (chains.size())
+    {
+        UniValue chainNames(UniValue::VARR);
+        for (auto chain : chains)
+        {
+            chainNames.push_back(chain.name);
+        }
+        obj.push_back(Pair("mergeminedchains", chainNames));
+    }
     obj.push_back(Pair("numthreads",       (int64_t)KOMODO_MININGTHREADS));
 #endif
     return obj;

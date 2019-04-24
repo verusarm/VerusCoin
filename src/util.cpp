@@ -550,7 +550,9 @@ boost::filesystem::path GetDefaultDataDir()
         }
         else
         {
-            pathRet = (pathRet / (PBAAS_TESTMODE ? "VerusTest" : "Verus")) / "PBAAS";
+            pathRet /= PBAAS_TESTMODE ? "VerusTest" : "Verus";
+            TryCreateDirectory(pathRet);
+            pathRet /= "PBAAS";
             TryCreateDirectory(pathRet);
         }
         return pathRet / symbol;
@@ -615,7 +617,9 @@ boost::filesystem::path GetDefaultDataDir(std::string chainName)
     }
     else
     {
-        pathRet = (pathRet / (PBAAS_TESTMODE ? "VerusTest" : "Verus")) / "PBAAS";
+        pathRet /= PBAAS_TESTMODE ? "VerusTest" : "Verus";
+        TryCreateDirectory(pathRet);
+        pathRet /= "PBAAS";
         TryCreateDirectory(pathRet);
     }
     return pathRet / symbol;
