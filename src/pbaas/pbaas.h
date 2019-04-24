@@ -909,6 +909,16 @@ public:
     bool CheckVerusPBaaSAvailable(UniValue &chainInfo, UniValue &chainDef);
     bool CheckVerusPBaaSAvailable();      // may use RPC to call Verus
     bool IsVerusPBaaSAvailable();
+    std::vector<CPBaaSChainDefinition> GetMergeMinedChains()
+    {
+        std::vector<CPBaaSChainDefinition> ret;
+        LOCK(cs_mergemining);
+        for (auto &chain : mergeMinedChains)
+        {
+            ret.push_back(chain.second.chainDefinition);
+        }
+        return ret;
+    }
 };
 
 template <typename TOBJ>
