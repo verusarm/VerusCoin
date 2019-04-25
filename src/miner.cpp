@@ -1646,6 +1646,7 @@ void static BitcoinMiner_noeq()
                     // loop for a few minutes before refreshing the block
                     while (true)
                     {
+                        uint256 ourMerkle = pblock->hashMerkleRoot;
                         if ( pindexPrev != chainActive.LastTip() )
                         {
                             if (lastChainTipPrinted != chainActive.LastTip())
@@ -1654,10 +1655,13 @@ void static BitcoinMiner_noeq()
                                 printf("Block %d added to chain\n\n", lastChainTipPrinted->GetHeight());
                                 arith_uint256 target;
                                 target.SetCompact(lastChainTipPrinted->nBits);
-                                LogPrintf("proof-of-work found  \n  hash: %s  \ntarget: %s\n", lastChainTipPrinted->GetBlockHash().GetHex().c_str(), ArithToUint256(ourTarget).GetHex().c_str());
-                                printf("Found block %d \n", Mining_height );
-                                printf("mining reward %.8f %s!\n", (double)subsidy / (double)COIN, ASSETCHAINS_SYMBOL);
-                                printf("  hash: %s\ntarget: %s\n", lastChainTipPrinted->GetBlockHash().GetHex().c_str(), ArithToUint256(ourTarget).GetHex().c_str());
+                                if (ourMerkle == lastChainTipPrinted->hashMerkleRoot)
+                                {
+                                    LogPrintf("proof-of-work found  \n  hash: %s  \ntarget: %s\n", lastChainTipPrinted->GetBlockHash().GetHex().c_str(), ArithToUint256(ourTarget).GetHex().c_str());
+                                    printf("Found block %d \n", Mining_height );
+                                    printf("mining reward %.8f %s!\n", (double)subsidy / (double)COIN, ASSETCHAINS_SYMBOL);
+                                    printf("  hash: %s\ntarget: %s\n", lastChainTipPrinted->GetBlockHash().GetHex().c_str(), ArithToUint256(ourTarget).GetHex().c_str());
+                                }
                             }
                             break;
                         }
