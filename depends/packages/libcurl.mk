@@ -19,7 +19,6 @@ define $(package)_config_cmds
   $($(package)_conf_tool) $($(package)_config_opts)
 endef
 
-
 ifeq ($(build_os),darwin)
 define $(package)_build_cmds
   $(MAKE) CPPFLAGS='-fPIC' CFLAGS='-mmacosx-version-min=10.9'
