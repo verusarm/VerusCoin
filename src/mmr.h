@@ -635,7 +635,7 @@ public:
         uint256 root = GetRoot();
         if (!root.IsNull())
         {
-            return &(peakMerkle[peakMerkle.size() - 1][0]);
+            return &(peakMerkle.back()[0]);
         }
         else
         {

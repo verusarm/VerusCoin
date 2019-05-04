@@ -21,6 +21,7 @@
 #include "script/script.h"
 #include "amount.h"
 #include "pbaas/crosschainrpc.h"
+#include "mmr.h"
 
 #include <boost/algorithm/string.hpp>
 
@@ -54,6 +55,7 @@ static const uint32_t PBAAS_VERSION_INVALID = 0;
 static const uint32_t PBAAS_NODESPERNOTARIZATION = 2;       // number of nodes to reference in each notarization
 static const int64_t PBAAS_MINNOTARIZATIONOUTPUT = 10000;   // enough for one fee worth to finalization and notarization thread
 static const int32_t PBAAS_MINSTARTBLOCKDELTA = 100;        // minimum number of blocks to wait for starting a chain after definition
+static const int32_t PBAAS_MAXPRIORBLOCKS = 16;             // maximum prior block commitments to include in prior blocks chain object
 
 enum CURRENCY_OPTIONS {
     CURRENCY_FUNGIBLE = 1,
@@ -70,16 +72,15 @@ enum PBAAS_SERVICE_TYPES {
     SERVICE_LAST = 5
 };
 
+// these are object types that can be stored and recognized in an opret array
 enum CHAIN_OBJECT_TYPES
 {
     CHAINOBJ_INVALID = 0,
-    CHAINOBJ_HEADER = 1,
-    CHAINOBJ_TRANSACTION = 2,
-    CHAINOBJ_PROOF = 3,
-    CHAINOBJ_OPRETPROOF = 4,
-    CHAINOBJ_HEADER_REF = 5,
-    CHAINOBJ_TRANSACTION_REF = 6,
-    CHAINOBJ_OPRET_REF = 7
+    CHAINOBJ_HEADER = 1,            // serialized full block header
+    CHAINOBJ_TRANSACTION = 2,       // serialized transaction, sometimes without an opret, which will be reconstructed
+    CHAINOBJ_PROOF = 3,             // merkle proof of preceding block or transaction
+    CHAINOBJ_HEADER_REF = 4,        // equivalent to header, but only includes non-canonical data, assuming merge mine reconstruction
+    CHAINOBJ_PRIORBLOCKS = 5        // prior block commitments to ensure recognition of overlapping notarizations
 };
 
 template <typename SERIALIZABLE>
@@ -140,33 +141,15 @@ public:
     }
 };
 
-// refers to an object stored in a specific position of a specific opret that stores an object array
-class COpRetRef
-{
-public:
-    uint256 txid;       // transaction with opret
-    uint16_t index;     // index of object in opret
-
-    COpRetRef() : txid(), index(0) {}
-    COpRetRef(uint256 txHash, uint16_t objIndex) : txid(txHash), index(objIndex) {}
-
-    ADD_SERIALIZE_METHODS;
-
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action)
-    {
-        READWRITE(txid);
-        READWRITE(index);
-    }
-};
-
 class CHeaderRef
 {
 public:
-    uint256 hash;
+    uint256 hash;               // block hash
+    CPBaaSPreHeader preHeader;  // non-canonical pre-header data of source chain
 
     CHeaderRef() : hash() {}
-    CHeaderRef(uint256 &rHash) : hash(rHash) {}
+    CHeaderRef(uint256 &rHash, CPBaaSPreHeader ph) : hash(rHash), preHeader(ph) {}
+    CHeaderRef(const CBlockHeader &bh) : hash(bh.GetHash()), preHeader(bh) {}
 
     ADD_SERIALIZE_METHODS;
 
@@ -174,23 +157,26 @@ public:
     inline void SerializationOp(Stream& s, Operation ser_action)
     {
         READWRITE(hash);
+        READWRITE(preHeader);
     }
+
+    uint256 GetHash() { return hash; }
 };
 
-class CTransactionRef
+class CPriorBlocksCommitment
 {
 public:
-    uint256 hash;
+    std::vector<uint256> priorBlocks;       // prior block commitments, which are node hashes that include merkle root, block hash, and compact power
 
-    CTransactionRef() : hash() {}
-    CTransactionRef(uint256 &rHash) : hash(rHash) {}
+    CPriorBlocksCommitment() : priorBlocks() {}
+    CPriorBlocksCommitment(std::vector<uint256> priors) : priorBlocks(priors) {}
 
     ADD_SERIALIZE_METHODS;
 
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action)
     {
-        READWRITE(hash);
+        READWRITE(priorBlocks);
     }
 };
 
@@ -219,7 +205,7 @@ public:
 
     CChainObject() : CBaseChainObject() {}
 
-    CChainObject(uint16_t objType, SERIALIZABLE &rObject) : CBaseChainObject(objType)
+    CChainObject(uint16_t objType, const SERIALIZABLE &rObject) : CBaseChainObject(objType)
     {
         object = rObject;
     }
@@ -260,8 +246,7 @@ CBaseChainObject *RehydrateChainObject(OStream s)
         CChainObject<CTransaction> *pNewTx;
         CChainObject<CMerkleBranch> *pNewProof;
         CChainObject<CHeaderRef> *pNewHeaderRef;
-        CChainObject<CTransactionRef> *pNewTxRef;
-        CChainObject<COpRetRef> *pNewOpRetRef;
+        CChainObject<CPriorBlocksCommitment> *pPriors;
         CBaseChainObject *retPtr;
     };
 
@@ -301,20 +286,12 @@ CBaseChainObject *RehydrateChainObject(OStream s)
                 pNewHeaderRef->objectType = objType;
             }
             break;
-        case CHAINOBJ_TRANSACTION_REF:
-            pNewTxRef = new CChainObject<CTransactionRef>();
-            if (pNewTxRef)
+        case CHAINOBJ_PRIORBLOCKS:
+            pPriors = new CChainObject<CPriorBlocksCommitment>();
+            if (pPriors)
             {
-                s >> pNewTxRef->object;
-                pNewTxRef->objectType = objType;
-            }
-            break;
-        case CHAINOBJ_OPRET_REF:
-            pNewOpRetRef = new CChainObject<COpRetRef>();
-            if (pNewOpRetRef)
-            {
-                s >> pNewOpRetRef->object;
-                pNewOpRetRef->objectType = objType;
+                s >> pPriors->object;
+                pPriors->objectType = objType;
             }
             break;
     }
@@ -345,26 +322,22 @@ bool DehydrateChainObject(OStream s, const CBaseChainObject *pobj)
             s << *(CChainObject<CHeaderRef> *)pobj;
             return true;
 
-        case CHAINOBJ_TRANSACTION_REF:
-            s << *(CChainObject<CTransactionRef> *)pobj;
+        case CHAINOBJ_PRIORBLOCKS:
+            s << *(CChainObject<CPriorBlocksCommitment> *)pobj;
             return true;
     }
     return false;
 }
 
-int8_t ObjTypeCode(COpRetProof &obj);
+int8_t ObjTypeCode(const CBlockHeader &obj);
 
-int8_t ObjTypeCode(CBlockHeader &obj);
+int8_t ObjTypeCode(const CMerkleBranch &obj);
 
-int8_t ObjTypeCode(CMerkleBranch &obj);
+int8_t ObjTypeCode(const CTransaction &obj);
 
-int8_t ObjTypeCode(CTransaction &obj);
+int8_t ObjTypeCode(const CHeaderRef &obj);
 
-int8_t ObjTypeCode(CHeaderRef &obj);
-
-int8_t ObjTypeCode(CTransactionRef &obj);
-
-int8_t ObjTypeCode(COpRetRef &obj);
+int8_t ObjTypeCode(const CPriorBlocksCommitment &obj);
 
 // this creates an opret script that stores a specific chain object
 template <typename SERIALIZABLE>

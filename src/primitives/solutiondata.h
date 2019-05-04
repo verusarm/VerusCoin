@@ -75,7 +75,7 @@ public:
     CPBaaSPreHeader(const uint256 &prevBlock, const uint256 &merkleRoot, const uint256 &finalSaplingRoot,const uint256 &nonce, uint32_t compactTarget) : 
                     hashPrevBlock(prevBlock), hashMerkleRoot(merkleRoot), hashFinalSaplingRoot(finalSaplingRoot), nNonce(nonce), nBits(compactTarget) {}
 
-    CPBaaSPreHeader(CBlockHeader &bh);
+    CPBaaSPreHeader(const CBlockHeader &bh);
 
     ADD_SERIALIZE_METHODS;
 

@@ -20,35 +20,6 @@ class CMMRPowerNode;
 class CMerkleBranch;
 class CBlockHeader;
 
-/*
-class CPBaaSPreHeader
-{
-public:
-    uint256 hashPrevBlock;
-    uint256 hashMerkleRoot;
-    uint256 hashFinalSaplingRoot;
-    uint256 nNonce;
-    uint32_t nBits;
-
-    CPBaaSPreHeader() : nBits(0) {}
-    CPBaaSPreHeader(const uint256 &prevBlock, const uint256 &merkleRoot, const uint256 &finalSaplingRoot,const uint256 &nonce, uint32_t compactTarget) : 
-                    hashPrevBlock(prevBlock), hashMerkleRoot(merkleRoot), hashFinalSaplingRoot(finalSaplingRoot), nNonce(nonce), nBits(compactTarget) {}
-
-    CPBaaSPreHeader(CBlockHeader &bh);
-
-    ADD_SERIALIZE_METHODS;
-
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action) {
-        READWRITE(hashPrevBlock);
-        READWRITE(hashMerkleRoot);
-        READWRITE(hashFinalSaplingRoot);
-        READWRITE(nNonce);
-        READWRITE(nBits);
-    }
-};
-*/
-
 /** Nodes collect new transactions into a block, hash them into a hash tree,
  * and scan through nonce values to make the block's hash satisfy proof-of-work
  * requirements.  When they solve the proof-of-work, they broadcast the block
@@ -137,6 +108,11 @@ public:
     void ResizeExtraData(uint32_t newSize)
     {
         CVerusSolutionVector(nSolution).ResizeExtraData(newSize);
+    }
+
+    uint32_t ExtraDataLen()
+    {
+        return CVerusSolutionVector(nSolution).ExtraDataLen();
     }
 
     // returns -1 on failure, upon failure, pbbh is undefined and likely corrupted

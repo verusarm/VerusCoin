@@ -52,8 +52,7 @@ uint256 GetChainObjectHash(const CBaseChainObject &bo)
         const CChainObject<CTransaction> *pNewTx;
         const CChainObject<CMerkleBranch> *pNewProof;
         const CChainObject<CHeaderRef> *pNewHeaderRef;
-        const CChainObject<CTransactionRef> *pNewTxRef;
-        const CChainObject<COpRetRef> *pNewOpRetRef;
+        const CChainObject<CPriorBlocksCommitment> *pPriors;
         const CBaseChainObject *retPtr;
     };
 
@@ -73,11 +72,8 @@ uint256 GetChainObjectHash(const CBaseChainObject &bo)
         case CHAINOBJ_HEADER_REF:
             return pNewHeaderRef->GetHash();
 
-        case CHAINOBJ_TRANSACTION_REF:
-            return pNewTxRef->GetHash();
-
-        case CHAINOBJ_OPRET_REF:
-            return pNewOpRetRef->GetHash();
+        case CHAINOBJ_PRIORBLOCKS:
+            return pPriors->GetHash();
     }
     return uint256();
 }
@@ -136,39 +132,29 @@ bool ValidateOpretProof(CScript &opRet, COpRetProof &orProof)
         
 }
 
-int8_t ObjTypeCode(COpRetProof &obj)
-{
-    return CHAINOBJ_OPRETPROOF;
-}
-
-int8_t ObjTypeCode(CBlockHeader &obj)
+int8_t ObjTypeCode(const CBlockHeader &obj)
 {
     return CHAINOBJ_HEADER;
 }
 
-int8_t ObjTypeCode(CMerkleBranch &obj)
+int8_t ObjTypeCode(const CMerkleBranch &obj)
 {
     return CHAINOBJ_PROOF;
 }
 
-int8_t ObjTypeCode(CTransaction &obj)
+int8_t ObjTypeCode(const CTransaction &obj)
 {
     return CHAINOBJ_TRANSACTION;
 }
 
-int8_t ObjTypeCode(CHeaderRef &obj)
+int8_t ObjTypeCode(const CHeaderRef &obj)
 {
     return CHAINOBJ_HEADER_REF;
 }
 
-int8_t ObjTypeCode(CTransactionRef &obj)
+int8_t ObjTypeCode(const CPriorBlocksCommitment &obj)
 {
-    return CHAINOBJ_TRANSACTION_REF;
-}
-
-int8_t ObjTypeCode(COpRetRef &obj)
-{
-    return CHAINOBJ_OPRET_REF;
+    return CHAINOBJ_PRIORBLOCKS;
 }
 
 // this adds an opret to a mutable transaction that provides the necessary evidence of a signed, cheating stake transaction
@@ -189,7 +175,7 @@ CScript StoreOpRetArray(std::vector<CBaseChainObject *> &objPtrs)
 
     std::vector<unsigned char> vch(s.begin(), s.end());
 
-    vData << OPRETTYPE_OBJECTARR << vch;
+    vData << (int32_t)OPRETTYPE_OBJECTARR << vch;
     vch = std::vector<unsigned char>(vData.begin(), vData.end());
     return CScript() << OP_RETURN << vch;
 }
@@ -202,10 +188,28 @@ std::vector<CBaseChainObject *> RetrieveOpRetArray(const CScript &opRetScript)
     {
         CDataStream s = CDataStream(vch, SER_NETWORK, PROTOCOL_VERSION);
 
-        CBaseChainObject *pobj;
-        while (!s.empty() && (pobj = RehydrateChainObject(s)))
+        int32_t opRetType;
+
+        try
         {
-            vRet.push_back(pobj);
+            s >> opRetType;
+            if (opRetType == OPRETTYPE_OBJECTARR)
+            {
+                CBaseChainObject *pobj;
+                while (!s.empty() && (pobj = RehydrateChainObject(s)))
+                {
+                    vRet.push_back(pobj);
+                }
+            }
+        }
+        catch(const std::exception& e)
+        {
+            std::cerr << e.what() << '\n';
+            for (auto o : vRet)
+            {
+                delete o;
+            }
+            vRet.clear();
         }
     }
     return vRet;
@@ -570,26 +574,10 @@ bool CConnectedChains::AddMergedBlock(CPBaaSMergeMinedChainData &blkData)
         auto it = mergeMinedChains.find(cID);
         if (it != mergeMinedChains.end())
         {
-            // remove and reinsert target, replace data
-            target.SetCompact(it->second.block.nBits);
-            for (auto removeRange = mergeMinedTargets.equal_range(target); removeRange.first != removeRange.second; removeRange.first++)
-            {
-                // make sure we don't just match by target
-                if (removeRange.first->second->GetChainID() == cID)
-                {
-                    mergeMinedTargets.erase(removeRange.first);
-                    break;
-                }
-            }
-            it->second = blkData;
-            target.SetCompact(blkData.block.nBits);
-            mergeMinedTargets.insert(make_pair(target, &it->second));
+            RemoveMergedBlock(cID);             // remove it if already there
         }
-        else
-        {
-            target.SetCompact(blkData.block.nBits);
-            mergeMinedTargets.insert(make_pair(target, &(mergeMinedChains.insert(make_pair(cID, blkData)).first->second)));
-        }
+        target.SetCompact(blkData.block.nBits);
+        mergeMinedTargets.insert(make_pair(target, &(mergeMinedChains.insert(make_pair(cID, blkData)).first->second)));
         dirty = true;
     }
     return true;

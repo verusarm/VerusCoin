@@ -494,10 +494,6 @@ enum ADDRESS_INDEX_QUERY_CODES {
     ADDRESSINDEX_OFFERLIMIT = 0x83              // for good until cancelled and fill or kill (anti-front running) limit orders
 };
 
-enum PBAAS_CONSTANTS {
-    PBAAS_NOTARYCONFIRMS = 20                   // number of confirms necessary to consider a notarization valid
-};
-
 struct CUniqueHash
 {
     uint256 hash;
