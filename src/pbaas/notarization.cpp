@@ -237,9 +237,11 @@ UniValue CChainNotarizationData::ToUniValue() const
     return obj;
 }
 
-bool AddSpendsAndFinalizations(const CChainNotarizationData &cnd, const uint256 &lastNotarizationID, const CTransaction &lastTx, CMutableTransaction &mnewTx, int32_t *pConfirmedInput, CTxDestination *pConfirmedDest)
+vector<CInputDescriptor> AddSpendsAndFinalizations(const CChainNotarizationData &cnd, const uint256 &lastNotarizationID, const CTransaction &lastTx, CMutableTransaction &mnewTx, int32_t *pConfirmedInput, CTxDestination *pConfirmedDest)
 {
     // determine all finalized transactions that should be spent as input
+    // always spend the notarization thread
+    vector<CInputDescriptor> txInputs;
 
     set<int32_t> finalized;
     int32_t confirmedIdx = -1;
@@ -308,26 +310,29 @@ bool AddSpendsAndFinalizations(const CChainNotarizationData &cnd, const uint256 
     if (!lastNotarizationID.IsNull())
     {
         // spend notarization output of the last notarization
+        txInputs.push_back(CInputDescriptor(lastTx.vout[j].scriptPubKey, lastTx.vout[j].nValue, CTxIn(lastNotarizationID, j, CScript())));
         mnewTx.vin.push_back(CTxIn(lastNotarizationID, j, CScript()));
+
+        LOCK(cs_main);
 
         for (auto nidx : finalized)
         {
             // we need to reload all transactions and get their finalization outputs
             // this could be made more efficient by keeping them earlier or standardizing output numbers
-            CTransaction finalizedTx;
+            CCoins coins;
             uint256 hblk;
-            if (!GetTransaction(cnd.vtx[nidx].first, finalizedTx, hblk, true))
+            if (!pcoinsTip->GetCoins(cnd.vtx[nidx].first, coins))
             {
                 // if this fails, we can't follow consensus and must fail
-                return false;
+                return vector<CInputDescriptor>();
             }
             int k;
             CPBaaSNotarization pbn;
-            for (k = 0; k < finalizedTx.vout.size(); k++)
+            for (k = 0; k < coins.vout.size(); k++)
             {
                 COptCCParams p;
 
-                if (IsPayToCryptoCondition(finalizedTx.vout[k].scriptPubKey, p))
+                if (!coins.vout[k].IsNull() && IsPayToCryptoCondition(coins.vout[k].scriptPubKey, p))
                 {
                     if (nidx == confirmedIdx && (p.evalCode == EVAL_EARNEDNOTARIZATION || p.evalCode == EVAL_ACCEPTEDNOTARIZATION))
                     {
@@ -339,9 +344,10 @@ bool AddSpendsAndFinalizations(const CChainNotarizationData &cnd, const uint256 
                     }
                 }
             }
-            assert(k < finalizedTx.vout.size());
+            assert(k < coins.vout.size());
 
             // spend all of them
+            txInputs.push_back(CInputDescriptor(coins.vout[k].scriptPubKey, coins.vout[k].nValue, CTxIn(cnd.vtx[nidx].first, k, CScript())));
             mnewTx.vin.push_back(CTxIn(cnd.vtx[nidx].first, k, CScript()));
             if (nidx == confirmedIdx)
             {
@@ -350,7 +356,7 @@ bool AddSpendsAndFinalizations(const CChainNotarizationData &cnd, const uint256 
             }
         }
     }
-    return confirmedIdx != -1;
+    return txInputs;
 }
 
 bool GetNotarizationAndFinalization(int32_t ecode, CMutableTransaction mtx, CPBaaSNotarization &pbn, uint32_t *pNotarizeOutIndex, uint32_t *pFinalizeOutIndex)
@@ -386,7 +392,7 @@ bool GetNotarizationAndFinalization(int32_t ecode, CMutableTransaction mtx, CPBa
 // 10th validation to a notarization in our lineage, we finalize it as validated and finalize any conflicting notarizations
 // as invalidated.
 // Currently may return with insufficient or excess input relative to outputs.
-bool CreateEarnedNotarization(CMutableTransaction &mnewTx, CTransaction &lastTx, CTransaction &crossTx, int32_t height, int32_t *pConfirmedInput, CTxDestination *pConfirmedDest)
+bool CreateEarnedNotarization(CMutableTransaction &mnewTx, vector<CInputDescriptor> &inputs, CTransaction &lastTx, CTransaction &crossTx, int32_t height, int32_t *pConfirmedInput, CTxDestination *pConfirmedDest)
 {
     char funcname[] = "CreateEarnedNotarization: ";
 
@@ -486,6 +492,7 @@ bool CreateEarnedNotarization(CMutableTransaction &mnewTx, CTransaction &lastTx,
     vector<CBaseChainObject *> compressedChainObjs;
 
     {
+        // protect use of the mapBlockIndex & pcoinsTip
         LOCK(cs_main);
 
         // convert any op_return header to a smaller header_ref if it was merge mined, which modifies both the
@@ -513,7 +520,7 @@ bool CreateEarnedNotarization(CMutableTransaction &mnewTx, CTransaction &lastTx,
         mnewTx.vout.back().scriptPubKey = StoreOpRetArray(compressedChainObjs);
 
         // now that we've finished making the opret, free the objects
-        for (auto o : chainObjs)
+        for (auto o : compressedChainObjs)
         {
             delete o;
         }
@@ -537,12 +544,12 @@ bool CreateEarnedNotarization(CMutableTransaction &mnewTx, CTransaction &lastTx,
         }
         else
         {
-            uint256 hblk;
-            if (!GetTransaction(lastNotarizationID, lastTx, hblk, true))
+            CCoins coins;
+            if (!pcoinsTip->GetCoins(lastNotarizationID, coins))
             {
                 return false;
             }
-            pbn.prevHeight = mapBlockIndex[hblk]->GetHeight();
+            pbn.prevHeight = coins.nHeight;
 
             if (pbn.prevHeight + CPBaaSNotarization::MIN_BLOCKS_BETWEEN_ACCEPTED > height)
             {
@@ -553,7 +560,7 @@ bool CreateEarnedNotarization(CMutableTransaction &mnewTx, CTransaction &lastTx,
     }
 
     // determine all finalized transactions that should be spent as input
-    AddSpendsAndFinalizations(cnd, lastNotarizationID, lastTx, mnewTx, pConfirmedInput, pConfirmedDest);
+    inputs = AddSpendsAndFinalizations(cnd, lastNotarizationID, lastTx, mnewTx, pConfirmedInput, pConfirmedDest);
 
     CCcontract_info CC;
     CCcontract_info *cp;

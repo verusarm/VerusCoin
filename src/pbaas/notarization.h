@@ -262,8 +262,18 @@ public:
     UniValue ToUniValue() const;
 };
 
-bool CreateEarnedNotarization(CMutableTransaction &mnewTx, CTransaction &lastTx, CTransaction &crossTx, int32_t height, int32_t *confirmedInput, CTxDestination *confirmedDest);
-bool AddSpendsAndFinalizations(const CChainNotarizationData &cnd, const uint256 &lastNotarizationID, const CTransaction &lastTx, CMutableTransaction &mnewTx, int32_t *pConfirmedInput, CTxDestination *pConfirmedDest);
+class CInputDescriptor
+{
+public:
+    CScript scriptPubKey;
+    CAmount nValue;
+    CTxIn txIn;
+    CInputDescriptor() : nValue(0) {}
+    CInputDescriptor(CScript script, CAmount value, CTxIn input) : scriptPubKey(script), nValue(value), txIn(input) {}
+};
+
+bool CreateEarnedNotarization(CMutableTransaction &mnewTx, std::vector<CInputDescriptor> &inputs, CTransaction &lastTx, CTransaction &crossTx, int32_t height, int32_t *confirmedInput, CTxDestination *confirmedDest);
+std::vector<CInputDescriptor> AddSpendsAndFinalizations(const CChainNotarizationData &cnd, const uint256 &lastNotarizationID, const CTransaction &lastTx, CMutableTransaction &mnewTx, int32_t *pConfirmedInput, CTxDestination *pConfirmedDest);
 bool GetNotarizationAndFinalization(int32_t ecode, CMutableTransaction mtx, CPBaaSNotarization &pbn, uint32_t *pNotarizeOutIndex, uint32_t *pFinalizeOutIndex);
 bool ValidateEarnedNotarization(CTransaction &ntx, CPBaaSNotarization *notarization = NULL);
 bool ValidateEarnedNotarization(struct CCcontract_info *cp, Eval* eval, const CTransaction &tx, uint32_t nIn);
@@ -272,6 +282,7 @@ bool ValidateAcceptedNotarization(struct CCcontract_info *cp, Eval* eval, const 
 bool IsAcceptedNotarizationInput(const CScript &scriptSig);
 bool ValidateFinalizeNotarization(struct CCcontract_info *cp, Eval* eval, const CTransaction &tx, uint32_t nIn);
 bool IsFinalizeNotarizationInput(const CScript &scriptSig);
+bool IsServiceRewardInput(const CScript &scriptSig);
 bool IsBlockBoundTransaction(const CTransaction &tx);
 
 #endif

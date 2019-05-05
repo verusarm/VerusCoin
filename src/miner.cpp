@@ -49,6 +49,7 @@
 
 #include "pbaas/pbaas.h"
 #include "pbaas/notarization.h"
+#include "transaction_builder.h"
 
 using namespace std;
 
@@ -355,6 +356,7 @@ CBlockTemplate* CreateNewBlock(const CScript& _scriptPubKeyIn, int32_t gpucount,
         int64_t pbaasTransparentOut = 0;
         int64_t blockSubsidy = GetBlockSubsidy(nHeight, consensusParams);
         uint256 mmrRoot;
+        vector<CInputDescriptor> notarizationInputs;
 
         // make earned notarization only if this is not the notary chain and we have enough subsidy
         // TODO: allow this to proceed if no subsidy and earned notarizations pay no reward as well
@@ -372,7 +374,7 @@ CBlockTemplate* CreateNewBlock(const CScript& _scriptPubKeyIn, int32_t gpucount,
                 mmrRoot = mmv.GetRoot();
                 int32_t confirmedInput = -1;
                 CTxDestination confirmedDest;
-                if (CreateEarnedNotarization(newNotarizationTx, prevTx, crossTx, nHeight, &confirmedInput, &confirmedDest))
+                if (CreateEarnedNotarization(newNotarizationTx, notarizationInputs, prevTx, crossTx, nHeight, &confirmedInput, &confirmedDest))
                 {
                     // we have a valid, earned notarization transaction. we still need to complete it as follows:
                     // 1. Add an instant-spend input from the coinbase transaction to fund the finalization output
@@ -789,7 +791,6 @@ CBlockTemplate* CreateNewBlock(const CScript& _scriptPubKeyIn, int32_t gpucount,
 
             // send this to EVAL_EARNEDNOTARIZATION address as a destination, locked by the default pubkey
             CPubKey pk(ParseHex(cp->CChexstr));
-
             vKeys.push_back(CTxDestination(CKeyID(CCrossChainRPCData::GetConditionID(VERUS_CHAINID, EVAL_EARNEDNOTARIZATION))));
 
             // output duplicate notarization as coinbase output for instant spend to notarization
@@ -800,15 +801,12 @@ CBlockTemplate* CreateNewBlock(const CScript& _scriptPubKeyIn, int32_t gpucount,
             pblock->vtx[0] = txNew;
 
             // bind to the right output of the coinbase
-            mntx.vin[mntx.vin.size() - 1].prevout.n = pbaasCoinbaseInstantSpendOut;
-            mntx.vin[mntx.vin.size() - 1].prevout.hash = txNew.GetHash();
-
-            // put notarization back in the block
-            pblock->vtx[pbaasNotarizationTx] = mntx;
+            mntx.vin.push_back(CTxIn(txNew.GetHash(), pbaasCoinbaseInstantSpendOut));
+            uint256 cbHash = mntx.vin[mntx.vin.size() - 1].prevout.hash;
 
             CTransaction ntx(mntx);
 
-            for (int i = 0, endat = (needed > 0 ? ntx.vin.size() - 1 : ntx.vin.size()); i < endat; i++)
+            for (int i = 0; i < ntx.vin.size(); i++)
             {
                 bool signSuccess;
                 SignatureData sigdata;
@@ -818,30 +816,16 @@ CBlockTemplate* CreateNewBlock(const CScript& _scriptPubKeyIn, int32_t gpucount,
                 const CScript virtualCC;
                 CTxOut virtualCCOut;
 
-                // if the hash is our MMR root, then it is our placeholder input for the instant spend
-                // output of the coinbase
-                if (needed > 0 && mmrRoot == ntx.vin[i].prevout.hash && nHeight == ntx.vin[i].prevout.n)
+                // if this is our coinbase input, we won't find it elsewhere
+                if (i < notarizationInputs.size())
                 {
-                    CCcontract_info CC;
-                    CCcontract_info *cp;
-                    vector<CTxDestination> vKeys;
-
-                    // make the earned notarization output, but don't keep it
-                    // on validation, we can ensure that an accurate notarization was spent as
-                    cp = CCinit(&CC, EVAL_EARNEDNOTARIZATION);
-                    CPubKey pk(ParseHex(cp->CChexstr));
-                    vKeys.push_back(CTxDestination(CKeyID(CCrossChainRPCData::GetConditionID(VERUS_CHAINID, EVAL_EARNEDNOTARIZATION))));
-                    CPBaaSNotarization pbn(pblock->vtx[pbaasNotarizationTx]);
-                    virtualCCOut = MakeCC1of1Vout(EVAL_EARNEDNOTARIZATION, needed, pk, vKeys, pbn);
-
-                    pScriptPubKey = &virtualCCOut.scriptPubKey;
-                    value = virtualCCOut.nValue;
+                    pScriptPubKey = &notarizationInputs[i].scriptPubKey;
+                    value = notarizationInputs[i].nValue;
                 }
                 else
                 {
-                    const CCoins *coins = view.AccessCoins(ntx.vin[i].prevout.hash);
-                    pScriptPubKey = &coins->vout[ntx.vin[i].prevout.n].scriptPubKey;
-                    value = coins->vout[ntx.vin[i].prevout.n].nValue;
+                    pScriptPubKey = &txNew.vout[ntx.vin[i].prevout.n].scriptPubKey;
+                    value = txNew.vout[ntx.vin[i].prevout.n].nValue;
                 }
 
                 signSuccess = ProduceSignature(TransactionSignatureCreator(pwalletMain, &ntx, i, value, SIGHASH_ALL), *pScriptPubKey, sigdata, consensusBranchId);
@@ -855,6 +839,9 @@ CBlockTemplate* CreateNewBlock(const CScript& _scriptPubKeyIn, int32_t gpucount,
                 }
             }
             pblocktemplate->vTxSigOps[pbaasNotarizationTx] = GetLegacySigOpCount(mntx);
+
+            // put now signed notarization back in the block
+            pblock->vtx[pbaasNotarizationTx] = mntx;
         }
 
         pblock->vtx[0] = txNew;

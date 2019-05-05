@@ -296,8 +296,6 @@ uint160 CCrossChainRPCData::GetConditionID(uint160 cid, int32_t condition)
     hw << condition;
     hw << cid;
     uint256 chainHash = hw.GetHash();
-
-    uint160 output = Hash160(chainHash.begin(), chainHash.end());
     return Hash160(chainHash.begin(), chainHash.end());
 }
 
@@ -309,7 +307,5 @@ uint160 CCrossChainRPCData::GetConditionID(std::string name, int32_t condition)
     hw << condition;
     hw << cid;
     uint256 chainHash = hw.GetHash();
-
-    uint160 output = Hash160(chainHash.begin(), chainHash.end());
     return Hash160(chainHash.begin(), chainHash.end());
 }

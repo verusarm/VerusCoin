@@ -54,6 +54,7 @@ static const uint32_t PBAAS_VERSION = 1;
 static const uint32_t PBAAS_VERSION_INVALID = 0;
 static const uint32_t PBAAS_NODESPERNOTARIZATION = 2;       // number of nodes to reference in each notarization
 static const int64_t PBAAS_MINNOTARIZATIONOUTPUT = 10000;   // enough for one fee worth to finalization and notarization thread
+static const int64_t PBAAS_MAXNOTARIZATIONINPUTS = 50;      // max inputs on a notarization tx
 static const int32_t PBAAS_MINSTARTBLOCKDELTA = 100;        // minimum number of blocks to wait for starting a chain after definition
 static const int32_t PBAAS_MAXPRIORBLOCKS = 16;             // maximum prior block commitments to include in prior blocks chain object
 
@@ -62,14 +63,14 @@ enum CURRENCY_OPTIONS {
     CURRENCY_FRACTIONAL = 2
 };
 
+// we wil uncomment service types as they are implemented
+// commented service types are here as guidance and reminders
 enum PBAAS_SERVICE_TYPES {
     SERVICE_INVALID = 0,
-    SERVICE_MINING = 1,
-    SERVICE_STAKING = 2,
-    SERVICE_NOTARIZATION = 3,
-    SERVICE_NODE = 4,
-    SERVICE_ELECTRUM = 5,
-    SERVICE_LAST = 5
+    SERVICE_NOTARIZATION = 1,
+    //SERVICE_NODE = 2,
+    //SERVICE_ELECTRUM = 3,
+    SERVICE_LAST = 1
 };
 
 // these are object types that can be stored and recognized in an opret array
@@ -538,28 +539,45 @@ public:
 class CServiceReward
 {
 public:
+    uint32_t nVersion;                      // version of this chain definition data structure to allow for extensions (not daemon version)
     uint16_t serviceType;                   // type of service
-    CAmount nPerReward;                     // amount to pay per reward
+    int32_t billingPeriod;                  // this is used to identify to which billing period of a chain, this reward applies
 
-    CServiceReward() : serviceType(SERVICE_INVALID) {}
+    CServiceReward() : nVersion(PBAAS_VERSION_INVALID), serviceType(SERVICE_INVALID) {}
 
-    CServiceReward(PBAAS_SERVICE_TYPES ServiceType, CAmount PerReward)
-    {
-        serviceType = ServiceType; 
-        nPerReward = PerReward;
-    }
+    CServiceReward(PBAAS_SERVICE_TYPES ServiceType, int32_t period) : nVersion(PBAAS_VERSION), serviceType(ServiceType), billingPeriod(period) {}
 
     ADD_SERIALIZE_METHODS;
 
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action) {
         READWRITE(serviceType);
-        READWRITE(VARINT(nPerReward));
+        READWRITE(billingPeriod);
     }
 
     CServiceReward(const std::vector<unsigned char> &asVector)
     {
         FromVector(asVector, *this);
+    }
+
+    CServiceReward(const UniValue &obj) : nVersion(PBAAS_VERSION)
+    {
+        serviceType = uni_get_str(find_value(obj, "servicetype")) == "notarization" ? SERVICE_NOTARIZATION : SERVICE_INVALID;
+        billingPeriod = uni_get_int(find_value(obj, "billingperiod"));
+        if (!billingPeriod)
+        {
+            serviceType = SERVICE_INVALID;
+        }
+    }
+
+    CServiceReward(const CTransaction &tx, bool validate = false);
+
+    UniValue ToUniValue() const
+    {
+        UniValue obj(UniValue::VOBJ);
+        obj.push_back(Pair("servicetype", serviceType == SERVICE_NOTARIZATION ? "notarization" : "unknown"));
+        obj.push_back(Pair("billingperiod", billingPeriod));
+        return obj;
     }
 
     std::vector<unsigned char> AsVector()
@@ -939,6 +957,7 @@ bool ValidateChainImport(struct CCcontract_info *cp, Eval* eval, const CTransact
 
 // used to validate a specific service reward based on the spending transaction
 bool ValidateServiceReward(struct CCcontract_info *cp, Eval* eval, const CTransaction &tx, uint32_t nIn);
+bool IsServiceRewardInput(const CScript &scriptSig);
 
 // used as a proxy token output for a reserve currency on its fractional reserve chain
 bool ValidateReserveOutput(struct CCcontract_info *cp, Eval* eval, const CTransaction &tx, uint32_t nIn);

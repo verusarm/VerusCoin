@@ -35,6 +35,7 @@
 
 #include "rpc/pbaasrpc.h"
 #include "pbaas/crosschainrpc.h"
+#include "transaction_builder.h"
 
 using namespace std;
 
@@ -122,6 +123,47 @@ bool GetChainDefinition(string &name, CPBaaSChainDefinition &chainDef)
                 chainDef = CPBaaSChainDefinition(tx);
                 found = chainDef.IsValid() && chainDef.name == name;
                 if (found)
+                {
+                    break;
+                }
+            }
+        }
+    }
+    return found;
+}
+
+bool GetChainDefinition(uint160 chainID, CPBaaSChainDefinition &chainDef)
+{
+    CCcontract_info CC;
+    CCcontract_info *cp;
+
+    if (chainID == ConnectedChains.ThisChain().GetChainID())
+    {
+        chainDef = ConnectedChains.ThisChain();
+        return true;
+    }
+
+    // make the chain definition output
+    cp = CCinit(&CC, EVAL_PBAASDEFINITION);
+
+    CBitcoinAddress bca(CC.unspendableCCaddr);
+
+    CKeyID id;
+    bca.GetKeyID(id);
+
+    std::vector<std::pair<CAddressIndexKey, CAmount>> addressIndex;
+    bool found = false;
+
+    if (GetAddressIndex(id, 1, addressIndex))
+    {
+        for (auto txidx : addressIndex)
+        {
+            CTransaction tx;
+            uint256 blkHash;
+            if (myGetTransaction(txidx.first.txhash, tx, blkHash))
+            {
+                chainDef = CPBaaSChainDefinition(tx);
+                if (found = chainDef.IsValid() && chainDef.GetChainID() == chainID)
                 {
                     break;
                 }
@@ -518,6 +560,65 @@ UniValue getnotarizationdata(const UniValue& params, bool fHelp)
     }
 }
 
+// get inputs for all of the unspent reward outputs sent to a specific reward type for the range specified
+// returns the total input amount
+CAmount GetUnspentRewardInputs(const CPBaaSChainDefinition &chainDef, vector<CTxIn> &vinputs, uint160 baseAddress, int32_t serviceCode, int32_t height)
+{
+    CAmount retval = 0;
+
+    // look for unspent outputs that match the addressout hashed with service code
+    CKeyID keyID(CCrossChainRPCData::GetConditionID(baseAddress, serviceCode));
+
+    std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> > unspentOutputs;
+
+    if (GetAddressUnspent(keyID, 1, unspentOutputs))
+    {
+        // spend all billing periods prior or equal to this one
+        int billingPeriod = height / chainDef.billingPeriod;
+
+        // we need to look through the inputs to ensure that they are
+        // actual service reward outputs in the correct billing periof, since we don't currently prevent other types of transaction outputs from being
+        // sent to the same address, though doing so would burn its value anyhow
+        for (auto output : unspentOutputs)
+        {
+            // printf("txid: %s\n", it->first.txhash.GetHex().c_str());
+            CTransaction ntx;
+            uint256 blkHash;
+            CServiceReward sr;
+            if (myGetTransaction(output.first.txhash, ntx, blkHash) && 
+                (sr = CServiceReward(ntx)).IsValid() && 
+                sr.serviceType == SERVICE_NOTARIZATION &&
+                sr.billingPeriod <= billingPeriod)
+            {
+                vinputs.push_back(CTxIn(output.first.txhash, output.first.index));
+                retval += output.second.satoshis;
+            }
+            else
+            {
+                LogPrintf("GetUnspentRewardInputs: cannot retrieve transaction %s\n", output.first.txhash.GetHex().c_str());
+                printf("GetUnspentRewardInputs: cannot retrieve transaction %s\n", output.first.txhash.GetHex().c_str());
+            }
+        }
+    }
+    return retval;
+}
+
+
+
+// this adds any new notarization rewards that have been sent to the notarization reward pool for this
+// billing period since last accepted notarization, up to a maximum number of inputs
+CAmount AddNewNotarizationRewards(CPBaaSChainDefinition &chainDef, CMutableTransaction mnewTx, int32_t height)
+{
+    // get current chain info
+    CAmount newIn = 0;
+    vector<CTxIn> newInputs;
+    newIn = GetUnspentRewardInputs(chainDef, newInputs, chainDef.GetChainID(), SERVICE_NOTARIZATION, height);
+    for (auto input : newInputs)
+    {
+        mnewTx.vin.push_back(input);
+    }
+    return newIn;
+}
 
 UniValue submitacceptednotarization(const UniValue& params, bool fHelp)
 {
@@ -562,8 +663,6 @@ UniValue submitacceptednotarization(const UniValue& params, bool fHelp)
     // get notarization data and check all transactions
     if (GetNotarizationData(pbn.chainID, EVAL_ACCEPTEDNOTARIZATION, nData))
     {
-        CTransaction tx;
-
         // if any notarization exists that is accepted and more recent than the last one, but one we still agree with,
         // we cannot submit, aside from that, we will prepare and submit
         set<uint256> priorBlocks;
@@ -608,6 +707,7 @@ UniValue submitacceptednotarization(const UniValue& params, bool fHelp)
         // confirmation to confirmed notary and miner of block,
         // add our output address and submit
         CMutableTransaction mnewTx = CreateNewContextualCMutableTransaction(Params().GetConsensus(), chainActive.Height());
+        vector<CInputDescriptor> notarizationInputs;
         for (auto input : notarization.vin)
         {
             mnewTx.vin.push_back(input);
@@ -630,24 +730,110 @@ UniValue submitacceptednotarization(const UniValue& params, bool fHelp)
         uint32_t notarizationIdx = -1, finalizationIdx = -1;
         CPBaaSNotarization dummy;
 
-        // if we confirm and finalize, add payment output
-        if (AddSpendsAndFinalizations(nData, pbn.prevNotarization, lastTx, mnewTx, &confirmedInput, &payee) &&
-            GetNotarizationAndFinalization(EVAL_ACCEPTEDNOTARIZATION, mnewTx, dummy, &notarizationIdx, &finalizationIdx))
+        notarizationInputs = AddSpendsAndFinalizations(nData, pbn.prevNotarization, lastTx, mnewTx, &confirmedInput, &payee);
+
+        if (notarizationInputs.size() && GetNotarizationAndFinalization(EVAL_ACCEPTEDNOTARIZATION, mnewTx, dummy, &notarizationIdx, &finalizationIdx))
         {
             // we need to add outputs to pay the reward to the confirmed notary and block miner/staker of that notarization
             // the rest goes back into the notarization thread
             // first input should be the notarization thread
+            CTransaction newTx(mnewTx);
+            CTransaction confirmedTx;
+            CPBaaSNotarization confirmedPBN;
+            CBlockIndex *pindex = NULL;
+            uint256 hashBlock;
+            CBlock confirmedBlock;
+            CPBaaSChainDefinition chainDef;
+
             CAmount valueIn;
+            CTxDestination notaryRecipient, minerRecipient;
+
+            BlockMap::iterator it;
             {
                 LOCK(cs_main);
+                // get value in
                 CCoinsViewCache view(pcoinsTip);
                 int64_t dummyInterest;
-                valueIn = view.GetValueIn(chainActive.LastTip()->GetHeight(), &dummyInterest, tx, chainActive.LastTip()->nTime);
+                valueIn = view.GetValueIn(chainActive.LastTip()->GetHeight(), &dummyInterest, newTx, chainActive.LastTip()->nTime);
+
+                // get data from confirmed tx and block that constains confirmed tx
+                if (myGetTransaction(mnewTx.vin[confirmedInput].prevout.hash, confirmedTx, hashBlock) &&
+                    (it = mapBlockIndex.find(hashBlock)) != mapBlockIndex.end())
+                {
+                    pindex = mapBlockIndex.find(blkHash)->second;
+                }
+
+                // add all inputs that might provide notary reward and calculate notary reward based on that plus current
+                // notarization input value divided by number of blocks left in billing period, times blocks per notarization
+                if (GetChainDefinition(pbn.chainID, chainDef))
+                {
+                    valueIn += AddNewNotarizationRewards(chainDef, mnewTx, chainActive.LastTip()->GetHeight());
+                }
+                else
+                {
+                    LogPrintf("AddNewNotarizationRewards: cannot find chain %s, possible corrupted database\n", chainDef.name.c_str());
+                    printf("AddNewNotarizationRewards: cannot find chain %s, possible corrupted database\n", chainDef.name.c_str());
+                }
+
             }
 
-            // we need to pay the total remaining notarization reward for this billing period / remaining blocks in the billing period * min blocks in notarization
-            // 
-            // the finalization out has minimum, the notarization out has all the remainder
+            // get recipients of any reward output
+            if (pindex && ReadBlockFromDisk(confirmedBlock, pindex, false) && 
+                (confirmedPBN = CPBaaSNotarization(confirmedTx)).IsValid() &&
+                ExtractDestination(confirmedBlock.vtx[0].vout[0].scriptPubKey, minerRecipient, false))
+            {
+                notaryRecipient = CTxDestination(CKeyID(confirmedPBN.notaryKeyID));
+            }
+            else
+            {
+                throw JSONRPCError(RPC_DATABASE_ERROR, "unable to retrieve confirmed notarization data");
+            }
+
+            // minimum amount must go to main thread and finalization, then divide what is left among blocks in the billing period
+            uint64_t blocksLeft = chainDef.billingPeriod - (pbn.notarizationHeight % chainDef.billingPeriod);
+            CAmount valueOut;
+            if (blocksLeft <= CPBaaSNotarization::MIN_BLOCKS_BETWEEN_ACCEPTED)
+            {
+                valueOut = valueIn - CPBaaSChainDefinition::DEFAULT_OUTPUT_VALUE * 2;
+            }
+            else
+            {
+                valueOut = (CPBaaSNotarization::MIN_BLOCKS_BETWEEN_ACCEPTED * (valueIn - CPBaaSChainDefinition::DEFAULT_OUTPUT_VALUE * 2)) / blocksLeft;
+            }
+            
+            CAmount notaryValueOut;
+
+            if (valueOut >= PBAAS_MINNOTARIZATIONOUTPUT)
+            {
+                // pay the confirmed notary with
+                // notarization reward for this billing period / remaining blocks in the billing period * min blocks in notarization
+                // the finalization out has minimum, the notarization out has all the remainder
+                // outputs we should have here:
+                // 1) notarization out
+                // 2) finalization out
+                // 3) op_ret
+                //
+                // send:
+                // 66% of output to notary address
+                // 33% of output to primary address of block reward
+                notaryValueOut = valueIn - (CPBaaSChainDefinition::DEFAULT_OUTPUT_VALUE + valueOut);
+
+                auto insertIt = mnewTx.vout.begin() + (finalizationIdx + 1);
+                CAmount minerOutput = valueOut / 3;
+                CAmount notaryOutput = valueOut / 3 * 2;
+                mnewTx.vout.insert(insertIt, CTxOut(minerOutput, GetScriptForDestination(minerRecipient)));
+                mnewTx.vout.insert(insertIt, CTxOut(notaryOutput, GetScriptForDestination(notaryRecipient)));
+            }
+            else
+            {
+                valueOut = 0;
+                notaryValueOut = PBAAS_MINNOTARIZATIONOUTPUT;
+            }
+            
+            if ((notaryValueOut + valueOut + CPBaaSChainDefinition::DEFAULT_OUTPUT_VALUE) > valueIn)
+            {
+                throw JSONRPCError(RPC_TRANSACTION_REJECTED, "Not enough funds to notarize");
+            }
 
             CCcontract_info CC;
             CCcontract_info *cp;
@@ -660,7 +846,7 @@ UniValue submitacceptednotarization(const UniValue& params, bool fHelp)
             CKeyID id = CCrossChainRPCData::GetConditionID(pbn.chainID, EVAL_ACCEPTEDNOTARIZATION);
             std::vector<CTxDestination> dests({id});
 
-            mnewTx.vout[notarizationIdx] = MakeCC1of1Vout(EVAL_ACCEPTEDNOTARIZATION, CPBaaSChainDefinition::DEFAULT_OUTPUT_VALUE, pk, dests, pbn);
+            mnewTx.vout[notarizationIdx] = MakeCC1of1Vout(EVAL_ACCEPTEDNOTARIZATION, notaryValueOut, pk, dests, pbn);
 
             // make the unspent finalization output
             cp = CCinit(&CC, EVAL_FINALIZENOTARIZATION);
@@ -668,11 +854,44 @@ UniValue submitacceptednotarization(const UniValue& params, bool fHelp)
             dests = std::vector<CTxDestination>({CKeyID(CCrossChainRPCData::GetConditionID(pbn.chainID, EVAL_FINALIZENOTARIZATION))});
 
             CNotarizationFinalization nf(confirmedInput);
-            mnewTx.vout[finalizationIdx] = MakeCC1of1Vout(EVAL_FINALIZENOTARIZATION, DEFAULT_TRANSACTION_FEE, pk, dests, nf);
+            mnewTx.vout[finalizationIdx] = MakeCC1of1Vout(EVAL_FINALIZENOTARIZATION, CPBaaSChainDefinition::DEFAULT_OUTPUT_VALUE, pk, dests, nf);
 
-            CTransaction newTx(mnewTx);
+            CTransaction ntx(mnewTx);
 
-            // sign and submit transaction
+            uint32_t consensusBranchId = CurrentEpochBranchId(chainActive.LastTip()->GetHeight(), Params().GetConsensus());
+
+            // sign the transaction and submit
+            for (int i = 0; i < ntx.vin.size(); i++)
+            {
+                bool signSuccess;
+                SignatureData sigdata;
+                CAmount value;
+                const CScript *pScriptPubKey;
+
+                const CScript virtualCC;
+                CTxOut virtualCCOut;
+
+                // if this is our coinbase input, we won't find it elsewhere
+                if (i < notarizationInputs.size())
+                {
+                    pScriptPubKey = &notarizationInputs[i].scriptPubKey;
+                    value = notarizationInputs[i].nValue;
+
+                    signSuccess = ProduceSignature(TransactionSignatureCreator(pwalletMain, &ntx, i, value, SIGHASH_ALL), *pScriptPubKey, sigdata, consensusBranchId);
+
+                    if (!signSuccess)
+                    {
+                        fprintf(stderr,"CreateNewBlock: failure to sign earned notarization\n");
+                        throw JSONRPCError(RPC_VERIFY_ERROR, "Failed to sign notarizaton for " + chainDef.name);
+                    } else {
+                        UpdateTransaction(mnewTx, i, sigdata);
+                    }
+                }
+            }
+
+            // submit transaction
+            CTransaction tx(mnewTx);
+            RelayTransaction(tx);
 
             return newTx.GetHash().GetHex();
         }

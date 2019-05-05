@@ -95,7 +95,11 @@ bool ValidateChainImport(struct CCcontract_info *cp, Eval* eval, const CTransact
 // used to validate a specific service reward based on the spending transaction
 bool ValidateServiceReward(struct CCcontract_info *cp, Eval* eval, const CTransaction &tx, uint32_t nIn)
 {
-
+    // for each type of service reward, we need to check and see if the spender is
+    // correctly formatted to be a valid spend of the service reward. for notarization
+    // we ensure that the notarization and its outputs are valid and that the spend
+    // applies to the correct billing period
+    return true;
 }
 
 // used as a proxy token output for a reserve currency on its fractional reserve chain
@@ -272,10 +276,10 @@ CPBaaSChainDefinition::CPBaaSChainDefinition(const CTransaction &tx, bool valida
     nVersion = PBAAS_VERSION_INVALID;
     for (auto out : tx.vout)
     {
-        uint32_t ecode;
-        if (out.scriptPubKey.IsPayToCryptoCondition(&ecode))
+        COptCCParams p;
+        if (IsPayToCryptoCondition(out.scriptPubKey, p))
         {
-            if (ecode == EVAL_PBAASDEFINITION)
+            if (p.evalCode == EVAL_PBAASDEFINITION)
             {
                 if (definitionFound)
                 {
@@ -283,12 +287,8 @@ CPBaaSChainDefinition::CPBaaSChainDefinition(const CTransaction &tx, bool valida
                 }
                 else
                 {
-                    COptCCParams p;
+                    FromVector(p.vData[0], *this);
                     definitionFound = true;
-                    if (!IsPayToCryptoCondition(out.scriptPubKey, p, *this))
-                    {
-                        nVersion = PBAAS_VERSION_INVALID;
-                    }
                 }
             }
         }
@@ -299,6 +299,30 @@ CPBaaSChainDefinition::CPBaaSChainDefinition(const CTransaction &tx, bool valida
         
     }
 }
+
+CServiceReward::CServiceReward(const CTransaction &tx, bool validate)
+{
+    nVersion = PBAAS_VERSION_INVALID;
+    for (auto out : tx.vout)
+    {
+        COptCCParams p;
+        if (IsPayToCryptoCondition(out.scriptPubKey, p))
+        {
+            // always take the first for now
+            if (p.evalCode == EVAL_SERVICEREWARD)
+            {
+                FromVector(p.vData[0], *this);
+                break;
+            }
+        }
+    }
+
+    if (validate)
+    {
+        
+    }
+}
+
 
 uint160 CPBaaSChainDefinition::GetChainID(std::string name)
 {
@@ -894,4 +918,11 @@ bool IsChainDefinitionInput(const CScript &scriptSig)
 {
     uint32_t ecode;
     return scriptSig.IsPayToCryptoCondition(&ecode) && ecode == EVAL_PBAASDEFINITION;
+}
+
+bool IsServiceRewardInput(const CScript &scriptSig)
+{
+    // this is an output check, and is incorrect. need to change to input
+    uint32_t ecode;
+    return scriptSig.IsPayToCryptoCondition(&ecode) && ecode == EVAL_SERVICEREWARD;
 }
