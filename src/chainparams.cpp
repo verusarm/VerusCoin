@@ -678,7 +678,12 @@ static CRegTestParams regTestParams;
 static CChainParams *pCurrentParams = 0;
 
 const CChainParams &Params() {
-    assert(pCurrentParams);
+    // the only reason this should occur is before initialization to convert addresses
+    // we don't use others besides main, and the only risk in returning it would be something else not initialized
+    if (!pCurrentParams)
+    {
+        return mainParams;
+    }
     return *pCurrentParams;
 }
 
