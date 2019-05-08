@@ -355,11 +355,15 @@ CBlockTemplate* CreateNewBlock(const CScript& _scriptPubKeyIn, int32_t gpucount,
         int64_t pbaasTransparentIn = 0;
         int64_t pbaasTransparentOut = 0;
         int64_t blockSubsidy = GetBlockSubsidy(nHeight, consensusParams);
+
         uint256 mmrRoot;
         vector<CInputDescriptor> notarizationInputs;
 
         // make earned notarization only if this is not the notary chain and we have enough subsidy
+        //
         // TODO: allow this to proceed if no subsidy and earned notarizations pay no reward as well
+        // we will need to provide a notarization reward option, even for non-fungible chains, just to enable
+        // creation of the notarizations
         if (!IsVerusActive() && (blockSubsidy > PBAAS_MINNOTARIZATIONOUTPUT * 2))
         {
             // if we don't have a connected root PBaaS chain, we can't properly check
@@ -717,6 +721,17 @@ CBlockTemplate* CreateNewBlock(const CScript& _scriptPubKeyIn, int32_t gpucount,
                 return 0;
             }
         }
+        else if (!IsVerusActive() && stakeHeight == 1)
+        {
+            // first block, send normal reward to the miner, and premine to the specified address in the
+            // chain definition
+            if (!ConnectedChains.ThisChain().address.IsNull() && GetBlockOnePremine())
+            {
+                // move miner output to output 1 and put premine in output 0
+                txNew.vout.push_back(CTxOut(txNew.vout[0].nValue - GetBlockOnePremine(), txNew.vout[0].scriptPubKey));
+                txNew.vout[0] = CTxOut(GetBlockOnePremine(), GetScriptForDestination(CTxDestination(ConnectedChains.ThisChain().address)));
+            }
+        }
 
         txNew.nExpiryHeight = 0;
         txNew.nLockTime = std::max(pindexPrev->GetMedianTimePast()+1, GetAdjustedTime());
@@ -726,12 +741,17 @@ CBlockTemplate* CreateNewBlock(const CScript& _scriptPubKeyIn, int32_t gpucount,
 
         // check if coinbase transactions must be time locked at current subsidy and prepend the time lock
         // to transaction if so, cast for GTE operator
-        if ((uint64_t)(txNew.vout[0].nValue) >= ASSETCHAINS_TIMELOCKGTE)
+        CAmount cbValueOut = 0;
+        for (auto txout : txNew.vout)
+        {
+            cbValueOut += txout.nValue;
+        }
+        if (cbValueOut >= ASSETCHAINS_TIMELOCKGTE)
         {
             int32_t opretlen, p2shlen, scriptlen;
             CScriptExt opretScript = CScriptExt();
 
-            txNew.vout.resize(2);
+            txNew.vout.push_back(CTxOut());
 
             // prepend time lock to original script unless original script is P2SH, in which case, we will leave the coins
             // protected only by the time lock rather than 100% inaccessible
@@ -745,8 +765,8 @@ CBlockTemplate* CreateNewBlock(const CScript& _scriptPubKeyIn, int32_t gpucount,
             opretScript += scriptPubKeyIn;
 
             txNew.vout[0].scriptPubKey = CScriptExt().PayToScriptHash(CScriptID(opretScript));
-            txNew.vout[1].scriptPubKey = CScriptExt().OpReturnScript(opretScript, OPRETTYPE_TIMELOCK);
-            txNew.vout[1].nValue = 0;
+            txNew.vout.back().scriptPubKey = CScriptExt().OpReturnScript(opretScript, OPRETTYPE_TIMELOCK);
+            txNew.vout.back().nValue = 0;
         } // timelocks and commissions are currently incompatible due to validation complexity of the combination
         else if ( nHeight > 1 && ASSETCHAINS_SYMBOL[0] != 0 && ASSETCHAINS_OVERRIDE_PUBKEY33[0] != 0 && ASSETCHAINS_COMMISSION != 0 && (commission= komodo_commission((CBlock*)&pblocktemplate->block)) != 0 )
         {
@@ -761,6 +781,10 @@ CBlockTemplate* CreateNewBlock(const CScript& _scriptPubKeyIn, int32_t gpucount,
             ptr[34] = OP_CHECKSIG;
             //printf("autocreate commision vout\n");
         }
+
+        // finalize input of coinbase
+        txNew.vin[0].scriptSig = (CScript() << nHeight << CScriptNum(0)) + COINBASE_FLAGS;
+        assert(txNew.vin[0].scriptSig.size() <= 100);
 
         // add final notarization and instant spend fixups
         if (pbaasNotarizationTx)
@@ -798,7 +822,6 @@ CBlockTemplate* CreateNewBlock(const CScript& _scriptPubKeyIn, int32_t gpucount,
             CPBaaSNotarization pbn(pblock->vtx[pbaasNotarizationTx]);
             txNew.vout.insert(coinbaseOutIt, MakeCC1of1Vout(EVAL_EARNEDNOTARIZATION, needed, pk, vKeys, pbn));
             txNew.vout[0].nValue = txNew.vout[0].nValue - needed;
-            pblock->vtx[0] = txNew;
 
             // bind to the right output of the coinbase
             mntx.vin.push_back(CTxIn(txNew.GetHash(), pbaasCoinbaseInstantSpendOut));
@@ -981,22 +1004,33 @@ void IncrementExtraNonce(CBlock* pblock, CBlockIndex* pindexPrev, unsigned int &
     }
     ++nExtraNonce;
 
-    // extra nonce is kept in the header, not in the coinbase any longer
-    // this allows instant spend transactions to use coinbase funds for
-    // inputs by ensuring that once created, the coinbase transaction hash
-    // will not continue to change
-    CDataStream s(SER_NETWORK, PROTOCOL_VERSION);
-    s << nExtraNonce;
-    std::vector<unsigned char> vENonce(s.begin(), s.end());
-    assert(pblock->ExtraDataLen() >= vENonce.size());
-    pblock->SetExtraData(vENonce.data(), vENonce.size());
-    /*
-    unsigned int nHeight = pindexPrev->GetHeight()+1; // Height first in coinbase required for block.version=2
-    CMutableTransaction txCoinbase(pblock->vtx[0]);
-    txCoinbase.vin[0].scriptSig = (CScript() << nHeight << CScriptNum(nExtraNonce)) + COINBASE_FLAGS;
-    assert(txCoinbase.vin[0].scriptSig.size() <= 100);
-    pblock->vtx[0] = txCoinbase;
-    */
+    int32_t nHeight = pindexPrev->GetHeight() + 1;
+
+    if (CConstVerusSolutionVector::activationHeight.ActiveVersion(nHeight) >= CConstVerusSolutionVector::activationHeight.SOLUTION_VERUSV3)
+    {
+        // extra nonce is kept in the header, not in the coinbase any longer
+        // this allows instant spend transactions to use coinbase funds for
+        // inputs by ensuring that once final, the coinbase transaction hash
+        // will not continue to change
+        CDataStream s(SER_NETWORK, PROTOCOL_VERSION);
+        s << nExtraNonce;
+        std::vector<unsigned char> vENonce(s.begin(), s.end());
+
+        printf("pblock->ExtraDataLen() == %u, vENonce.size() == %lu\n", pblock->ExtraDataLen(), vENonce.size());
+
+        assert(pblock->ExtraDataLen() >= vENonce.size());
+        pblock->SetExtraData(vENonce.data(), vENonce.size());
+    }
+    else
+    {
+        // finalize input of coinbase
+        CMutableTransaction txcb(pblock->vtx[0]);
+        txcb.vin[0].scriptSig = (CScript() << nHeight << CScriptNum(nExtraNonce)) + COINBASE_FLAGS;
+        assert(txcb.vin[0].scriptSig.size() <= 100);
+        pblock->vtx[0] = txcb;
+    }
+
+    printf("Coinbase Script: %s\n", pblock->vtx[0].vout[0].scriptPubKey.ToString().c_str());
 
     if (buildMerkle)
     {

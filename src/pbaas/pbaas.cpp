@@ -222,14 +222,15 @@ std::vector<CBaseChainObject *> RetrieveOpRetArray(const CScript &opRetScript)
 CNodeData::CNodeData(UniValue &obj)
 {
     networkAddress = uni_get_str(find_value(obj, "networkaddress"));
-    paymentAddress = uni_get_str(find_value(obj, "paymentaddress"));
+    CBitcoinAddress ba(uni_get_str(find_value(obj, "paymentaddress")));
+    ba.GetKeyID(paymentAddress);
 }
 
 UniValue CNodeData::ToUniValue() const
 {
     UniValue obj(UniValue::VOBJ);
     obj.push_back(Pair("networkaddress", networkAddress));
-    obj.push_back(Pair("paymentaddress", paymentAddress));
+    obj.push_back(Pair("paymentaddress", CBitcoinAddress(paymentAddress).ToString()));
     return obj;
 }
 
@@ -237,7 +238,8 @@ CPBaaSChainDefinition::CPBaaSChainDefinition(const UniValue &obj)
 {
     nVersion = PBAAS_VERSION;
     name = uni_get_str(find_value(obj, "name"));
-    address = uni_get_str(find_value(obj, "address"));
+    CBitcoinAddress ba(uni_get_str(find_value(obj, "paymentaddress")));
+    ba.GetKeyID(address);
     premine = uni_get_int64(find_value(obj, "premine"));
     conversion = uni_get_int64(find_value(obj, "conversion"));
     launchFee = uni_get_int64(find_value(obj, "launchfee"));
@@ -341,7 +343,7 @@ UniValue CPBaaSChainDefinition::ToUniValue() const
     UniValue obj(UniValue::VOBJ);
     obj.push_back(Pair("version", (int64_t)nVersion));
     obj.push_back(Pair("name", name));
-    obj.push_back(Pair("address", address));
+    obj.push_back(Pair("paymentaddress", CBitcoinAddress(CTxDestination(address)).ToString()));
     obj.push_back(Pair("premine", (int64_t)premine));
     obj.push_back(Pair("conversion", (int64_t)conversion));
     obj.push_back(Pair("launchfee", (int64_t)launchFee));

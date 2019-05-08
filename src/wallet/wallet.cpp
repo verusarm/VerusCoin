@@ -2297,16 +2297,16 @@ isminetype CWallet::IsMine(const CTransaction& tx, uint32_t voutNum)
                         return ret;
                 }
             }
-            else if (tx.vout.size() > (voutNext = voutNum + 1) &&
-                tx.vout[voutNext].scriptPubKey.size() > 7 &&
-                tx.vout[voutNext].scriptPubKey[0] == OP_RETURN)
+            else if (tx.vout.size() > (voutNum + 1) &&
+                tx.vout.back().scriptPubKey.size() > 7 &&
+                tx.vout.back().scriptPubKey[0] == OP_RETURN)
             {
                 // get the opret script from next vout, verify that the front is CLTV and hash matches
                 // if so, remove it and use the solver
                 opcodetype op;
                 std::vector<uint8_t> opretData;
-                CScript::const_iterator it = tx.vout[voutNext].scriptPubKey.begin() + 1;
-                if (tx.vout[voutNext].scriptPubKey.GetOp2(it, op, &opretData))
+                CScript::const_iterator it = tx.vout.back().scriptPubKey.begin() + 1;
+                if (tx.vout.back().scriptPubKey.GetOp2(it, op, &opretData))
                 {
                     if (opretData.size() > 0 && opretData[0] == OPRETTYPE_TIMELOCK)
                     {

@@ -562,7 +562,7 @@ UniValue getnotarizationdata(const UniValue& params, bool fHelp)
 
 // get inputs for all of the unspent reward outputs sent to a specific reward type for the range specified
 // returns the total input amount
-CAmount GetUnspentRewardInputs(const CPBaaSChainDefinition &chainDef, vector<CTxIn> &vinputs, uint160 baseAddress, int32_t serviceCode, int32_t height)
+CAmount GetUnspentRewardInputs(const CPBaaSChainDefinition &chainDef, vector<CInputDescriptor> &inputs, uint160 baseAddress, int32_t serviceCode, int32_t height)
 {
     CAmount retval = 0;
 
@@ -579,45 +579,72 @@ CAmount GetUnspentRewardInputs(const CPBaaSChainDefinition &chainDef, vector<CTx
         // we need to look through the inputs to ensure that they are
         // actual service reward outputs in the correct billing periof, since we don't currently prevent other types of transaction outputs from being
         // sent to the same address, though doing so would burn its value anyhow
+
+        LOCK(cs_main);
         for (auto output : unspentOutputs)
         {
             // printf("txid: %s\n", it->first.txhash.GetHex().c_str());
-            CTransaction ntx;
-            uint256 blkHash;
             CServiceReward sr;
-            if (myGetTransaction(output.first.txhash, ntx, blkHash) && 
-                (sr = CServiceReward(ntx)).IsValid() && 
-                sr.serviceType == SERVICE_NOTARIZATION &&
-                sr.billingPeriod <= billingPeriod)
+            CCoins coins;
+            if (pcoinsTip->GetCoins(output.first.txhash, coins))
             {
-                vinputs.push_back(CTxIn(output.first.txhash, output.first.index));
-                retval += output.second.satoshis;
-            }
-            else
-            {
-                LogPrintf("GetUnspentRewardInputs: cannot retrieve transaction %s\n", output.first.txhash.GetHex().c_str());
-                printf("GetUnspentRewardInputs: cannot retrieve transaction %s\n", output.first.txhash.GetHex().c_str());
+                for (auto txout : coins.vout)
+                {
+                    COptCCParams p;
+                    if (!txout.IsNull() && IsPayToCryptoCondition(txout.scriptPubKey, p) && p.evalCode == EVAL_SERVICEREWARD)
+                    {
+                        FromVector(p.vData[0], sr);
+                        if (sr.IsValid())
+                        {
+                            inputs.push_back(CInputDescriptor(txout.scriptPubKey, txout.nValue, CTxIn(output.first.txhash, output.first.index)));
+                            retval += txout.nValue;
+                        }
+                    }
+                    else
+                    {
+                        LogPrintf("GetUnspentRewardInputs: cannot retrieve transaction %s\n", output.first.txhash.GetHex().c_str());
+                        printf("GetUnspentRewardInputs: cannot retrieve transaction %s\n", output.first.txhash.GetHex().c_str());
+                    }
+                }
             }
         }
     }
     return retval;
 }
 
-
-
 // this adds any new notarization rewards that have been sent to the notarization reward pool for this
 // billing period since last accepted notarization, up to a maximum number of inputs
-CAmount AddNewNotarizationRewards(CPBaaSChainDefinition &chainDef, CMutableTransaction mnewTx, int32_t height)
+CAmount AddNewNotarizationRewards(CPBaaSChainDefinition &chainDef, vector<CInputDescriptor> &inputs, CMutableTransaction mnewTx, int32_t height)
 {
     // get current chain info
     CAmount newIn = 0;
-    vector<CTxIn> newInputs;
-    newIn = GetUnspentRewardInputs(chainDef, newInputs, chainDef.GetChainID(), SERVICE_NOTARIZATION, height);
-    for (auto input : newInputs)
+    newIn = GetUnspentRewardInputs(chainDef, inputs, chainDef.GetChainID(), SERVICE_NOTARIZATION, height);
+    for (auto input : inputs)
     {
-        mnewTx.vin.push_back(input);
+        mnewTx.vin.push_back(input.txIn);
     }
     return newIn;
+}
+
+UniValue submitnotarizationpayment(const UniValue& params, bool fHelp)
+{
+    if (fHelp || params.size() != 1)
+    {
+        throw runtime_error(
+            "submitnotarizationpayment \"chainid\" \"amount\" \"billingperiod\"\n"
+            "\nAdds some amount of funds to a specific billing period of a PBaaS chain, which will be released\n"
+            "\nin the form of payments to notaries whose notarizations are confirmed.\n"
+
+            "\nArguments\n"
+
+            "\nResult:\n"
+
+            "\nExamples:\n"
+            + HelpExampleCli("submitacceptednotarization", "\"hextx\"")
+            + HelpExampleRpc("submitacceptednotarization", "\"hextx\"")
+        );
+    }
+
 }
 
 UniValue submitacceptednotarization(const UniValue& params, bool fHelp)
@@ -765,14 +792,14 @@ UniValue submitacceptednotarization(const UniValue& params, bool fHelp)
 
                 // add all inputs that might provide notary reward and calculate notary reward based on that plus current
                 // notarization input value divided by number of blocks left in billing period, times blocks per notarization
-                if (GetChainDefinition(pbn.chainID, chainDef))
+                if (pindex && GetChainDefinition(pbn.chainID, chainDef))
                 {
-                    valueIn += AddNewNotarizationRewards(chainDef, mnewTx, chainActive.LastTip()->GetHeight());
+                    valueIn += AddNewNotarizationRewards(chainDef, notarizationInputs, mnewTx, pindex->GetHeight());
                 }
                 else
                 {
-                    LogPrintf("AddNewNotarizationRewards: cannot find chain %s, possible corrupted database\n", chainDef.name.c_str());
-                    printf("AddNewNotarizationRewards: cannot find chain %s, possible corrupted database\n", chainDef.name.c_str());
+                    LogPrintf("submitacceptednotarization: cannot find chain %s, possible corrupted database\n", chainDef.name.c_str());
+                    printf("submitacceptednotarization: cannot find chain %s, possible corrupted database\n", chainDef.name.c_str());
                 }
 
             }
@@ -790,7 +817,7 @@ UniValue submitacceptednotarization(const UniValue& params, bool fHelp)
             }
 
             // minimum amount must go to main thread and finalization, then divide what is left among blocks in the billing period
-            uint64_t blocksLeft = chainDef.billingPeriod - (pbn.notarizationHeight % chainDef.billingPeriod);
+            uint64_t blocksLeft = chainDef.billingPeriod - (confirmedPBN.notarizationHeight % chainDef.billingPeriod);
             CAmount valueOut;
             if (blocksLeft <= CPBaaSNotarization::MIN_BLOCKS_BETWEEN_ACCEPTED)
             {
@@ -898,7 +925,6 @@ UniValue submitacceptednotarization(const UniValue& params, bool fHelp)
     }
     throw JSONRPCError(RPC_VERIFY_REJECTED, "Failed to get notarizaton data for chainID: " + pbn.chainID.GetHex());
 }
-
 
 UniValue getcrossnotarization(const UniValue& params, bool fHelp)
 {
@@ -1241,7 +1267,7 @@ UniValue definechain(const UniValue& params, bool fHelp)
             "\nArguments\n"
             "      {\n"
             "         \"name\"       : \"xxxx\",    (string, required) unique Verus ecosystem-wide name/symbol of this PBaaS chain\n"
-            "         \"address\"    : \"Rxxx\",    (string, optional) premine and launch fee recipient\n"
+            "         \"paymentaddress\" : \"Rxxx\", (string, optional) premine and launch fee recipient\n"
             "         \"premine\"    : \"n\",       (int,    optional) amount of coins that will be premined and distributed to premine address\n"
             "         \"convertible\" : \"n\",      (int,    optional) amount of coins that may be converted from Verus, price determined by total contribution\n"
             "         \"launchfee\"  : \"n\",       (int,    optional) VRSC fee for conversion at startup, multiplied by amount, divided by 100000000\n"
@@ -1888,6 +1914,8 @@ static const CRPCCommand commands[] =
     { "pbaas",        "getnotarizationdata",          &getnotarizationdata,    true  },
     { "pbaas",        "getcrossnotarization",         &getcrossnotarization,   true  },
     { "pbaas",        "definechain",                  &definechain,            true  },
+    { "pbaas",        "submitacceptednotarization",   &submitacceptednotarization, true  },
+    { "pbaas",        "submitnotarizationpayment",    &submitnotarizationpayment, true  },
     { "pbaas",        "addmergedblock",               &addmergedblock,         true  }
 };
 

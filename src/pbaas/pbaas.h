@@ -362,13 +362,17 @@ class CNodeData
 {
 public:
     std::string networkAddress;
-    std::string paymentAddress;
+    CKeyID paymentAddress;
 
     CNodeData() {}
     CNodeData(UniValue &);
-
+    CNodeData(std::string netAddr, uint160 paymentKeyID) : networkAddress(netAddr), paymentAddress(paymentKeyID) {}
     CNodeData(std::string netAddr, std::string paymentAddr) :
-        networkAddress(netAddr), paymentAddress(paymentAddr) {}
+        networkAddress(netAddr)
+    {
+        CBitcoinAddress ba(paymentAddr);
+        ba.GetKeyID(paymentAddress);
+    }
     
     ADD_SERIALIZE_METHODS;
 
@@ -391,7 +395,7 @@ public:
 
     uint32_t nVersion;                      // version of this chain definition data structure to allow for extensions (not daemon version)
     std::string name;                       // chain name, maximum 64 characters
-    std::string address;                    // non-purchased/converted premine and fee recipient address
+    CKeyID address;                         // non-purchased/converted premine and fee recipient address
     int64_t premine;                        // initial supply that is distributed to the premine output address, but not purchased
     int64_t conversion;                     // factor / 100000000 for conversion of VRSC to coin on launch
     int64_t launchFee;                      // ratio of satoshis to send from contribution to convertible to fee address
@@ -427,7 +431,6 @@ public:
                           int32_t BillingPeriod, int64_t NotaryReward, std::vector<CNodeData> &Nodes) :
                             nVersion(PBAAS_VERSION),
                             name(Name),
-                            address(Address),
                             premine(Premine),
                             conversion(Conversion),
                             launchFee(LaunchFee),
@@ -448,6 +451,8 @@ public:
             Name.resize(KOMODO_ASSETCHAIN_MAXLEN - 1);
         }
         name = Name;
+        CBitcoinAddress ba(Address);
+        ba.GetKeyID(address);
     }
 
     ADD_SERIALIZE_METHODS;

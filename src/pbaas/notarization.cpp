@@ -975,8 +975,7 @@ uint256 CreateAcceptedNotarization(const CBlock &blk, CTransaction &entx, int32_
                 vNodes[i]->copyStats(stats);
                 if (vNodes[i]->fSuccessfullyConnected && !vNodes[i]->fInbound)
                 {
-                    CBitcoinAddress bca(CKeyID(vNodes[i]->hashPaymentAddress));
-                    pbn.nodes.push_back(CNodeData(vNodes[i]->addr.ToString(), bca.ToString()));
+                    pbn.nodes.push_back(CNodeData(vNodes[i]->addr.ToString(), CKeyID(vNodes[i]->hashPaymentAddress)));
                 }
             }
         }
@@ -1223,15 +1222,14 @@ uint256 SubmitAcceptedNotarization()
  */
 bool ValidateAcceptedNotarization(struct CCcontract_info *cp, Eval* eval, const CTransaction &tx, uint32_t nIn)
 {
-    // this validates the spending transaction
-    // first and foremost, check the following two things:
+    // TODO: this validates the spending transaction
+    // check the following things:
     // 1. It represents a valid PoS or merge mined block on the other chain, and contains the header in the opret
     // 2. The MMR and proof provided for the currently asserted block can prove the provided header. The provided
     //    header can prove the last block referenced.
-
-    // if those are true, then check if we have all relevant inputs, including that we properly finalize all necessary transactions
-    // we will jump back 10 transactions, if there are that many in our thread, validate the 10th, invalidate
-    // any notarizations that do not derive from that notarization, and spend as inputs
+    // 3. This notarization is not a superset of an earlier notarization posted before it that it does not
+    //    reference. If that is the case, it is rejected.
+    // 4. Has all relevant inputs, including finalizes all necessary transactions, both confirmed and orphaned
     printf("ValidateAcceptedNotarization\n");
     return true;
 }

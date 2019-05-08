@@ -731,22 +731,25 @@ bool IsStandardTx(const CTransaction& tx, string& reason, const int nHeight)
         }
     }
     
-    BOOST_FOREACH(const CTxIn& txin, tx.vin)
+    if (!tx.IsCoinBase())
     {
-        // Biggest 'standard' txin is a 15-of-15 P2SH multisig with compressed
-        // keys. (remember the 520 byte limit on redeemScript size) That works
-        // out to a (15*(33+1))+3=513 byte redeemScript, 513+1+15*(73+1)+3=1627
-        // bytes of scriptSig, which we round off to 1650 bytes for some minor
-        // future-proofing. That's also enough to spend a 20-of-20
-        // CHECKMULTISIG scriptPubKey, though such a scriptPubKey is not
-        // considered standard)
-        if (txin.scriptSig.size() > 1650) {
-            reason = "scriptsig-size";
-            return false;
-        }
-        if (!txin.scriptSig.IsPushOnly()) {
-            reason = "scriptsig-not-pushonly";
-            return false;
+        BOOST_FOREACH(const CTxIn& txin, tx.vin)
+        {
+            // Biggest 'standard' txin is a 15-of-15 P2SH multisig with compressed
+            // keys. (remember the 520 byte limit on redeemScript size) That works
+            // out to a (15*(33+1))+3=513 byte redeemScript, 513+1+15*(73+1)+3=1627
+            // bytes of scriptSig, which we round off to 1650 bytes for some minor
+            // future-proofing. That's also enough to spend a 20-of-20
+            // CHECKMULTISIG scriptPubKey, though such a scriptPubKey is not
+            // considered standard)
+            if (txin.scriptSig.size() > 1650) {
+                reason = "scriptsig-size";
+                return false;
+            }
+            if (!txin.scriptSig.IsPushOnly()) {
+                reason = "scriptsig-not-pushonly";
+                return false;
+            }
         }
     }
     
@@ -960,24 +963,28 @@ unsigned int GetP2SHSigOpCount(const CTransaction& tx, const CCoinsViewCache& in
  */
 bool ContextualCheckCoinbaseTransaction(const CTransaction& tx, const int nHeight)
 {
-    // if time locks are on, ensure that this coin base is time locked exactly as it should be
+    bool valid = true, timelocked = false;
+    CTxDestination firstDest;
+ 
+    // if time locks are on, ensure that this coin base is time locked exactly as it should be, or invalidate
     if (((uint64_t)tx.GetValueOut() >= ASSETCHAINS_TIMELOCKGTE) || 
         (((nHeight >= 31680) || strcmp(ASSETCHAINS_SYMBOL, "VRSC") != 0) && komodo_ac_block_subsidy(nHeight) >= ASSETCHAINS_TIMELOCKGTE))
     {
         CScriptID scriptHash;
+        valid = false;
+        timelocked = true;
 
         // to be valid, it must be a P2SH transaction and have an op_return in vout[1] that 
         // holds the full output script, which may include multisig, etc., but starts with 
         // the time lock verify of the correct time lock for this block height
-        if (tx.vout.size() == 2 &&
-            CScriptExt(tx.vout[0].scriptPubKey).IsPayToScriptHash(&scriptHash) &&
-            tx.vout[1].scriptPubKey.size() >= 7 && // minimum for any possible future to prevent out of bounds
-            tx.vout[1].scriptPubKey[0] == OP_RETURN)
+        if (CScriptExt(tx.vout[0].scriptPubKey).IsPayToScriptHash(&scriptHash) &&
+            tx.vout.back().scriptPubKey.size() >= 7 && // minimum for any possible future to prevent out of bounds
+            tx.vout.back().scriptPubKey[0] == OP_RETURN)
         {
             opcodetype op;
             std::vector<uint8_t> opretData = std::vector<uint8_t>();
-            CScript::const_iterator it = tx.vout[1].scriptPubKey.begin() + 1;
-            if (tx.vout[1].scriptPubKey.GetOp2(it, op, &opretData))
+            CScript::const_iterator it = tx.vout.back().scriptPubKey.begin() + 1;
+            if (tx.vout.back().scriptPubKey.GetOp2(it, op, &opretData))
             {
                 if (opretData.size() > 0 && opretData.data()[0] == OPRETTYPE_TIMELOCK)
                 {
@@ -988,14 +995,42 @@ bool ContextualCheckCoinbaseTransaction(const CTransaction& tx, const int nHeigh
                         opretScript.IsCheckLockTimeVerify(&unlocktime) &&
                         komodo_block_unlocktime(nHeight) == unlocktime)
                     {
-                        return(true);
+                        if (ExtractDestination(opretScript, firstDest))
+                        {
+                            valid = true;
+                        }
                     }
                 }
             }
         }
-        return(false);
     }
-    return(true);
+
+    // if there is a premine, make sure it is the right amount and goes to the correct recipient
+    if (!IsVerusActive && valid && nHeight == 1)
+    {
+        if (ConnectedChains.ThisChain().premine && !ConnectedChains.ThisChain().address.IsNull())
+        {
+            if (!timelocked && !(ExtractDestination(tx.vout[0].scriptPubKey, firstDest)))
+            {
+                valid = false;
+            }
+            else if (tx.vout[0].nValue != ConnectedChains.ThisChain().premine || GetDestinationID(firstDest) != ConnectedChains.ThisChain().address)
+            {
+                valid = false;
+            }
+        }
+
+        // ensure that if this is a PBaaS chain, block 1 includes notarization appropriately derived from the chain definition
+        // transaction. the coinbase must contain a matching notarization out, and the notarization must agree with our start height
+        CPBaaSNotarization pbn(tx);
+
+        if (!pbn.IsValid() || pbn.notarizationHeight < ConnectedChains.ThisChain().startBlock)
+        {
+            valid = false;
+        }
+    }
+
+    return valid;
 }
 
 /**
@@ -2151,6 +2186,11 @@ CAmount GetBlockSubsidy(int nHeight, const Consensus::Params& consensusParams)
     // Subsidy is cut in half every 840,000 blocks which will occur approximately every 4 years.
     //nSubsidy >>= halvings;
     //return nSubsidy;
+}
+
+CAmount GetBlockOnePremine()
+{
+    return ASSETCHAINS_SUPPLY * COIN;
 }
 
 bool IsInitialBlockDownload()
