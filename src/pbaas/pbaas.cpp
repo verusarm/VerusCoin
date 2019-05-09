@@ -166,6 +166,7 @@ CScript StoreOpRetArray(std::vector<CBaseChainObject *> &objPtrs)
 {
     CScript vData;
     CDataStream s = CDataStream(SER_NETWORK, PROTOCOL_VERSION);
+    s << (int32_t)OPRETTYPE_OBJECTARR;
     bool error = false;
 
     for (auto pobj : objPtrs)
@@ -178,9 +179,6 @@ CScript StoreOpRetArray(std::vector<CBaseChainObject *> &objPtrs)
     }
 
     std::vector<unsigned char> vch(s.begin(), s.end());
-
-    vData << (int32_t)OPRETTYPE_OBJECTARR << vch;
-    vch = std::vector<unsigned char>(vData.begin(), vData.end());
     return CScript() << OP_RETURN << vch;
 }
 
