@@ -891,17 +891,40 @@ void CConnectedChains::SubmissionThread()
             }
             else
             {
-                UniValue result;
-
                 // if this is a PBaaS chain, poll for presence of Verus / root chain and current Verus block and version number
                 CheckVerusPBaaSAvailable();
-                for (int i = 0; i < 10; i++)
-                {
-                    boost::this_thread::interruption_point();
-                    sleep(1);
-                }
-            }
 
+                // check to see if we have recently earned a block with an earned notarization that qualifies for
+                // submitting an accepted notarization
+                while (earnedNotarizationHeight)
+                {
+                    CBlock blk;
+                    int32_t txIndex, height;
+                    {
+                        LOCK(cs_mergemining);
+                        if (earnedNotarizationHeight & earnedNotarizations.size())
+                        {
+                            blk = earnedNotarizations[0].first;
+                            txIndex = earnedNotarizations[0].second;
+                            height = earnedNotarizationHeight;
+                            earnedNotarizations.erase(earnedNotarizations.begin());
+                            if (earnedNotarizations.size() == 0)
+                            {
+                                earnedNotarizationHeight = 0;
+                            }
+                        }
+                    }
+
+                    uint256 txId = CreateAcceptedNotarization(blk, txIndex, height);
+
+                    if (!txId.IsNull())
+                    {
+                        printf("Submitted notarization for acceptance: %s\n", txId.GetHex().c_str());
+                        LogPrintf("Submitted notarization for acceptance: %s\n", txId.GetHex().c_str());
+                    }
+                }
+                sleep(1);
+            }
             boost::this_thread::interruption_point();
         }
     }
@@ -914,6 +937,24 @@ void CConnectedChains::SubmissionThread()
 void CConnectedChains::SubmissionThreadStub()
 {
     ConnectedChains.SubmissionThread();
+}
+
+void CConnectedChains::QueueEarnedNotarization(CBlock &blk, int32_t txIndex, int32_t height)
+{
+    // called after winning a block that contains an earned notarization
+    // the earned notarization and its height are queued for processing by the submission thread
+    // when a new notarization is added, older notarizations are removed, but all notarizations in the current height are
+    // kept
+    LOCK(cs_mergemining);
+
+    // remove all of lower height, if, by chance, we submit two of same height and one wins, we don't want to overwrite the winner
+    // so we keep all submissions of any specific height
+    if (height > earnedNotarizationHeight)
+    {
+        earnedNotarizations.clear();
+    }
+    earnedNotarizationHeight = height;
+    earnedNotarizations.push_back(make_pair(blk, txIndex));
 }
 
 bool IsChainDefinitionInput(const CScript &scriptSig)

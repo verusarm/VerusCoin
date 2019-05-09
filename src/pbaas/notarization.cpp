@@ -828,10 +828,11 @@ bool ValidateEarnedNotarization(CTransaction &ntx, CPBaaSNotarization *notarizat
 // 3) the earned notarization must be in either a POS block of the chain being notarized, or a block that is merge mined and
 //    has the same block hash on both notary chain and chain being notarized.
 // block is block of earned notarization, entx is earned notarization transaction, height is height of block
-uint256 CreateAcceptedNotarization(const CBlock &blk, CTransaction &entx, int32_t entxHeight, int32_t height)
+uint256 CreateAcceptedNotarization(const CBlock &blk, int32_t txIndex, int32_t height)
 {
     char funcname[] = "CreateAcceptedNotarization: ";
     uint256 nullRet = uint256();
+    const CTransaction &entx = blk.vtx[txIndex];
    
     // we can only create a notarization if there is an available Verus chain
     if (!ConnectedChains.IsVerusPBaaSAvailable())
@@ -957,7 +958,7 @@ uint256 CreateAcceptedNotarization(const CBlock &blk, CTransaction &entx, int32_
         pbn.prevNotarization = crosspbn.crossNotarization;
         pbn.prevHeight = crosspbn.crossHeight;
         pbn.crossNotarization = entx.GetHash();
-        pbn.crossHeight = entxHeight;
+        pbn.crossHeight = height;
 
         pbn.opRetProof = orp;
     }
@@ -1036,170 +1037,6 @@ uint256 CreateAcceptedNotarization(const CBlock &blk, CTransaction &entx, int32_
         notaryId.SetHex(result.get_str());
     }
     return notaryId;
-}
-
-uint256 SubmitAcceptedNotarization()
-{
-/*
-    // create a notarization out, a finalization out, and an op_return, then pass this to the notary chain for sourcing
-    // inputs, final validatoin, and completion
-
-    CPBaaSNotarization crossNotarizaton(crossTx);
-    CPBaaSChainDefinition chainDef(crossTx);        // only matters if we get no cross notarization prior
-    if (crossNotarizaton.prevNotarization.IsNull() && !chainDef.IsValid())
-    {
-        // must either have a prior notarization or be the definition
-        return false;
-    }
-
-    pbn.prevNotarization = lastNotarizationID;
-    if (lastNotarizationID.IsNull())
-    {
-        pbn.prevHeight = 0;
-    }
-    else
-    {
-        uint256 hblk;
-        if (!GetTransaction(lastNotarizationID, lastTx, hblk, true))
-        {
-            return false;
-        }
-        pbn.prevHeight = mapBlockIndex[hblk]->GetHeight();
-
-        if (pbn.prevHeight + CPBaaSNotarization::MIN_BLOCKS_BETWEEN_ACCEPTED > height)
-        {
-            // can't make another notarization yet
-            return false;
-        }
-    }
-
-    // determine all finalized transactions that should be spent as input
-    // TODO: move to function for common use and validation
-    set<int32_t> finalized;
-    int32_t confirmedIdx = -1;
-    int32_t confirmedInput = -1;
-
-    // now, create inputs from lastTx and the finalization outputs that we either confirm or invalidate
-    for (int j = 0; j < cnd.forks.size(); j++)
-    {
-        int k;
-        for (k = cnd.forks[j].size() - 1; k >= 0; k--)
-        {
-            // the first instance of the prior notarization we find caps the prior fork we are confirming
-            if (cnd.vtx[cnd.forks[j][k]].first == lastNotarizationID)
-            {
-                // the only way to get to greater than 10 is by breaking the rules, as the first
-                // entry should be the earliest notarization or the last confirmed
-                assert(k <= 10);
-
-                if (k == 10)
-                {
-                    confirmedIdx = cnd.forks[j][1];
-                    finalized.insert(confirmedIdx);
-                    // if we would add the 10th confirmation to the second in this fork, we are confirming 
-                    // a new notarization, spend it's finalization output and all those that disagree with it
-                    // the only chains that are confirmed to disagree will have a different index in the
-                    // second position, which is the one we are confirming
-                    for (int l = 0; l < cnd.forks.size(); l++)
-                    {
-                        // if another fork branches at the confirmed notarization, the entire fork
-                        // is invalid, spend all its finalization outputs
-                        if (l != j && cnd.forks[l][1] != confirmedIdx)
-                        {
-                            for (int m = 1; m < cnd.forks[l].size(); m++)
-                            {
-                                // put indexes of all orphans into the finalized set
-                                finalized.insert(cnd.forks[l][m]);
-                            }
-                        }
-                    }
-                    break;
-                }
-            }
-        }
-        // if we short circuited by confirmation, short circuit here too
-        if (k >= 0)
-        {
-            break;
-        }
-    }
-
-    // now, we should spend the last notarization output and all finalization outputs in the finalized set
-    // first, we need to get the outpoint for the notarization, and each finalization as well
-    uint32_t j;
-    for (j = 0; j < lastTx.vout.size(); j++)
-    {
-        uint32_t code;
-        if (lastTx.vout[j].scriptPubKey.IsPayToCryptoCondition(&code) && code == EVAL_EARNEDNOTARIZATION)
-        {
-            break;
-        }
-    }
-
-    // either we have no last, or we found its notarization output
-    assert(lastNotarizationID.IsNull() || j < lastTx.vout.size());
-
-    // if this isn't the first notarization, setup inputs
-    if (!lastNotarizationID.IsNull())
-    {
-        // spend notarization output of the last notarization
-        mnewTx.vin.push_back(CTxIn(lastNotarizationID, j, CScript()));
-
-        for (auto nidx : finalized)
-        {
-            // we need to reload all transactions and get their finalization outputs
-            // this could be made more efficient by keeping them earlier or standardizing output numbers
-            CTransaction finalizedTx;
-            uint256 hblk;
-            if (!GetTransaction(cnd.vtx[nidx].first, finalizedTx, hblk, true))
-            {
-                // if this fails, we can't follow consensus and must fail
-                return false;
-            }
-            int k;
-            for (k = 0; k < lastTx.vout.size(); k++)
-            {
-                uint32_t code;
-                if (finalizedTx.vout[k].scriptPubKey.IsPayToCryptoCondition(&code) && code == EVAL_FINALIZENOTARIZATION)
-                {
-                    break;
-                }
-            }
-            assert(k < finalizedTx.vout.size());
-
-            // spend all of them
-            mnewTx.vin.push_back(CTxIn(cnd.vtx[nidx].first, k, CScript()));
-            if (nidx == confirmedIdx)
-            {
-                confirmedInput = mnewTx.vin.size() - 1;
-            }
-        }
-    }
-
-    CCcontract_info CC;
-    CCcontract_info *cp;
-    vector<CTxDestination> vKeys;
-
-    // make the earned notarization output
-    cp = CCinit(&CC, EVAL_EARNEDNOTARIZATION);
-    // need to be able to send this to EVAL_PBAASDEFINITION address as a destination, locked by the default pubkey
-    CPubKey pk(ParseHex(CC.CChexstr));
-
-    vKeys.push_back(CTxDestination(CKeyID(CCrossChainRPCData::GetConditionID(VERUS_CHAINID, EVAL_EARNEDNOTARIZATION))));
-    mnewTx.vout[notarizeOut] = MakeCC1of1Vout(EVAL_EARNEDNOTARIZATION, PBAAS_MINNOTARIZATIONOUTPUT, pk, vKeys, pbn);
-    
-    // make the finalization output
-    cp = CCinit(&CC, EVAL_FINALIZENOTARIZATION);
-    pk = CPubKey(ParseHex(CC.CChexstr));
-
-    // we need to store the input that we confirmed if we spent finalization outputs
-    CNotarizationFinalization nf(confirmedInput);
-
-    vKeys[0] = CTxDestination(CKeyID(CCrossChainRPCData::GetConditionID(VERUS_CHAINID, EVAL_FINALIZENOTARIZATION)));
-
-    // update crypto condition with final notarization output data
-    mnewTx.vout[finalizeOut] = MakeCC1of1Vout(EVAL_FINALIZENOTARIZATION, PBAAS_MINNOTARIZATIONOUTPUT, pk, vKeys, nf);
-*/
 }
 
 /*

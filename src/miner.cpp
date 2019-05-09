@@ -865,6 +865,8 @@ CBlockTemplate* CreateNewBlock(const CScript& _scriptPubKeyIn, int32_t gpucount,
 
             // put now signed notarization back in the block
             pblock->vtx[pbaasNotarizationTx] = mntx;
+
+
         }
 
         pblock->vtx[0] = txNew;
@@ -1104,8 +1106,9 @@ static bool ProcessBlockFound(CBlock* pblock, CWallet& wallet, CReserveKey& rese
 static bool ProcessBlockFound(CBlock* pblock)
 #endif // ENABLE_WALLET
 {
+    int32_t height = chainActive.LastTip()->GetHeight()+1;
     LogPrintf("%s\n", pblock->ToString());
-    LogPrintf("generated %s height.%d\n", FormatMoney(pblock->vtx[0].vout[0].nValue),chainActive.LastTip()->GetHeight()+1);
+    LogPrintf("generated %s height.%d\n", FormatMoney(pblock->vtx[0].vout[0].nValue), height);
     
     // Found a solution
     {
@@ -1149,6 +1152,19 @@ static bool ProcessBlockFound(CBlock* pblock)
     if (!ProcessNewBlock(1,chainActive.LastTip()->GetHeight()+1,state, NULL, pblock, true, NULL))
         return error("VerusMiner: ProcessNewBlock, block not accepted");
     
+    if (!IsVerusActive() && pblock->vtx.size() > 1)
+    {
+        // if we made an earned notarization in the block,
+        // queue it to create an accepted notarization from it
+        // check coinbase and socond tx
+        CPBaaSNotarization pbncb(pblock->vtx[0]);
+        CPBaaSNotarization pbn(pblock->vtx[1]);
+        if (::GetHash(pbncb) == ::GetHash(pbn))
+        {
+            ConnectedChains.QueueEarnedNotarization(*pblock, 1, height);
+        }
+    }
+
     TrackMinedBlock(pblock->GetHash());
     komodo_broadcast(pblock,16);
     return true;

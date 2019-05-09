@@ -4658,7 +4658,7 @@ bool CheckBlock(int32_t *futureblockp,int32_t height,CBlockIndex *pindex,const C
         //fprintf(stderr,"put block's tx into mempool\n");
         while ( 1 )
         {
-            for (i=0; i<block.vtx.size(); i++)
+            for (i = block.hashPrevBlock.IsNull() ? 1 : 0; i < block.vtx.size(); i++)
             {
                 CValidationState state;
                 CTransaction Tx; 

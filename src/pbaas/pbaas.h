@@ -859,6 +859,9 @@ public:
 
     CPBaaSChainDefinition thisChain;
 
+    int32_t earnedNotarizationHeight;           // zero or the height of one or more potential submissions
+    std::vector<std::pair<CBlock, int32_t>> earnedNotarizations; // block and txindex of one or more submitted earned notarizations
+
     bool dirty;
     bool lastSubmissionFailed;                  // if we submit a failed block, make another
     std::map<arith_uint256, CBlockHeader> qualifiedHeaders;
@@ -866,7 +869,7 @@ public:
     CCriticalSection cs_mergemining;
     CSemaphore sem_submitthread;
 
-    CConnectedChains() : sem_submitthread(0), dirty(0), lastSubmissionFailed(0) {}
+    CConnectedChains() : sem_submitthread(0), earnedNotarizationHeight(0), dirty(0), lastSubmissionFailed(0) {}
 
     arith_uint256 LowestTarget()
     {
@@ -885,6 +888,7 @@ public:
     std::vector<std::pair<std::string, UniValue>> SubmitQualifiedBlocks();
 
     bool QueueNewBlockHeader(CBlockHeader &bh);
+    void QueueEarnedNotarization(CBlock &blk, int32_t txIndex, int32_t height);
 
     bool AddMergedBlock(CPBaaSMergeMinedChainData &blkData);
     bool RemoveMergedBlock(uint160 chainID);
