@@ -236,7 +236,7 @@ uint256 GetChainObjectHash(const CBaseChainObject &bo);
 // returns a pointer to a base chain object, which can be cast to the
 // object type indicated in its objType member
 template <typename OStream>
-CBaseChainObject *RehydrateChainObject(OStream s)
+CBaseChainObject *RehydrateChainObject(OStream &s)
 {
     uint8_t objType;
 
