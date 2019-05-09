@@ -238,7 +238,7 @@ uint256 GetChainObjectHash(const CBaseChainObject &bo);
 template <typename OStream>
 CBaseChainObject *RehydrateChainObject(OStream &s)
 {
-    uint8_t objType;
+    uint16_t objType;
 
     s >> objType;
 
