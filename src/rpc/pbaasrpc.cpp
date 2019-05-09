@@ -1419,7 +1419,10 @@ UniValue definechain(const UniValue& params, bool fHelp)
         int nChangePos;
         string failReason;
 
-        pwalletMain->CreateTransaction(outputs, wtx, reserveKey, fee, nChangePos, failReason);
+        if (!pwalletMain->CreateTransaction(outputs, wtx, reserveKey, fee, nChangePos, failReason))
+        {
+            throw JSONRPCError(RPC_TRANSACTION_ERROR, newChain.name + ": " + failReason);
+        }
     }
 
     UniValue uvret(UniValue::VOBJ);

@@ -302,7 +302,7 @@ CBaseChainObject *RehydrateChainObject(OStream s)
 // returns a pointer to a base chain object, which can be cast to the
 // object type indicated in its objType member
 template <typename OStream>
-bool DehydrateChainObject(OStream s, const CBaseChainObject *pobj)
+bool DehydrateChainObject(OStream &s, const CBaseChainObject *pobj)
 {
     s << pobj->objectType;
     switch(pobj->objectType)

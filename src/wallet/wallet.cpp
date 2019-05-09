@@ -1335,7 +1335,7 @@ bool CWallet::VerusSelectStakeOutput(CBlock *pBlock, arith_uint256 &hashResult, 
     pBlock->nNonce.SetPOSTarget(bnTarget, pBlock->nVersion);
     target.SetCompact(bnTarget);
 
-    pwalletMain->AvailableCoins(vecOutputs, true, NULL, false, false);
+    pwalletMain->AvailableCoins(vecOutputs, true, NULL, false, !Params().GetConsensus().fCoinbaseMustBeProtected);
 
     if (pastBlockIndex = komodo_chainactive(nHeight - 100))
     {

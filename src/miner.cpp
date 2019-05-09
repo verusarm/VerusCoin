@@ -1535,8 +1535,21 @@ void static BitcoinMiner_noeq()
             if ( ptr == 0 )
             {
                 static uint32_t counter;
-                if ( (counter++ < 10) || (counter % 40 == 0) )
-                    fprintf(stderr,"Unable to create valid block... will continue to try\n");
+                if ( counter++ % 40 == 0 )
+                {
+                    if (!IsVerusActive() &&
+                        ConnectedChains.IsVerusPBaaSAvailable() &&
+                        ConnectedChains.notaryChainHeight < ConnectedChains.ThisChain().startBlock)
+                    {
+                        fprintf(stderr,"Waiting for block %d on %s chain to start. Current block is %d\n", ConnectedChains.ThisChain().startBlock,
+                                                                                                           ConnectedChains.notaryChain.chainDefinition.name.c_str(),
+                                                                                                           ConnectedChains.notaryChainHeight);
+                    }
+                    else
+                    {
+                        fprintf(stderr,"Unable to create valid block... will continue to try\n");
+                    }
+                }
                 MilliSleep(2000);
                 continue;
             }
