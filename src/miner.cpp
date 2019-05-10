@@ -1018,8 +1018,6 @@ void IncrementExtraNonce(CBlock* pblock, CBlockIndex* pindexPrev, unsigned int &
         s << nExtraNonce;
         std::vector<unsigned char> vENonce(s.begin(), s.end());
 
-        printf("pblock->ExtraDataLen() == %u, vENonce.size() == %lu\n", pblock->ExtraDataLen(), vENonce.size());
-
         assert(pblock->ExtraDataLen() >= vENonce.size());
         pblock->SetExtraData(vENonce.data(), vENonce.size());
     }
@@ -1031,8 +1029,6 @@ void IncrementExtraNonce(CBlock* pblock, CBlockIndex* pindexPrev, unsigned int &
         assert(txcb.vin[0].scriptSig.size() <= 100);
         pblock->vtx[0] = txcb;
     }
-
-    printf("Coinbase Script: %s\n", pblock->vtx[0].vout[0].scriptPubKey.ToString().c_str());
 
     if (buildMerkle)
     {
