@@ -551,6 +551,9 @@ bool CConnectedChains::RemoveMergedBlock(uint160 chainID)
 {
     bool retval = false;
     LOCK(cs_mergemining);
+
+    printf("RemoveMergedBlock ID: %s\n", chainID.GetHex().c_str());
+
     auto chainIt = mergeMinedChains.find(chainID);
     if (chainIt != mergeMinedChains.end())
     {
@@ -593,6 +596,7 @@ uint32_t CConnectedChains::PruneOldChains(uint32_t pruneBefore)
 
     for (auto id : toRemove)
     {
+        printf("Pruning chainID: %s\n", id.GetHex().c_str());
         RemoveMergedBlock(id);
     }
 }
@@ -613,6 +617,9 @@ bool CConnectedChains::AddMergedBlock(CPBaaSMergeMinedChainData &blkData)
             RemoveMergedBlock(cID);             // remove it if already there
         }
         target.SetCompact(blkData.block.nBits);
+
+        printf("AddMergedBlock name: %s, ID: %s\n", blkData.chainDefinition.name.c_str(), cID.GetHex().c_str());
+
         mergeMinedTargets.insert(make_pair(target, &(mergeMinedChains.insert(make_pair(cID, blkData)).first->second)));
         dirty = true;
     }
@@ -681,12 +688,17 @@ vector<pair<string, UniValue>> CConnectedChains::SubmitQualifiedBlocks()
                 // add the PBaaS chain ids from this header to a set for search
                 for (uint32_t i = 0; headerIt->second.GetPBaaSHeader(pbh, i); i++)
                 {
+                    printf("Chain found in header for submission, ID: %s\n", pbh.chainID.GetHex().c_str());
+
                     inHeader.insert(pbh.chainID);
                 }
 
                 // now look through all targets that are equal to or above the hash of this header
                 for (auto chainIt = mergeMinedTargets.lower_bound(headerIt->first); !submissionFound && chainIt != mergeMinedTargets.end(); chainIt++)
                 {
+
+                    printf("qualified entry found, ID: %s\n", chainIt->second->GetChainID().GetHex().c_str());
+
                     uint160 chainID = chainIt->second->GetChainID();
                     if (inHeader.count(chainID))
                     {
@@ -697,6 +709,10 @@ vector<pair<string, UniValue>> CConnectedChains::SubmitQualifiedBlocks()
                         // check if the block header matches the block's specific data, only then can we create a submission from this block
                         if (headerIt->second.CheckNonCanonicalData(chainID))
                         {
+
+                            printf("proper canonical data ID: %s\n", chainID.GetHex().c_str());
+
+
                             // save block as is, remove the block from merged headers, replace header, and submit
                             chainData = *chainIt->second;
 
@@ -707,10 +723,10 @@ vector<pair<string, UniValue>> CConnectedChains::SubmitQualifiedBlocks()
 
                             submissionFound = true;
                         }
-                        //else // not an error condition. code was here for debugging
-                        //{
-                        //    printf("Mismatch in non-canonical data for chain %s\n", chainIt->second->chainDefinition.name.c_str());
-                        //}
+                        else // not an error condition. code was here for debugging
+                        {
+                            printf("Mismatch in non-canonical data for chain %s\n", chainIt->second->chainDefinition.name.c_str());
+                        }
                     }
                 }
 
@@ -766,6 +782,8 @@ uint32_t CConnectedChains::CombineBlocks(CBlockHeader &bh)
     {
         LOCK(cs_mergemining);
 
+        printf("Combining %lu blocks mining\n", mergeMinedChains.size());
+
         CPBaaSSolutionDescriptor descr = CVerusSolutionVector::solutionTools.GetDescriptor(bh.nSolution);
 
         for (uint32_t i = 0; i < descr.numPBaaSHeaders; i++)
@@ -801,6 +819,8 @@ uint32_t CConnectedChains::CombineBlocks(CBlockHeader &bh)
                 }
                 else
                 {
+                    printf("Adding block to header for mining: %s, ID: %s\n", chain.second.chainDefinition.name.c_str(), chain.first.GetHex().c_str());
+
                     arith_uint256 t;
                     t.SetCompact(chain.second.block.nBits);
                     if (t > target)
@@ -883,19 +903,24 @@ void CConnectedChains::SubmissionThread()
         {
             if (IsVerusActive())
             {
-                // blocks get discarded after no refresh for 5 minutes by default
+                // blocks get discarded after no refresh for 5 minutes by default, probably should be more often
+                printf("SubmissionThread: pruning\n");
                 ConnectedChains.PruneOldChains(GetAdjustedTime() - 300);
                 bool submit = false;
                 {
                     LOCK(cs_mergemining);
                     submit = qualifiedHeaders.size() != 0 && mergeMinedChains.size() != 0;
+
+                    printf("SubmissionThread: qualifiedHeaders.size(): %lu, mergeMinedChains.size(): %lu\n", qualifiedHeaders.size(), mergeMinedChains.size());
                 }
                 if (submit)
                 {
+                    printf("SubmissionThread: calling submit qualified blocks\n");
                     SubmitQualifiedBlocks();
                 }
                 else
                 {
+                    printf("SubmissionThread: waiting on sem\n");
                     sem_submitthread.wait();
                 }
             }
