@@ -261,6 +261,9 @@ CBaseChainObject *RehydrateChainObject(OStream &s)
             {
                 s >> pNewHeader->object;
                 pNewHeader->objectType = objType;
+
+                CBlockHeader &bh = pNewHeader->object;
+                printf("CBlockHeader.nSolution.size(): %lu\n", bh.nSolution.size());
             }
             break;
         case CHAINOBJ_TRANSACTION:
@@ -308,24 +311,42 @@ bool DehydrateChainObject(OStream &s, const CBaseChainObject *pobj)
     switch(pobj->objectType)
     {
         case CHAINOBJ_HEADER:
+        {
+            CBlockHeader &bh = ((CChainObject<CBlockHeader> *)pobj)->object;
+            printf("CBlockHeader.nSolution.size(): %lu\n", bh.nSolution.size());
+            int32_t sz = s.size();
+
             s << *(CChainObject<CBlockHeader> *)pobj;
+
+            std::vector<unsigned char> schars(s.begin() + sz, s.end());
+            printf("stream vector length: %lu, chars: %s\n", s.size() - sz, HexBytes(&schars[0], schars.size()).c_str());
+
             return true;
+        }
 
         case CHAINOBJ_TRANSACTION:
+        {
             s << *(CChainObject<CTransaction> *)pobj;
             return true;
+        }
 
         case CHAINOBJ_PROOF:
+        {
             s << *(CChainObject<CMerkleBranch> *)pobj;
             return true;
+        }
 
         case CHAINOBJ_HEADER_REF:
+        {
             s << *(CChainObject<CHeaderRef> *)pobj;
             return true;
+        }
 
         case CHAINOBJ_PRIORBLOCKS:
+        {
             s << *(CChainObject<CPriorBlocksCommitment> *)pobj;
             return true;
+        }
     }
     return false;
 }
