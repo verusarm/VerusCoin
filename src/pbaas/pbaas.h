@@ -264,7 +264,7 @@ CBaseChainObject *RehydrateChainObject(OStream &s)
 
                 CBlockHeader &bh = pNewHeader->object;
                 printf("CBlockHeader.nSolution.size(): %lu\n", bh.nSolution.size());
-                printf("CBlockHeader.hashPrevBlock: %lu\n", bh.hashPrevBlock.GetHex().c_str());
+                printf("CBlockHeader.hashPrevBlock: %s\n", bh.hashPrevBlock.GetHex().c_str());
             }
             break;
         case CHAINOBJ_TRANSACTION:
@@ -321,7 +321,7 @@ bool DehydrateChainObject(OStream &s, const CBaseChainObject *pobj)
 
             std::vector<unsigned char> schars(s.begin() + sz, s.end());
             printf("stream vector length: %lu, chars: %s\n", s.size() - sz, HexBytes(&schars[0], schars.size()).c_str());
-            printf("CBlockHeader.hashPrevBlock: %lu\n", bh.hashPrevBlock.GetHex().c_str());
+            printf("CBlockHeader.hashPrevBlock: %s\n", bh.hashPrevBlock.GetHex().c_str());
 
             return true;
         }
