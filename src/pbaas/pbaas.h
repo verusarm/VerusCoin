@@ -259,13 +259,8 @@ CBaseChainObject *RehydrateChainObject(OStream &s)
             pNewHeader = new CChainObject<CBlockHeader>();
             if (pNewHeader)
             {
-                printf("stream.size(): %lu\n", s.size());
                 s >> pNewHeader->object;
                 pNewHeader->objectType = objType;
-
-                CBlockHeader &bh = pNewHeader->object;
-                printf("CBlockHeader.nSolution.size(): %lu\n", bh.nSolution.size());
-                printf("nVersion: %x, hashPrevBlock: \n%s\n", bh.nVersion, bh.hashPrevBlock.GetHex().c_str());
             }
             break;
         case CHAINOBJ_TRANSACTION:
@@ -313,14 +308,7 @@ bool DehydrateChainObject(OStream &s, const CBaseChainObject *pobj)
     {
         case CHAINOBJ_HEADER:
         {
-            CBlockHeader &bh = ((CChainObject<CBlockHeader> *)pobj)->object;
-            printf("CBlockHeader.nSolution.size(): %lu\n", bh.nSolution.size());
-            int32_t sz = s.size();
-
             s << *(CChainObject<CBlockHeader> *)pobj;
-
-            printf("nVersion: %x, hashPrevBlock: \n%s\n", bh.nVersion, bh.hashPrevBlock.GetHex().c_str());
-
             return true;
         }
 
