@@ -204,7 +204,7 @@ std::vector<CBaseChainObject *> RetrieveOpRetArray(const CScript &opRetScript)
                 }
                 if (!s.empty())
                 {
-                    throw std::exception("failed to load all objects in opret");
+                    throw "failed to load all objects in opret";
                 }
             }
         }
