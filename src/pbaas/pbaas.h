@@ -309,7 +309,6 @@ CBaseChainObject *RehydrateChainObject(OStream &s)
 template <typename OStream>
 bool DehydrateChainObject(OStream &s, const CBaseChainObject *pobj)
 {
-    s << pobj->objectType;
     switch(pobj->objectType)
     {
         case CHAINOBJ_HEADER:
