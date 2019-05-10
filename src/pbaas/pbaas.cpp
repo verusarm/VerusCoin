@@ -178,6 +178,10 @@ CScript StoreOpRetArray(std::vector<CBaseChainObject *> &objPtrs)
         }
     }
 
+    std::vector<unsigned char> schars(s.begin(), s.begin() + 200);
+    printf("stream vector chars: %s\n", HexBytes(&schars[0], schars.size()).c_str());
+
+
     std::vector<unsigned char> vch(s.begin(), s.end());
     return CScript() << OP_RETURN << vch;
 }
@@ -194,6 +198,10 @@ std::vector<CBaseChainObject *> RetrieveOpRetArray(const CScript &opRetScript)
 
         try
         {
+            std::vector<unsigned char> schars(s.begin(), s.begin() + 200);
+            printf("stream vector chars: %s\n", HexBytes(&schars[0], schars.size()).c_str());
+
+
             s >> opRetType;
             if (opRetType == OPRETTYPE_OBJECTARR)
             {

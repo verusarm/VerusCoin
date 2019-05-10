@@ -319,8 +319,6 @@ bool DehydrateChainObject(OStream &s, const CBaseChainObject *pobj)
 
             s << *(CChainObject<CBlockHeader> *)pobj;
 
-            std::vector<unsigned char> schars(s.begin() + sz, s.end());
-            printf("stream vector length: %lu, chars: %s\n", s.size() - sz, HexBytes(&schars[0], schars.size()).c_str());
             printf("CBlockHeader.hashPrevBlock: %s\n", bh.hashPrevBlock.GetHex().c_str());
 
             return true;
