@@ -1350,7 +1350,7 @@ bool CWallet::VerusSelectStakeOutput(CBlock *pBlock, arith_uint256 &hashResult, 
                 CDataStream s(SER_NETWORK, PROTOCOL_VERSION);
                 int32_t txSize = GetSerializeSize(s, *(CTransaction *)txout.tx);
 
-                printf("Serialized size of transaction %s is %lu\n", txout.tx->GetHash().GetHex().c_str(), txSize);
+                //printf("Serialized size of transaction %s is %lu\n", txout.tx->GetHash().GetHex().c_str(), txSize);
                 if (txSize > MAX_TX_SIZE_FOR_STAKING)
                 {
                     LogPrintf("Transaction %s is too large to stake. Serialized size == %lu\n", txout.tx->GetHash().GetHex().c_str(), txSize);
