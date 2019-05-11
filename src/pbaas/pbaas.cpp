@@ -914,6 +914,13 @@ void CConnectedChains::SubmissionThread()
                 bool submit = false;
                 {
                     LOCK(cs_mergemining);
+                    if (mergeMinedChains.size() == 0 && qualifiedHeaders.size() != 0)
+                    {
+                        while (qualifiedHeaders.size())
+                        {
+                            qualifiedHeaders.erase(qualifiedHeaders.begin());
+                        }
+                    }
                     submit = qualifiedHeaders.size() != 0 && mergeMinedChains.size() != 0;
 
                     printf("SubmissionThread: qualifiedHeaders.size(): %lu, mergeMinedChains.size(): %lu\n", qualifiedHeaders.size(), mergeMinedChains.size());
