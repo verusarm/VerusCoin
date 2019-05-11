@@ -1756,7 +1756,7 @@ void static BitcoinMiner_noeq()
                         do
                         {
                             // pickup/remove any new/deleted headers
-                            if (ConnectedChains.dirty)
+                            if (ConnectedChains.dirty || (pblock->NumPBaaSHeaders() < 2 && ConnectedChains.mergeMinedChains.size()))
                             {
                                 uint8_t dummy;
                                 // clear extra data to allow adding more PBaaS headers
