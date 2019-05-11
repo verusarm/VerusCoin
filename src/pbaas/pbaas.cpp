@@ -687,6 +687,9 @@ vector<pair<string, UniValue>> CConnectedChains::SubmitQualifiedBlocks()
             for (auto headerIt = qualifiedHeaders.begin(); !submissionFound && headerIt != qualifiedHeaders.end(); headerIt = qualifiedHeaders.begin())
             {
                 // add the PBaaS chain ids from this header to a set for search
+                CBlockHeader &debugBlock = headerIt->second;
+                printf("Block number of PBaaS headers: %d\n", debugBlock.NumPBaaSHeaders());
+
                 for (uint32_t i = 0; headerIt->second.GetPBaaSHeader(pbh, i); i++)
                 {
                     printf("Chain found in header for submission, ID: %s\n", pbh.chainID.GetHex().c_str());

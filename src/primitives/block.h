@@ -132,6 +132,14 @@ public:
         return false;
     }
 
+    // returns false on failure to read data
+    int32_t NumPBaaSHeaders() const
+    {
+        // search in the solution for this header index and return it if found
+        CPBaaSSolutionDescriptor descr = CConstVerusSolutionVector::GetDescriptor(nSolution);
+        return descr.numPBaaSHeaders;
+    }
+
     // this can save a new header into an empty space or update an existing header
     bool SavePBaaSHeader(CPBaaSBlockHeader &pbh, uint32_t idx)
     {
