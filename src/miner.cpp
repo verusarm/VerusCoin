@@ -995,7 +995,7 @@ CBlockTemplate* CreateNewBlock(const CScript& _scriptPubKeyIn, int32_t gpucount,
 
 #ifdef ENABLE_MINING
 
-void IncrementExtraNonce(CBlock* pblock, CBlockIndex* pindexPrev, unsigned int &nExtraNonce, bool buildMerkle)
+void IncrementExtraNonce(CBlock* pblock, CBlockIndex* pindexPrev, unsigned int &nExtraNonce, bool buildMerkle, uint32_t *pSaveBits)
 {
     // Update nExtraNonce
     static uint256 hashPrevBlock;
@@ -1006,20 +1006,50 @@ void IncrementExtraNonce(CBlock* pblock, CBlockIndex* pindexPrev, unsigned int &
     }
     ++nExtraNonce;
 
+    if (pSaveBits)
+    {
+        *pSaveBits = pblock->nBits;
+    }
+
     int32_t nHeight = pindexPrev->GetHeight() + 1;
 
     if (CConstVerusSolutionVector::activationHeight.ActiveVersion(nHeight) >= CConstVerusSolutionVector::activationHeight.SOLUTION_VERUSV3)
     {
-        // extra nonce is kept in the header, not in the coinbase any longer
-        // this allows instant spend transactions to use coinbase funds for
-        // inputs by ensuring that once final, the coinbase transaction hash
-        // will not continue to change
-        CDataStream s(SER_NETWORK, PROTOCOL_VERSION);
-        s << nExtraNonce;
-        std::vector<unsigned char> vENonce(s.begin(), s.end());
+        // POS blocks have already had their solution space fully updated, and there is no actual extra nonce, extradata is used
+        // for POS proof, so don't modify it
+        if (!pblock->IsVerusPOSBlock())
+        {
+            uint256 mmvRoot;
+            {
+                LOCK(cs_main);
+                // set the PBaaS header
+                ChainMerkleMountainView mmv = chainActive.GetMMV();
+                mmvRoot = mmv.GetRoot();
+            }
+            pblock->AddUpdatePBaaSHeader(mmvRoot);
 
-        assert(pblock->ExtraDataLen() >= vENonce.size());
-        pblock->SetExtraData(vENonce.data(), vENonce.size());
+            uint8_t dummy;
+            // clear extra data to allow adding more PBaaS headers
+            pblock->SetExtraData(&dummy, 0);
+
+            // combine blocks and set compact difficulty if necessary
+            uint32_t savebits;
+            if ((savebits = ConnectedChains.CombineBlocks(*pblock)) && pSaveBits)
+            {
+                *pSaveBits = savebits;
+            }
+
+            // extra nonce is kept in the header, not in the coinbase any longer
+            // this allows instant spend transactions to use coinbase funds for
+            // inputs by ensuring that once final, the coinbase transaction hash
+            // will not continue to change
+            CDataStream s(SER_NETWORK, PROTOCOL_VERSION);
+            s << nExtraNonce;
+            std::vector<unsigned char> vENonce(s.begin(), s.end());
+
+            assert(pblock->ExtraDataLen() >= vENonce.size());
+            pblock->SetExtraData(vENonce.data(), vENonce.size());
+        }
     }
     else
     {
@@ -1345,22 +1375,9 @@ void static VerusStaker(CWallet *pwallet)
             //
             int64_t nStart = GetTime();
 
-            // we don't use this, but IncrementExtraNonce is the function that builds the merkle tree
+            // IncrementExtraNonce also builds the merkle tree
             unsigned int nExtraNonce = 0;
             IncrementExtraNonce(pblock, pindexPrev, nExtraNonce);
-
-            // update PBaaS header
-            if (CConstVerusSolutionVector::activationHeight.ActiveVersion(Mining_height) == CActivationHeight::SOLUTION_VERUSV3)
-            {
-                uint256 mmvRoot;
-                {
-                    LOCK(cs_main);
-                    // set the PBaaS header
-                    ChainMerkleMountainView mmv = chainActive.GetMMV();
-                    mmvRoot = mmv.GetRoot();
-                }
-                pblock->AddUpdatePBaaSHeader(mmvRoot);
-            }
 
             if (vNodes.empty() && chainparams.MiningRequiresPeers())
             {
@@ -1587,19 +1604,11 @@ void static BitcoinMiner_noeq()
             }
 
             // this builds the Merkle tree
-            IncrementExtraNonce(pblock, pindexPrev, nExtraNonce);
+            IncrementExtraNonce(pblock, pindexPrev, nExtraNonce, true, &savebits);
 
             // update PBaaS header
-            uint256 mmvRoot;
             if (verusSolutionV3)
             {
-                {
-                    LOCK(cs_main);
-                    ChainMerkleMountainView mmv = chainActive.GetMMV();
-                    mmvRoot = mmv.GetRoot();
-                }
-                pblock->AddUpdatePBaaSHeader(mmvRoot);
-
                 if (!IsVerusActive() && ConnectedChains.IsVerusPBaaSAvailable())
                 {
 
@@ -1756,16 +1765,9 @@ void static BitcoinMiner_noeq()
                         {
                             // pickup/remove any new/deleted headers
                             printf("Mining: just before combine blocks, numPBaaSHeaders == %s\n", pblock->NumPBaaSHeaders());
-                            if (ConnectedChains.dirty || (pblock->NumPBaaSHeaders() < 2 && ConnectedChains.mergeMinedChains.size()))
+                            if (ConnectedChains.dirty || (pblock->NumPBaaSHeaders() < ConnectedChains.mergeMinedChains.size() + 1))
                             {
-                                uint8_t dummy;
-                                // clear extra data to allow adding more PBaaS headers
-                                pblock->SetExtraData(&dummy, 0);
-                                if (!(savebits = ConnectedChains.CombineBlocks(*pblock)))
-                                {
-                                    savebits = pblock->nBits;
-                                }
-                                IncrementExtraNonce(pblock, pindexPrev, nExtraNonce, false);
+                                IncrementExtraNonce(pblock, pindexPrev, nExtraNonce, false, &savebits);
 
                                 hashTarget.SetCompact(savebits);
                                 uintTarget = ArithToUint256(hashTarget);
