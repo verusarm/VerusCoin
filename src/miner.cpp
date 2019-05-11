@@ -1764,9 +1764,9 @@ void static BitcoinMiner_noeq()
                         do
                         {
                             // pickup/remove any new/deleted headers
-                            printf("Mining: just before combine blocks, numPBaaSHeaders == %s\n", pblock->NumPBaaSHeaders());
                             if (ConnectedChains.dirty || (pblock->NumPBaaSHeaders() < ConnectedChains.mergeMinedChains.size() + 1))
                             {
+                                printf("Mining: just before combine blocks, numPBaaSHeaders == %s\n", pblock->NumPBaaSHeaders());
                                 IncrementExtraNonce(pblock, pindexPrev, nExtraNonce, false, &savebits);
 
                                 hashTarget.SetCompact(savebits);
