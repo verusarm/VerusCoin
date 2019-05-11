@@ -1766,7 +1766,10 @@ void static BitcoinMiner_noeq()
                             // pickup/remove any new/deleted headers
                             if (ConnectedChains.dirty || (pblock->NumPBaaSHeaders() < ConnectedChains.mergeMinedChains.size() + 1))
                             {
-                                printf("Miner: before IncrementExtraNonce, numPBaaSHeaders == %d\n", pblock->NumPBaaSHeaders());
+                                if (!pblock->NumPBaaSHeaders())
+                                {
+                                    printf("Miner: before IncrementExtraNonce, numPBaaSHeaders == %d\n", pblock->NumPBaaSHeaders());
+                                }
                                 IncrementExtraNonce(pblock, pindexPrev, nExtraNonce, false, &savebits);
 
                                 hashTarget.SetCompact(savebits);
