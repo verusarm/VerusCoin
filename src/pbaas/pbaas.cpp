@@ -817,6 +817,7 @@ uint32_t CConnectedChains::CombineBlocks(CBlockHeader &bh)
         {
             // get the native PBaaS header for each chain and put it into the
             // header we are given
+            // it must have itself in as a PBaaS header
             uint160 cid = chain.second.GetChainID();
             if (chain.second.block.GetPBaaSHeader(pbh, cid) != -1)
             {
@@ -837,9 +838,18 @@ uint32_t CConnectedChains::CombineBlocks(CBlockHeader &bh)
                     }
                 }
             }
+            else
+            {
+                LogPrintf("Merge mined block for %s does not contain PBaaS information\n", chain.second.chainDefinition.name.c_str());
+            }
+            
         }
         dirty = false;
     }
+
+    printf("Number of PBaaS headers %d\n", bh.NumPBaaSHeaders());
+
+
     return target.GetCompact();
 }
 
@@ -919,10 +929,7 @@ void CConnectedChains::SubmissionThread()
                     LOCK(cs_mergemining);
                     if (mergeMinedChains.size() == 0 && qualifiedHeaders.size() != 0)
                     {
-                        while (qualifiedHeaders.size())
-                        {
-                            qualifiedHeaders.erase(qualifiedHeaders.begin());
-                        }
+                        qualifiedHeaders.clear();
                     }
                     submit = qualifiedHeaders.size() != 0 && mergeMinedChains.size() != 0;
 
