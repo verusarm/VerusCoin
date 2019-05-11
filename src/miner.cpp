@@ -1788,6 +1788,10 @@ void static BitcoinMiner_noeq()
                                 pblock->ClearNonCanonicalData();
                                 blockFound = (*mine_verus)(*pblock, ss2, hashResult, uintTarget, start, &hashesToGo);
                                 savedHeader.SetBlockData(*pblock);
+                                if (UintToArith256(hashResult) > UintToArith256(uintTarget))
+                                {
+                                    printf("Hash error with %s\n", pblock->GetHash());
+                                }
                             }
                             else
                             {
