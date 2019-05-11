@@ -1590,9 +1590,9 @@ void static BitcoinMiner_noeq()
             IncrementExtraNonce(pblock, pindexPrev, nExtraNonce);
 
             // update PBaaS header
+            uint256 mmvRoot;
             if (verusSolutionV3)
             {
-                uint256 mmvRoot;
                 {
                     LOCK(cs_main);
                     ChainMerkleMountainView mmv = chainActive.GetMMV();
@@ -1734,7 +1734,6 @@ void static BitcoinMiner_noeq()
 
                         if ((mempool.GetTransactionsUpdated() != nTransactionsUpdatedLast && elapsed > 60) || elapsed > 60 || ConnectedChains.lastSubmissionFailed)
                         {
-
                             break;
                         }
 
@@ -1756,6 +1755,7 @@ void static BitcoinMiner_noeq()
                         do
                         {
                             // pickup/remove any new/deleted headers
+                            printf("Mining: just before combine blocks, numPBaaSHeaders == %s\n", pblock->NumPBaaSHeaders());
                             if (ConnectedChains.dirty || (pblock->NumPBaaSHeaders() < 2 && ConnectedChains.mergeMinedChains.size()))
                             {
                                 uint8_t dummy;
