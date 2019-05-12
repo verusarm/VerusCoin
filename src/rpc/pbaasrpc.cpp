@@ -640,8 +640,8 @@ UniValue submitnotarizationpayment(const UniValue& params, bool fHelp)
             "\nResult:\n"
 
             "\nExamples:\n"
-            + HelpExampleCli("submitacceptednotarization", "\"hextx\"")
-            + HelpExampleRpc("submitacceptednotarization", "\"hextx\"")
+            + HelpExampleCli("submitnotarizationpayment", "\"hextx\"")
+            + HelpExampleRpc("submitnotarizationpayment", "\"hextx\"")
         );
     }
 
@@ -674,7 +674,7 @@ UniValue submitacceptednotarization(const UniValue& params, bool fHelp)
     CPBaaSNotarization pbn;
     if (!DecodeHexTx(notarization, params[0].get_str()) || 
         notarization.vin.size() || 
-        notarization.vout.size() != 2 ||
+        notarization.vout.size() != 3 ||
         (pbn = CPBaaSNotarization(notarization)).IsValid() ||
         notarization.vout.back().scriptPubKey.IsOpReturn())
     {
