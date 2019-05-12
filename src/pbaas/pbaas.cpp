@@ -793,8 +793,6 @@ uint32_t CConnectedChains::CombineBlocks(CBlockHeader &bh)
     {
         LOCK(cs_mergemining);
 
-        printf("Combining %lu blocks mining\n", mergeMinedChains.size());
-
         CPBaaSSolutionDescriptor descr = CVerusSolutionVector::solutionTools.GetDescriptor(bh.nSolution);
 
         for (uint32_t i = 0; i < descr.numPBaaSHeaders; i++)
@@ -831,8 +829,6 @@ uint32_t CConnectedChains::CombineBlocks(CBlockHeader &bh)
                 }
                 else
                 {
-                    printf("Adding block to header for mining: %s, ID: %s\n", chain.second.chainDefinition.name.c_str(), chain.first.GetHex().c_str());
-
                     arith_uint256 t;
                     t.SetCompact(chain.second.block.nBits);
                     if (t > target)
@@ -849,9 +845,6 @@ uint32_t CConnectedChains::CombineBlocks(CBlockHeader &bh)
         }
         dirty = false;
     }
-
-    printf("Number of PBaaS headers %d\n", bh.NumPBaaSHeaders());
-
 
     return target.GetCompact();
 }

@@ -1035,11 +1035,6 @@ void IncrementExtraNonce(CBlock* pblock, CBlockIndex* pindexPrev, unsigned int &
                 mmvRoot = mmv.GetRoot();
             }
 
-
-            printf("before: hashPrevBlock: %s, hashMerkleRoot=%s, nNonce=%s, nBits: %u\n", 
-                   pblock->hashPrevBlock.GetHex().c_str(), pblock->hashMerkleRoot.GetHex().c_str(), pblock->nNonce.GetHex().c_str(), pblock->nBits);
-
-
             pblock->AddUpdatePBaaSHeader(mmvRoot);
 
             uint8_t dummy;
