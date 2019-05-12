@@ -903,7 +903,7 @@ void CConnectedChains::SubmissionThread()
             if (IsVerusActive())
             {
                 // blocks get discarded after no refresh for 5 minutes by default, probably should be more often
-                printf("SubmissionThread: pruning\n");
+                //printf("SubmissionThread: pruning\n");
                 ConnectedChains.PruneOldChains(GetAdjustedTime() - 300);
                 bool submit = false;
                 {
@@ -914,16 +914,16 @@ void CConnectedChains::SubmissionThread()
                     }
                     submit = qualifiedHeaders.size() != 0 && mergeMinedChains.size() != 0;
 
-                    printf("SubmissionThread: qualifiedHeaders.size(): %lu, mergeMinedChains.size(): %lu\n", qualifiedHeaders.size(), mergeMinedChains.size());
+                    //printf("SubmissionThread: qualifiedHeaders.size(): %lu, mergeMinedChains.size(): %lu\n", qualifiedHeaders.size(), mergeMinedChains.size());
                 }
                 if (submit)
                 {
-                    printf("SubmissionThread: calling submit qualified blocks\n");
+                    //printf("SubmissionThread: calling submit qualified blocks\n");
                     SubmitQualifiedBlocks();
                 }
                 else
                 {
-                    printf("SubmissionThread: waiting on sem\n");
+                    //printf("SubmissionThread: waiting on sem\n");
                     sem_submitthread.wait();
                 }
             }

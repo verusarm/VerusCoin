@@ -25,6 +25,7 @@
 #include "wallet/wallet.h"
 #endif
 #include "pbaas/pbaas.h"
+#include "pbaas/notarization.h"
 
 #include <stdint.h>
 
@@ -919,6 +920,21 @@ UniValue submitblock(const UniValue& params, bool fHelp)
     {
         //printf("Block was not accepted %s\n", state.GetRejectReason().c_str());
         ConnectedChains.lastSubmissionFailed = true;
+    }
+    else
+    {
+        if (!IsVerusActive() && block.vtx.size() > 1)
+        {
+            // if we made an earned notarization in the block,
+            // queue it to create an accepted notarization from it
+            // check coinbase and socond tx
+            CPBaaSNotarization pbncb(block.vtx[0]);
+            CPBaaSNotarization pbn(block.vtx[1]);
+            if (::GetHash(pbncb) == ::GetHash(pbn))
+            {
+                ConnectedChains.QueueEarnedNotarization(block, 1, chainActive.LastTip()->GetHeight());
+            }
+        }
     }
     if (fBlockPresent)
     {

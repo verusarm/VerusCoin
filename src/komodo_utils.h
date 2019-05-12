@@ -1884,8 +1884,9 @@ void komodo_args(char *argv0)
         printf("KOMODO_REWIND %d\n",KOMODO_REWIND);
     }
 
-    if ( name.c_str()[0] != 0 )
+    if ( name.size() )
     {
+        
         if (!paramsLoaded)
         {
             std::string selectedAlgo = GetArg("-ac_algo", std::string(ASSETCHAINS_ALGORITHMS[1]));
