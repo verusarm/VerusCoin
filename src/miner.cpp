@@ -1015,6 +1015,14 @@ void IncrementExtraNonce(CBlock* pblock, CBlockIndex* pindexPrev, unsigned int &
 
     if (CConstVerusSolutionVector::activationHeight.ActiveVersion(nHeight) >= CConstVerusSolutionVector::activationHeight.SOLUTION_VERUSV3)
     {
+        // coinbase should already be finalized in the new version
+        if (buildMerkle)
+        {
+            pblock->hashMerkleRoot = pblock->BuildMerkleTree();
+        }
+
+        UpdateTime(pblock, Params().GetConsensus(), pindexPrev);
+
         // POS blocks have already had their solution space fully updated, and there is no actual extra nonce, extradata is used
         // for POS proof, so don't modify it
         if (!pblock->IsVerusPOSBlock())
@@ -1026,6 +1034,12 @@ void IncrementExtraNonce(CBlock* pblock, CBlockIndex* pindexPrev, unsigned int &
                 ChainMerkleMountainView mmv = chainActive.GetMMV();
                 mmvRoot = mmv.GetRoot();
             }
+
+
+            printf("before: hashPrevBlock: %s, hashMerkleRoot=%s, nNonce=%s, nBits: %u\n", 
+                   pblock->hashPrevBlock.GetHex().c_str(), pblock->hashMerkleRoot.GetHex().c_str(), pblock->nNonce.GetHex().c_str(), pblock->nBits);
+
+
             pblock->AddUpdatePBaaSHeader(mmvRoot);
 
             uint8_t dummy;
@@ -1058,14 +1072,13 @@ void IncrementExtraNonce(CBlock* pblock, CBlockIndex* pindexPrev, unsigned int &
         txcb.vin[0].scriptSig = (CScript() << nHeight << CScriptNum(nExtraNonce)) + COINBASE_FLAGS;
         assert(txcb.vin[0].scriptSig.size() <= 100);
         pblock->vtx[0] = txcb;
-    }
+        if (buildMerkle)
+        {
+            pblock->hashMerkleRoot = pblock->BuildMerkleTree();
+        }
 
-    if (buildMerkle)
-    {
-        pblock->hashMerkleRoot = pblock->BuildMerkleTree();
+        UpdateTime(pblock, Params().GetConsensus(), pindexPrev);
     }
-
-    UpdateTime(pblock, Params().GetConsensus(), pindexPrev);
 }
 
 #ifdef ENABLE_WALLET
@@ -1766,10 +1779,6 @@ void static BitcoinMiner_noeq()
                             // pickup/remove any new/deleted headers
                             if (ConnectedChains.dirty || (pblock->NumPBaaSHeaders() < ConnectedChains.mergeMinedChains.size() + 1))
                             {
-                                if (!pblock->NumPBaaSHeaders())
-                                {
-                                    printf("Miner: before IncrementExtraNonce, numPBaaSHeaders == %d\n", pblock->NumPBaaSHeaders());
-                                }
                                 IncrementExtraNonce(pblock, pindexPrev, nExtraNonce, false, &savebits);
 
                                 hashTarget.SetCompact(savebits);
@@ -1785,13 +1794,10 @@ void static BitcoinMiner_noeq()
                             {
                                 // mine on canonical header for merge mining
                                 CPBaaSPreHeader savedHeader(*pblock);
+
                                 pblock->ClearNonCanonicalData();
                                 blockFound = (*mine_verus)(*pblock, ss2, hashResult, uintTarget, start, &hashesToGo);
                                 savedHeader.SetBlockData(*pblock);
-                                if (UintToArith256(hashResult) > UintToArith256(uintTarget))
-                                {
-                                    printf("Hash error with %s\n", pblock->GetHash());
-                                }
                             }
                             else
                             {
