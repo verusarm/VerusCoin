@@ -964,7 +964,7 @@ uint256 CreateAcceptedNotarization(const CBlock &blk, int32_t txIndex, int32_t h
         pbn.prevNotarization = crosspbn.crossNotarization;
         pbn.prevHeight = crosspbn.crossHeight;
         pbn.crossNotarization = entx.GetHash();
-        pbn.crossHeight = height;
+        pbn.crossHeight = crosspbn.notarizationHeight;
 
         pbn.opRetProof = orp;
     }
