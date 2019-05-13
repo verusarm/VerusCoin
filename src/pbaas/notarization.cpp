@@ -930,9 +930,9 @@ uint256 CreateAcceptedNotarization(const CBlock &blk, int32_t txIndex, int32_t h
         // add the MMR block nodes between the last notarization and this one, containing root that combines merkle, block, and compact power hashes
         CPriorBlocksCommitment priorBlocks;
         int numPriorBlocks = height - crosspbn.crossHeight;
+        int maxPriorBlocks = PBAAS_MAXPRIORBLOCKS > (height - 1) ? ((height - 1) < 1 ? 0 : (height - 1)) : PBAAS_MAXPRIORBLOCKS;
 
-        if (numPriorBlocks > PBAAS_MAXPRIORBLOCKS || numPriorBlocks > (height - 1))
-            numPriorBlocks = PBAAS_MAXPRIORBLOCKS > (height - 1) ? ((height - 1) < 1 ? 0 : (height - 1)) : PBAAS_MAXPRIORBLOCKS;
+        if (numPriorBlocks > maxPriorBlocks) numPriorBlocks = maxPriorBlocks;
 
         // push back the merkle, block hash, and block power commitments for prior blocks to ensure no
         // unintended notary overlap
