@@ -525,6 +525,12 @@ bool CreateEarnedNotarization(CMutableTransaction &mnewTx, vector<CInputDescript
             delete o;
         }
 
+        if (!mnewTx.vout.back().scriptPubKey.size())
+        {
+            printf("%sfailed to create OP_RETURN output", funcname);
+            return false;
+        }
+
         // we need to update our earned notarization and finalization outputs, which should both be present and incomplete
         // add up inputs, and make sure that the main notarization output holds any excess over minimum, if not enough, we need
         // to spend a coinbase instant spend

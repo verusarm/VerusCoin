@@ -171,8 +171,17 @@ CScript StoreOpRetArray(std::vector<CBaseChainObject *> &objPtrs)
 
     for (auto pobj : objPtrs)
     {
-        if (!DehydrateChainObject(s, pobj))
+        try
         {
+            if (!DehydrateChainObject(s, pobj))
+            {
+                error = true;
+                break;
+            }
+        }
+        catch(const std::exception& e)
+        {
+            std::cerr << e.what() << '\n';
             error = true;
             break;
         }
@@ -182,7 +191,7 @@ CScript StoreOpRetArray(std::vector<CBaseChainObject *> &objPtrs)
     //printf("stream vector chars: %s\n", HexBytes(&schars[0], schars.size()).c_str());
 
     std::vector<unsigned char> vch(s.begin(), s.end());
-    return CScript() << OP_RETURN << vch;
+    return error ? CScript() : CScript() << OP_RETURN << vch;
 }
 
 std::vector<CBaseChainObject *> RetrieveOpRetArray(const CScript &opRetScript)

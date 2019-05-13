@@ -675,8 +675,8 @@ UniValue submitacceptednotarization(const UniValue& params, bool fHelp)
     if (!DecodeHexTx(notarization, params[0].get_str()) || 
         notarization.vin.size() || 
         notarization.vout.size() != 2 ||
-        (pbn = CPBaaSNotarization(notarization)).IsValid() ||
-        notarization.vout.back().scriptPubKey.IsOpReturn())
+        !(pbn = CPBaaSNotarization(notarization)).IsValid() ||
+        !notarization.vout.back().scriptPubKey.IsOpReturn())
     {
         throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid notarization transaction");
     }
