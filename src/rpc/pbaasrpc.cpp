@@ -495,11 +495,11 @@ UniValue getnotarizationdata(const UniValue& params, bool fHelp)
     if (fHelp || params.size() < 1 || params.size() > 2)
     {
         throw runtime_error(
-            "getnotarizationdata \"chainid\" ( maxcount since )\n"
+            "getnotarizationdata \"chainid\" accepted\n"
             "\nReturns the latest PBaaS notarization data for the specifed chainid.\n"
 
             "\nArguments\n"
-            "1. \"chainid\"                     (string, required) the hex-encoded chainid to search for notarizations on\n"
+            "1. \"chainid\"                     (string, required) the hex-encoded ID or string name  search for notarizations on\n"
             "2. \"accepted\"                    (bool, optional) accepted, not earned notarizations, default: true if on\n"
             "                                                    VRSC or VRSCTEST, false otherwise\n"
 
@@ -536,6 +536,12 @@ UniValue getnotarizationdata(const UniValue& params, bool fHelp)
         {
         }
     }
+    else
+    {
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid chainid or chain name");
+    }
+
+    chainID = CCrossChainRPCData::GetChainID(params[0].get_str());
 
     if (chainID.IsNull())
     {
@@ -556,7 +562,7 @@ UniValue getnotarizationdata(const UniValue& params, bool fHelp)
     }
     else
     {
-        return UniValue(UniValue::VOBJ);
+        return NullUniValue;
     }
 }
 
