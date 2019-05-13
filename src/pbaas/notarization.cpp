@@ -1015,7 +1015,7 @@ uint256 CreateAcceptedNotarization(const CBlock &blk, int32_t txIndex, int32_t h
 
     // make a notarization out
     vKeys.push_back(CTxDestination(CKeyID(CCrossChainRPCData::GetConditionID(ASSETCHAINS_CHAINID, EVAL_ACCEPTEDNOTARIZATION))));
-    mnewTx.vout.push_back(MakeCC1of1Vout(EVAL_EARNEDNOTARIZATION, PBAAS_MINNOTARIZATIONOUTPUT, pk, vKeys, pbn));
+    mnewTx.vout.push_back(MakeCC1of1Vout(EVAL_ACCEPTEDNOTARIZATION, PBAAS_MINNOTARIZATIONOUTPUT, pk, vKeys, pbn));
 
     // make opret output
     mnewTx.vout.push_back(CTxOut(0, opRet));

@@ -1414,10 +1414,6 @@ UniValue definechain(const UniValue& params, bool fHelp)
     pk = CPubKey(ParseHex(CC.CChexstr));
     dests = std::vector<CTxDestination>({CKeyID(newChain.GetConditionID(EVAL_FINALIZENOTARIZATION))});
 
-    CKeyID testOut1 = CKeyID(newChain.GetConditionID(EVAL_ACCEPTEDNOTARIZATION));
-    CKeyID testOut2 = GetDestinationID(dests[0]);
-    CKeyID testOut2a = CKeyID(CCrossChainRPCData::GetConditionID(newChain.GetChainID(), EVAL_FINALIZENOTARIZATION));
-
     CNotarizationFinalization nf;
     CTxOut finalizationOut = MakeCC1of1Vout(EVAL_FINALIZENOTARIZATION, DEFAULT_TRANSACTION_FEE, pk, dests, nf);
     outputs.push_back(CRecipient({finalizationOut.scriptPubKey, CPBaaSChainDefinition::DEFAULT_OUTPUT_VALUE, false}));
