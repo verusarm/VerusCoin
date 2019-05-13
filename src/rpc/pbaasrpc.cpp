@@ -804,55 +804,61 @@ UniValue submitacceptednotarization(const UniValue& params, bool fHelp)
                 int64_t dummyInterest;
                 valueIn = view.GetValueIn(chainActive.LastTip()->GetHeight(), &dummyInterest, newTx, chainActive.LastTip()->nTime);
 
-                // get data from confirmed tx and block that contains confirmed tx
-                if (myGetTransaction(mnewTx.vin[confirmedInput].prevout.hash, confirmedTx, hashBlock) &&
-                    (it = mapBlockIndex.find(hashBlock)) != mapBlockIndex.end())
-                {
-                    pindex = mapBlockIndex.find(blkHash)->second;
-                }
-                else
-                {
-                    printf("submitacceptednotarization: cannot find chain %s, possible corrupted database\n", chainDef.name.c_str());
-                }
 
-                // add all inputs that might provide notary reward and calculate notary reward based on that plus current
-                // notarization input value divided by number of blocks left in billing period, times blocks per notarization
-                if (pindex && GetChainDefinition(pbn.chainID, chainDef))
+                if (confirmedInput != -1)
                 {
-                    valueIn += AddNewNotarizationRewards(chainDef, notarizationInputs, mnewTx, pindex->GetHeight());
-                }
-                else
-                {
-                    LogPrintf("submitacceptednotarization: cannot find chain %s, possible corrupted database\n", chainDef.name.c_str());
-                    printf("submitacceptednotarization: cannot find chain %s, possible corrupted database\n", chainDef.name.c_str());
-                }
+                    // get data from confirmed tx and block that contains confirmed tx
+                    if (myGetTransaction(mnewTx.vin[confirmedInput].prevout.hash, confirmedTx, hashBlock) &&
+                        (it = mapBlockIndex.find(hashBlock)) != mapBlockIndex.end())
+                    {
+                        pindex = mapBlockIndex.find(blkHash)->second;
+                    }
 
+                    // add all inputs that might provide notary reward and calculate notary reward based on that plus current
+                    // notarization input value divided by number of blocks left in billing period, times blocks per notarization
+                    if (pindex && GetChainDefinition(pbn.chainID, chainDef))
+                    {
+                        valueIn += AddNewNotarizationRewards(chainDef, notarizationInputs, mnewTx, pindex->GetHeight());
+                    }
+                    else
+                    {
+                        LogPrintf("submitacceptednotarization: cannot find chain %s, possible corrupted database\n", chainDef.name.c_str());
+                        printf("submitacceptednotarization: cannot find chain %s, possible corrupted database\n", chainDef.name.c_str());
+                    }
+                }
             }
 
             // get recipients of any reward output
-            if (pindex && ReadBlockFromDisk(confirmedBlock, pindex, false) && 
-                (confirmedPBN = CPBaaSNotarization(confirmedTx)).IsValid() &&
-                ExtractDestination(confirmedBlock.vtx[0].vout[0].scriptPubKey, minerRecipient, false))
+            if (confirmedInput != -1)
             {
-                notaryRecipient = CTxDestination(CKeyID(confirmedPBN.notaryKeyID));
-            }
-            else
-            {
-                throw JSONRPCError(RPC_DATABASE_ERROR, "unable to retrieve confirmed notarization data");
+                if (pindex && ReadBlockFromDisk(confirmedBlock, pindex, false) && 
+                    (confirmedPBN = CPBaaSNotarization(confirmedTx)).IsValid() &&
+                    ExtractDestination(confirmedBlock.vtx[0].vout[0].scriptPubKey, minerRecipient, false))
+                {
+                    notaryRecipient = CTxDestination(CKeyID(confirmedPBN.notaryKeyID));
+                }
+                else
+                {
+                    throw JSONRPCError(RPC_DATABASE_ERROR, "unable to retrieve confirmed notarization data");
+                }
             }
 
             // minimum amount must go to main thread and finalization, then divide what is left among blocks in the billing period
             uint64_t blocksLeft = chainDef.billingPeriod - (confirmedPBN.notarizationHeight % chainDef.billingPeriod);
-            CAmount valueOut;
-            if (blocksLeft <= CPBaaSNotarization::MIN_BLOCKS_BETWEEN_ACCEPTED)
+            CAmount valueOut = 0;
+
+            if (confirmedInput != -1)
             {
-                valueOut = valueIn - CPBaaSChainDefinition::DEFAULT_OUTPUT_VALUE * 2;
+                if (blocksLeft <= CPBaaSNotarization::MIN_BLOCKS_BETWEEN_ACCEPTED)
+                {
+                    valueOut = valueIn - CPBaaSChainDefinition::DEFAULT_OUTPUT_VALUE * 2;
+                }
+                else
+                {
+                    valueOut = (CPBaaSNotarization::MIN_BLOCKS_BETWEEN_ACCEPTED * (valueIn - CPBaaSChainDefinition::DEFAULT_OUTPUT_VALUE * 2)) / blocksLeft;
+                }
             }
-            else
-            {
-                valueOut = (CPBaaSNotarization::MIN_BLOCKS_BETWEEN_ACCEPTED * (valueIn - CPBaaSChainDefinition::DEFAULT_OUTPUT_VALUE * 2)) / blocksLeft;
-            }
-            
+
             CAmount notaryValueOut;
 
             if (valueOut >= PBAAS_MINNOTARIZATIONOUTPUT)
@@ -879,7 +885,7 @@ UniValue submitacceptednotarization(const UniValue& params, bool fHelp)
             else
             {
                 valueOut = 0;
-                notaryValueOut = PBAAS_MINNOTARIZATIONOUTPUT;
+                notaryValueOut = valueIn - (CPBaaSChainDefinition::DEFAULT_OUTPUT_VALUE * 2);
             }
             
             if ((notaryValueOut + valueOut + CPBaaSChainDefinition::DEFAULT_OUTPUT_VALUE) > valueIn)
