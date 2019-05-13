@@ -942,7 +942,7 @@ uint256 CreateAcceptedNotarization(const CBlock &blk, int32_t txIndex, int32_t h
 
         // push back the merkle, block hash, and block power commitments for prior blocks to ensure no
         // unintended notary overlap
-        for (int i = numPriorBlocks; i >= 0; i--)
+        for (int i = numPriorBlocks - 1; i >= 0; i--)
         {
             priorBlocks.priorBlocks.push_back(mmv.mmr.GetNode(height - i).hash);
         }
