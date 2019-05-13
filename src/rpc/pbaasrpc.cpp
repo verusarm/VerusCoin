@@ -804,11 +804,15 @@ UniValue submitacceptednotarization(const UniValue& params, bool fHelp)
                 int64_t dummyInterest;
                 valueIn = view.GetValueIn(chainActive.LastTip()->GetHeight(), &dummyInterest, newTx, chainActive.LastTip()->nTime);
 
-                // get data from confirmed tx and block that constains confirmed tx
+                // get data from confirmed tx and block that contains confirmed tx
                 if (myGetTransaction(mnewTx.vin[confirmedInput].prevout.hash, confirmedTx, hashBlock) &&
                     (it = mapBlockIndex.find(hashBlock)) != mapBlockIndex.end())
                 {
                     pindex = mapBlockIndex.find(blkHash)->second;
+                }
+                else
+                {
+                    printf("submitacceptednotarization: cannot find chain %s, possible corrupted database\n", chainDef.name.c_str());
                 }
 
                 // add all inputs that might provide notary reward and calculate notary reward based on that plus current
