@@ -759,6 +759,27 @@ UniValue submitacceptednotarization(const UniValue& params, bool fHelp)
 
         notarizationInputs = AddSpendsAndFinalizations(nData, pbn.prevNotarization, lastTx, mnewTx, &confirmedInput, &payee);
 
+        // if we got our inputs, add finalization
+        if (notarizationInputs.size())
+        {
+            CCcontract_info CC;
+            CCcontract_info *cp;
+            cp = CCinit(&CC, EVAL_FINALIZENOTARIZATION);
+
+            // use public key of cc
+            CPubKey pk(ParseHex(CC.CChexstr));
+            CKeyID id = CCrossChainRPCData::GetConditionID(pbn.chainID, EVAL_FINALIZENOTARIZATION);
+            std::vector<CTxDestination> dests({id});
+
+            // insert a finalization as second to last vout
+            cp = CCinit(&CC, EVAL_FINALIZENOTARIZATION);
+            pk = CPubKey(ParseHex(CC.CChexstr));
+            dests = std::vector<CTxDestination>({CKeyID(CCrossChainRPCData::GetConditionID(pbn.chainID, EVAL_FINALIZENOTARIZATION))});
+
+            CNotarizationFinalization nf(confirmedInput);
+            mnewTx.vout.insert(mnewTx.vout.begin() + (mnewTx.vout.size() - 1), MakeCC1of1Vout(EVAL_FINALIZENOTARIZATION, CPBaaSChainDefinition::DEFAULT_OUTPUT_VALUE, pk, dests, nf));
+        }
+
         if (notarizationInputs.size() && GetNotarizationAndFinalization(EVAL_ACCEPTEDNOTARIZATION, mnewTx, dummy, &notarizationIdx, &finalizationIdx))
         {
             // we need to add outputs to pay the reward to the confirmed notary and block miner/staker of that notarization
@@ -874,14 +895,6 @@ UniValue submitacceptednotarization(const UniValue& params, bool fHelp)
             std::vector<CTxDestination> dests({id});
 
             mnewTx.vout[notarizationIdx] = MakeCC1of1Vout(EVAL_ACCEPTEDNOTARIZATION, notaryValueOut, pk, dests, pbn);
-
-            // make the unspent finalization output
-            cp = CCinit(&CC, EVAL_FINALIZENOTARIZATION);
-            pk = CPubKey(ParseHex(CC.CChexstr));
-            dests = std::vector<CTxDestination>({CKeyID(CCrossChainRPCData::GetConditionID(pbn.chainID, EVAL_FINALIZENOTARIZATION))});
-
-            CNotarizationFinalization nf(confirmedInput);
-            mnewTx.vout[finalizationIdx] = MakeCC1of1Vout(EVAL_FINALIZENOTARIZATION, CPBaaSChainDefinition::DEFAULT_OUTPUT_VALUE, pk, dests, nf);
 
             CTransaction ntx(mnewTx);
 
