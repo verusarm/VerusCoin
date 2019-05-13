@@ -937,7 +937,7 @@ void CConnectedChains::SubmissionThread()
                 while (earnedNotarizationHeight)
                 {
                     CBlock blk;
-                    int32_t txIndex, height;
+                    int32_t txIndex = -1, height;
                     {
                         LOCK(cs_mergemining);
                         if (earnedNotarizationHeight & earnedNotarizations.size())
@@ -953,12 +953,15 @@ void CConnectedChains::SubmissionThread()
                         }
                     }
 
-                    uint256 txId = CreateAcceptedNotarization(blk, txIndex, height);
-
-                    if (!txId.IsNull())
+                    if (txIndex != -1)
                     {
-                        printf("Submitted notarization for acceptance: %s\n", txId.GetHex().c_str());
-                        LogPrintf("Submitted notarization for acceptance: %s\n", txId.GetHex().c_str());
+                        uint256 txId = CreateAcceptedNotarization(blk, txIndex, height);
+
+                        if (!txId.IsNull())
+                        {
+                            printf("Submitted notarization for acceptance: %s\n", txId.GetHex().c_str());
+                            LogPrintf("Submitted notarization for acceptance: %s\n", txId.GetHex().c_str());
+                        }
                     }
                 }
                 sleep(1);
