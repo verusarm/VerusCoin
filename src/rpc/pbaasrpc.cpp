@@ -674,7 +674,7 @@ UniValue submitacceptednotarization(const UniValue& params, bool fHelp)
     CPBaaSNotarization pbn;
     if (!DecodeHexTx(notarization, params[0].get_str()) || 
         notarization.vin.size() || 
-        notarization.vout.size() != 3 ||
+        notarization.vout.size() != 2 ||
         (pbn = CPBaaSNotarization(notarization)).IsValid() ||
         notarization.vout.back().scriptPubKey.IsOpReturn())
     {
