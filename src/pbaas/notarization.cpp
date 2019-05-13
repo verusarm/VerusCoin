@@ -417,6 +417,10 @@ bool CreateEarnedNotarization(CMutableTransaction &mnewTx, vector<CInputDescript
             txidArr.push_back(it.first.GetHex());
         }
     }
+    else if (height != 1)
+    {
+        return false;
+    }
 
     params.push_back(txidArr);
 
@@ -923,6 +927,10 @@ uint256 CreateAcceptedNotarization(const CBlock &blk, int32_t txIndex, int32_t h
             mentx.vout.pop_back();
         }
         CTransaction strippedTx(mentx);
+
+        // debugging only
+        printf("entx.vout size: %lu\n", entx.vout.size());
+        printf("strippedTx.vout size: %lu\n", strippedTx.vout.size());
 
         CChainObject<CTransaction> strippedTxObj(CHAINOBJ_TRANSACTION, strippedTx);
         chainObjects.push_back(&strippedTxObj);

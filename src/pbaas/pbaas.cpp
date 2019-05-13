@@ -427,6 +427,9 @@ bool SetThisChain(UniValue &chainDefinition)
 
     if (ConnectedChains.ThisChain().IsValid())
     {
+        memset(ASSETCHAINS_SYMBOL, 0, sizeof(ASSETCHAINS_SYMBOL));
+        strcpy(ASSETCHAINS_SYMBOL, ConnectedChains.ThisChain().name.c_str());
+
         // set all command line parameters into mapArgs from chain definition
         vector<string> nodeStrs;
         for (auto node : ConnectedChains.ThisChain().nodes)
@@ -943,22 +946,19 @@ void CConnectedChains::SubmissionThread()
 
                 // check to see if we have recently earned a block with an earned notarization that qualifies for
                 // submitting an accepted notarization
-                while (earnedNotarizationHeight)
+                if (earnedNotarizationHeight)
                 {
                     CBlock blk;
                     int32_t txIndex = -1, height;
                     {
                         LOCK(cs_mergemining);
-                        if (earnedNotarizationHeight & earnedNotarizations.size())
+                        if (earnedNotarizationHeight)
                         {
-                            blk = earnedNotarizations[0].first;
-                            txIndex = earnedNotarizations[0].second;
+                            blk = earnedNotarizationBlock;
+                            earnedNotarizationBlock = CBlock();
+                            txIndex = earnedNotarizationIndex;
                             height = earnedNotarizationHeight;
-                            earnedNotarizations.erase(earnedNotarizations.begin());
-                            if (earnedNotarizations.size() == 0)
-                            {
-                                earnedNotarizationHeight = 0;
-                            }
+                            earnedNotarizationHeight = 0;
                         }
                     }
 
@@ -997,14 +997,10 @@ void CConnectedChains::QueueEarnedNotarization(CBlock &blk, int32_t txIndex, int
     // kept
     LOCK(cs_mergemining);
 
-    // remove all of lower height, if, by chance, we submit two of same height and one wins, we don't want to overwrite the winner
-    // so we keep all submissions of any specific height
-    if (height > earnedNotarizationHeight)
-    {
-        earnedNotarizations.clear();
-    }
+    // we only care about the last
     earnedNotarizationHeight = height;
-    earnedNotarizations.push_back(make_pair(blk, txIndex));
+    earnedNotarizationBlock = blk;
+    earnedNotarizationIndex = txIndex;
 }
 
 bool IsChainDefinitionInput(const CScript &scriptSig)

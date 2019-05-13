@@ -314,6 +314,9 @@ bool DehydrateChainObject(OStream &s, const CBaseChainObject *pobj)
 
         case CHAINOBJ_TRANSACTION:
         {
+            CChainObject<CTransaction> &debugTxCO = *(CChainObject<CTransaction> *)pobj;
+            printf("tx.vout.size(): %lu\n", debugTxCO.object.vout.size());
+            printf("tx.vin.size(): %lu\n", debugTxCO.object.vin.size());
             s << *(CChainObject<CTransaction> *)pobj;
             return true;
         }
@@ -869,7 +872,8 @@ public:
     CPBaaSChainDefinition thisChain;
 
     int32_t earnedNotarizationHeight;           // zero or the height of one or more potential submissions
-    std::vector<std::pair<CBlock, int32_t>> earnedNotarizations; // block and txindex of one or more submitted earned notarizations
+    CBlock earnedNotarizationBlock;
+    int32_t earnedNotarizationIndex;            // index of earned notarization in block
 
     bool dirty;
     bool lastSubmissionFailed;                  // if we submit a failed block, make another

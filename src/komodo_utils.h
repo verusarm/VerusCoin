@@ -1835,6 +1835,7 @@ void komodo_args(char *argv0)
                     {
                         throw error("Cannot find chain data");
                     }
+                    name = string(ASSETCHAINS_SYMBOL);
                     paramsLoaded = true;
                 }
                 catch(const std::exception& e)
@@ -2033,7 +2034,8 @@ void komodo_args(char *argv0)
         if ( strlen(addn.c_str()) > 0 )
             ASSETCHAINS_SEED = 1;
 
-        strncpy(ASSETCHAINS_SYMBOL,name.c_str(),sizeof(ASSETCHAINS_SYMBOL)-1);
+        memset(ASSETCHAINS_SYMBOL, 0, sizeof(ASSETCHAINS_SYMBOL));
+        strcpy(ASSETCHAINS_SYMBOL, name.c_str());
 
         ASSETCHAINS_CHAINID = CCrossChainRPCData::GetChainID(std::string(ASSETCHAINS_SYMBOL));
 
@@ -2057,8 +2059,15 @@ void komodo_args(char *argv0)
             int32_t komodo_baseid(char *origbase);
             extern int COINBASE_MATURITY;
             if ( (port= komodo_userpass(ASSETCHAINS_USERPASS, ASSETCHAINS_SYMBOL)) != 0 )
+            {
                 ASSETCHAINS_RPCPORT = port;
-            else komodo_configfile(ASSETCHAINS_SYMBOL,ASSETCHAINS_P2PPORT + 1);
+            }
+            else 
+            {
+                komodo_configfile(ASSETCHAINS_SYMBOL,ASSETCHAINS_P2PPORT + 1);
+                komodo_userpass(ASSETCHAINS_USERPASS, ASSETCHAINS_SYMBOL);      // make sure we set user and password on first load
+            }
+
             if (ASSETCHAINS_LASTERA == 0 && ASSETCHAINS_REWARD[0] == 0)
                 COINBASE_MATURITY = 1;
             //fprintf(stderr,"ASSETCHAINS_RPCPORT (%s) %u\n",ASSETCHAINS_SYMBOL,ASSETCHAINS_RPCPORT);
