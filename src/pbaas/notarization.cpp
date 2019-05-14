@@ -220,7 +220,7 @@ UniValue CChainNotarizationData::ToUniValue() const
         notarization.push_back(Pair("notarization", vtx[i].second.ToUniValue()));
         notarizations.push_back(notarization);
     }
-    obj.push_back(notarizations);
+    obj.push_back(Pair("notarizations", notarizations));
     obj.push_back(Pair("lastconfirmed", (int32_t)version));
     UniValue Forks(UniValue::VARR);
     for (int32_t i = 0; i < forks.size(); i++)
