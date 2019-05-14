@@ -5195,6 +5195,20 @@ bool ProcessNewBlock(bool from_miner,int32_t height,CValidationState &state, CNo
         return error("%s: ActivateBestChain failed", __func__);
     //fprintf(stderr,"finished ProcessBlock %d\n",(int32_t)chainActive.LastTip()->GetHeight());
 
+    // submit notarization if there is one
+    if (!IsVerusActive() && pblock->vtx.size() > 1)
+    {
+        // if we made an earned notarization in the block,
+        // queue it to create an accepted notarization from it
+        // check coinbase and socond tx
+        CPBaaSNotarization pbncb(pblock->vtx[0]);
+        CPBaaSNotarization pbn(pblock->vtx[1]);
+        if (::GetHash(pbncb) == ::GetHash(pbn))
+        {
+            ConnectedChains.QueueEarnedNotarization(*pblock, 1, height);
+        }
+    }
+
     // when we succeed here, we prune all cheat candidates in the cheat list to 250 blocks ago, as they should be used or not
     // useful by then
     if ((height - 250) > 1)

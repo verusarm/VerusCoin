@@ -1186,19 +1186,6 @@ static bool ProcessBlockFound(CBlock* pblock)
     if (!ProcessNewBlock(1,chainActive.LastTip()->GetHeight()+1,state, NULL, pblock, true, NULL))
         return error("VerusMiner: ProcessNewBlock, block not accepted");
     
-    if (!IsVerusActive() && pblock->vtx.size() > 1)
-    {
-        // if we made an earned notarization in the block,
-        // queue it to create an accepted notarization from it
-        // check coinbase and socond tx
-        CPBaaSNotarization pbncb(pblock->vtx[0]);
-        CPBaaSNotarization pbn(pblock->vtx[1]);
-        if (::GetHash(pbncb) == ::GetHash(pbn))
-        {
-            ConnectedChains.QueueEarnedNotarization(*pblock, 1, height);
-        }
-    }
-
     TrackMinedBlock(pblock->GetHash());
     komodo_broadcast(pblock,16);
     return true;
