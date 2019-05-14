@@ -1546,8 +1546,18 @@ CAmount GetMinRelayFee(const CTransaction& tx, unsigned int nBytes, bool fAllowF
     return nMinFee;
 }
 
+bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState &state, const CTransaction &tx, bool fLimitFree,
+                           bool* pfMissingInputs, bool fRejectAbsurdFee, int dosLevel)
+{
+    if (tx.IsCoinBase())
+    {
+        fprintf(stderr,"Cannot accept coinbase as individual tx\n");
+        return state.DoS(100, error("AcceptToMemoryPool: coinbase as individual tx"),REJECT_INVALID, "coinbase");
+    }
+    return AcceptToMemoryPoolInt(pool, state, tx, fLimitFree, pfMissingInputs, fRejectAbsurdFee, dosLevel);
+}
 
-bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState &state, const CTransaction &tx, bool fLimitFree,bool* pfMissingInputs, bool fRejectAbsurdFee, int dosLevel)
+bool AcceptToMemoryPoolInt(CTxMemPool& pool, CValidationState &state, const CTransaction &tx, bool fLimitFree,bool* pfMissingInputs, bool fRejectAbsurdFee, int dosLevel)
 {
     AssertLockHeld(cs_main);
     if (pfMissingInputs)
@@ -1944,7 +1954,7 @@ bool myAddtomempool(CTransaction &tx, CValidationState *pstate)
         pstate = &state;
     CTransaction Ltx; bool fMissingInputs,fOverrideFees = false;
     if ( mempool.lookup(tx.GetHash(),Ltx) == 0 )
-        return(AcceptToMemoryPool(mempool, *pstate, tx, false, &fMissingInputs, !fOverrideFees));
+        return(AcceptToMemoryPoolInt(mempool, *pstate, tx, false, &fMissingInputs, !fOverrideFees));
     else return(true);
 }
 
@@ -2413,12 +2423,10 @@ void static InvalidBlockFound(CBlockIndex *pindex, const CValidationState &state
 
 void UpdateCoins(const CTransaction& tx, CCoinsViewCache& inputs, CTxUndo &txundo, int nHeight)
 {
-    int checkUntil = IsBlockBoundTransaction(tx) ? tx.vin.size() - 1 : tx.vin.size();
-
     if (!tx.IsMint()) // mark inputs spent
     {
-        txundo.vprevout.reserve(checkUntil);
-        for (int i = 0; i < checkUntil; i++)
+        txundo.vprevout.reserve(tx.vin.size());
+        for (int i = 0; i < tx.vin.size(); i++)
         {
             const CTxIn &txin =  tx.vin[i];
             CCoinsModifier coins = inputs.ModifyCoins(txin.prevout.hash);
@@ -2942,7 +2950,7 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
         // restore inputs
         if (!tx.IsMint()) {
             const CTxUndo &txundo = blockUndo.vtxundo[i-1];
-            if (txundo.vprevout.size() != tx.vin.size() && !(IsBlockBoundTransaction(tx) && (txundo.vprevout.size() + 1) == tx.vin.size()))
+            if (txundo.vprevout.size() != tx.vin.size())
                 return error("DisconnectBlock(): transaction and undo data inconsistent");
             for (unsigned int j = txundo.vprevout.size(); j-- > 0;) {
                 const COutPoint &out = tx.vin[j].prevout;
@@ -3289,10 +3297,12 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
             return state.DoS(100, error("ConnectBlock(): too many sigops"),
                              REJECT_INVALID, "bad-blk-sigops");
         //fprintf(stderr,"ht.%d vout0 t%u\n",pindex->GetHeight(),tx.nLockTime);
+        CPBaaSNotarization tpbn;
         bool isBlockBoundSmartTx = (IsBlockBoundTransaction(tx) &&
                                     block.vtx[0].vout.size() > tx.vin.back().prevout.n && 
                                     block.vtx[0].vout[tx.vin.back().prevout.n].scriptPubKey.IsInstantSpend() &&
-                                    ::GetHash(CPBaaSNotarization(block.vtx[0])) == tx.vin.back().prevout.hash);
+                                    (tpbn = CPBaaSNotarization(tx)).IsValid() &&    // these need to be generic tests vs. notarization
+                                    ::GetHash(CPBaaSNotarization(block.vtx[0])) == ::GetHash(tpbn));
 
         if (!tx.IsMint() && !isBlockBoundSmartTx)
         {
@@ -3820,7 +3830,7 @@ bool static DisconnectTip(CValidationState &state, bool fBare = false) {
             list<CTransaction> removed;
             CValidationState stateDummy;
             
-            // don't keep staking or invalid transactions
+            // don't keep coinbase, staking, or invalid transactions
             if (tx.IsCoinBase() || ((i == (block.vtx.size() - 1)) && (ASSETCHAINS_STAKED && komodo_isPoS((CBlock *)&block) != 0)) || !AcceptToMemoryPool(mempool, stateDummy, tx, false, NULL))
             {
                 mempool.remove(tx, removed, true);
@@ -4678,18 +4688,7 @@ bool CheckBlock(int32_t *futureblockp,int32_t height,CBlockIndex *pindex,const C
                         ptx = &sTx;
                     } else 
                     {
-                        if (!(state.GetRejectReason() == "bad-txns-inputs-missing" && 
-                                    IsBlockBoundTransaction(Tx) &&
-                                    block.vtx[0].vout.size() > Tx.vin.back().prevout.n && 
-                                    block.vtx[0].vout[Tx.vin.back().prevout.n].scriptPubKey.IsInstantSpend() &&
-                                    ::GetHash(CPBaaSNotarization(block.vtx[0])) == Tx.vin.back().prevout.hash))
-                        {
-                            // unless this is bound to the coinbase as a notarization, reject it
-                            rejects++;
-                        }
-                        // TODO: need check to ensure that the inputs + the matching coinbase instant spend == outputs
-                        // should generalize to enable this same method to be used for reserve conversion
-                        // block.vtx[0].vout[Tx.vin.back().prevout.n].nValue == (Tx.GetValueOut() - )
+                        rejects++;
                     }
                 }
             }
@@ -6994,12 +6993,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
         mapAlreadyAskedFor.erase(inv);
 
         // coinbases would be accepted to the mem pool for instant spend transactions, stop them here
-        if (tx.IsCoinBase())
-        {
-            fprintf(stderr,"Receiving coinbase as individual tx\n");
-            state.DoS(100, error("AcceptToMemoryPool: coinbase as individual tx"),REJECT_INVALID, "coinbase");
-        }
-        else if (!AlreadyHave(inv) && AcceptToMemoryPool(mempool, state, tx, true, &fMissingInputs))
+        if (!AlreadyHave(inv) && AcceptToMemoryPool(mempool, state, tx, true, &fMissingInputs))
         {
             mempool.check(pcoinsTip);
             RelayTransaction(tx);

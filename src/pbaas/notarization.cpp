@@ -1183,5 +1183,5 @@ bool IsBlockBoundTransaction(const CTransaction &tx)
     }
     
     // no fungible outputs and a notarization that refers to itself and will need to match the coinbase output
-    return earnedNotarizations == 1 && finalizations == 1 & oprets == 1 && unknown == 0 && tx.vin.size() > 0 && tx.vin.back().prevout.hash == notarizationHash;
+    return earnedNotarizations == 1 && finalizations == 1 & oprets == 1 && tx.vin.size() > 0;
 }
