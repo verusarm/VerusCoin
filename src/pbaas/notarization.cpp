@@ -450,7 +450,7 @@ bool CreateEarnedNotarization(CMutableTransaction &mnewTx, vector<CInputDescript
     uint256 crossNotarizationID;
     crossNotarizationID.SetHex((uv2.get_str()));
 
-    if (((cnd.vtx.size() != 0) && lastNotarizationID.IsNull()) || crossNotarizationID.IsNull() || !DecodeHexTx(crossTx, uv3.get_str()))
+    if (((cnd.vtx.size() > 1) && lastNotarizationID.IsNull()) || crossNotarizationID.IsNull() || !DecodeHexTx(crossTx, uv3.get_str()))
     {
         return false;
     }
