@@ -1023,20 +1023,20 @@ void IncrementExtraNonce(CBlock* pblock, CBlockIndex* pindexPrev, unsigned int &
 
         UpdateTime(pblock, Params().GetConsensus(), pindexPrev);
 
-        // POS blocks have already had their solution space fully updated, and there is no actual extra nonce, extradata is used
+        uint256 mmvRoot;
+        {
+            LOCK(cs_main);
+            // set the PBaaS header
+            ChainMerkleMountainView mmv = chainActive.GetMMV();
+            mmvRoot = mmv.GetRoot();
+        }
+
+        pblock->AddUpdatePBaaSHeader(mmvRoot);
+
+        // POS blocks have already had their solution space filled, and there is no actual extra nonce, extradata is used
         // for POS proof, so don't modify it
         if (!pblock->IsVerusPOSBlock())
         {
-            uint256 mmvRoot;
-            {
-                LOCK(cs_main);
-                // set the PBaaS header
-                ChainMerkleMountainView mmv = chainActive.GetMMV();
-                mmvRoot = mmv.GetRoot();
-            }
-
-            pblock->AddUpdatePBaaSHeader(mmvRoot);
-
             uint8_t dummy;
             // clear extra data to allow adding more PBaaS headers
             pblock->SetExtraData(&dummy, 0);
