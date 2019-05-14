@@ -376,6 +376,7 @@ bool GetNotarizationData(uint160 chainID, uint32_t ecode, CChainNotarizationData
                         // sort by block height, index by transaction id
                         sorted.emplace(blkit->second->GetHeight(), make_pair(it->first.txhash, notarization));
                     }
+                    // if we are the first notarization, none can be confirmed
                     if (notarization.prevHeight == 0)
                     {
                         notarizationData.lastConfirmed = -1;
@@ -394,7 +395,7 @@ bool GetNotarizationData(uint160 chainID, uint32_t ecode, CChainNotarizationData
             return false;
         }
 
-        // the first entry must either be a chain definition, which we should have to compare, or must refer to the last
+        // the first entry must either be a chain definition, which we should validate, must be block 1, or must refer to the last
         // confirmed notarization
         if (!chainDef.IsValid() && !(ecode == EVAL_EARNEDNOTARIZATION && notarizationData.lastConfirmed == -1))
         {
@@ -443,7 +444,7 @@ bool GetNotarizationData(uint160 chainID, uint32_t ecode, CChainNotarizationData
         for (int32_t i = 0; i < notarizationData.vtx.size(); i++)
         {
             auto &nzp = notarizationData.vtx[i];
-            auto it = references.find(nzp.second.prevNotarization);
+            auto it = nzp.second.prevNotarization.IsNull() ? references.end() : references.find(nzp.second.prevNotarization);
 
             int32_t chainIdx = 0;
             int32_t posIdx = 0;
