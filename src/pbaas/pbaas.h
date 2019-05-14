@@ -314,9 +314,6 @@ bool DehydrateChainObject(OStream &s, const CBaseChainObject *pobj)
 
         case CHAINOBJ_TRANSACTION:
         {
-            CChainObject<CTransaction> &debugTxCO = *(CChainObject<CTransaction> *)pobj;
-            printf("tx.vout.size(): %lu\n", debugTxCO.object.vout.size());
-            printf("tx.vin.size(): %lu\n", debugTxCO.object.vin.size());
             s << *(CChainObject<CTransaction> *)pobj;
             return true;
         }
