@@ -360,8 +360,11 @@ bool GetNotarizationData(uint160 chainID, uint32_t ecode, CChainNotarizationData
 
             if (myGetTransaction(it->first.txhash, ntx, blkHash))
             {
-                // try to make a chain definition out of each transaction, and keep the first one that is valid
-                chainDef = CPBaaSChainDefinition(ntx);
+                if (!chainDef.IsValid())
+                {
+                    // try to make a chain definition out of each transaction, and keep the first one that is valid
+                    chainDef = CPBaaSChainDefinition(ntx);
+                }
                 CPBaaSNotarization notarization = CPBaaSNotarization(ntx);
                 if (notarization.IsValid())
                 {
