@@ -960,6 +960,7 @@ UniValue submitacceptednotarization(const UniValue& params, bool fHelp)
             CValidationState state;
             bool fMissingInputs;
             if (!AcceptToMemoryPool(mempool, state, tx, false, &fMissingInputs)) {
+                printf("Notarization submission failure %s\n", state.GetRejectReason().c_str());
                 if (state.IsInvalid()) {
                     throw JSONRPCError(RPC_TRANSACTION_REJECTED, strprintf("%i: %s", state.GetRejectCode(), state.GetRejectReason()));
                 } else {
@@ -969,8 +970,10 @@ UniValue submitacceptednotarization(const UniValue& params, bool fHelp)
                     throw JSONRPCError(RPC_TRANSACTION_ERROR, state.GetRejectReason());
                 }
             }
-
-            RelayTransaction(tx);
+            else
+            {
+                RelayTransaction(tx);
+            }
 
             return newTx.GetHash().GetHex();
         }
