@@ -92,7 +92,7 @@ public:
 
     uint256 prevNotarization;               // txid of the prior notarization on this chain that we agree with, even those not accepted yet
     int32_t prevHeight;
-    uint256 crossNotarization;              // hash of last notarization transaction on the other chain, which is the first tx object in the opret input
+    uint256 crossNotarization;              // hash of previous notarization transaction on the other chain, which is the first tx object in the opret input
     int32_t crossHeight;
 
     COpRetProof opRetProof;                 // hashes and types of all objects in our opret, enabling reconstruction without the opret on notarized chain

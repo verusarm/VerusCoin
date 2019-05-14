@@ -1242,6 +1242,8 @@ UniValue getcrossnotarization(const UniValue& params, bool fHelp)
                 }
             }
 
+            CBlockIndex *nzIndex = chainActive[proofheight];
+
             // get the current block's MMR root and proof height
             CPBaaSNotarization notarization = CPBaaSNotarization(CPBaaSNotarization::CURRENT_VERSION, 
                                                                  ASSETCHAINS_CHAINID,
@@ -1249,7 +1251,7 @@ UniValue getcrossnotarization(const UniValue& params, bool fHelp)
                                                                  proofheight,
                                                                  mmrRoot,
                                                                  preHash,
-                                                                 ArithToUint256(GetCompactPower(pnindex->nNonce, pnindex->nBits, pnindex->nVersion)),
+                                                                 ArithToUint256(GetCompactPower(nzIndex->nNonce, nzIndex->nBits, nzIndex->nVersion)),
                                                                  uint256(), 0,
                                                                  tx.GetHash(), prevHeight,
                                                                  orp,
