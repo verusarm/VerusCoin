@@ -954,8 +954,22 @@ UniValue submitacceptednotarization(const UniValue& params, bool fHelp)
                 }
             }
 
-            // submit transaction
+            // add to mempool and submit transaction
             CTransaction tx(mnewTx);
+
+            CValidationState state;
+            bool fMissingInputs;
+            if (!AcceptToMemoryPool(mempool, state, tx, false, &fMissingInputs)) {
+                if (state.IsInvalid()) {
+                    throw JSONRPCError(RPC_TRANSACTION_REJECTED, strprintf("%i: %s", state.GetRejectCode(), state.GetRejectReason()));
+                } else {
+                    if (fMissingInputs) {
+                        throw JSONRPCError(RPC_TRANSACTION_ERROR, "Missing inputs");
+                    }
+                    throw JSONRPCError(RPC_TRANSACTION_ERROR, state.GetRejectReason());
+                }
+            }
+
             RelayTransaction(tx);
 
             return newTx.GetHash().GetHex();
