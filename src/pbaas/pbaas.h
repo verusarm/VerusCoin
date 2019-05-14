@@ -316,11 +316,10 @@ bool DehydrateChainObject(OStream &s, const CBaseChainObject *pobj)
         {
             CTransaction &ref = ((CChainObject<CTransaction> *)pobj)->object;
             printf("ref.vin.size(): %lu\n", ref.vin.size());
-            printf("ref.vout.size(): %lu, amount: %lu\n", ref.GetValueOut());
 
             s << *(CChainObject<CTransaction> *)pobj;
 
-            printf("ref.vout.size(): %lu, amount: %lu\n", ref.GetValueOut());
+            printf("ref.vout.size(): %lu, amount: %lu\n", ref.vin.size(), ref.GetValueOut());
             return true;
         }
 
