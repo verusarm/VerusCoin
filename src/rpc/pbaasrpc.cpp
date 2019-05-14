@@ -349,6 +349,8 @@ bool GetNotarizationData(uint160 chainID, uint32_t ecode, CChainNotarizationData
     {
         multimap<int32_t, pair<uint256, CPBaaSNotarization>> sorted;
 
+        notarizationData.lastConfirmed = 0;
+
         // filter out all transactions that do not spend from the notarization thread, or originate as the
         // chain definition
         for (auto it = unspentOutputs.begin(); it != unspentOutputs.end(); it++)
@@ -374,6 +376,10 @@ bool GetNotarizationData(uint160 chainID, uint32_t ecode, CChainNotarizationData
                         // sort by block height, index by transaction id
                         sorted.emplace(blkit->second->GetHeight(), make_pair(it->first.txhash, notarization));
                     }
+                    if (notarization.prevHeight == 0)
+                    {
+                        notarizationData.lastConfirmed = -1;
+                    }
                 }
             }
             else
@@ -390,8 +396,7 @@ bool GetNotarizationData(uint160 chainID, uint32_t ecode, CChainNotarizationData
 
         // the first entry must either be a chain definition, which we should have to compare, or must refer to the last
         // confirmed notarization
-        notarizationData.lastConfirmed = 0;
-        if (!chainDef.IsValid() && !(ecode == EVAL_EARNEDNOTARIZATION && notarizationData.vtx[0].second.prevHeight == 0))
+        if (!chainDef.IsValid() && !(ecode == EVAL_EARNEDNOTARIZATION && notarizationData.lastConfirmed == -1))
         {
             // the first entry of all forks must reference a confirmed transaction
             CTransaction rootTx;
