@@ -391,7 +391,7 @@ bool GetNotarizationData(uint160 chainID, uint32_t ecode, CChainNotarizationData
         // the first entry must either be a chain definition, which we should have to compare, or must refer to the last
         // confirmed notarization
         notarizationData.lastConfirmed = 0;
-        if (!chainDef.IsValid())
+        if (!chainDef.IsValid() && !(ecode == EVAL_EARNEDNOTARIZATION && notarizationData.vtx[0].second.prevHeight == 0))
         {
             // the first entry of all forks must reference a confirmed transaction
             CTransaction rootTx;
@@ -418,7 +418,7 @@ bool GetNotarizationData(uint160 chainID, uint32_t ecode, CChainNotarizationData
         }
         else
         {
-            // we still have the chain definition in our forks, so no notarization has been confirmed yet
+            // we still have the chain definition or block 1 in our forks, so no notarization has been confirmed yet
             notarizationData.lastConfirmed = -1;
         }
 
