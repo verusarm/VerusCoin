@@ -325,7 +325,18 @@ UniValue getdefinedchains(const UniValue& params, bool fHelp)
 
     for (auto def : chains)
     {
-        ret.push_back(def.ToUniValue());
+        UniValue oneChain(UniValue::VOBJ);
+        oneChain.push_back(Pair("chaindefinition", def.ToUniValue()));
+        CChainNotarizationData nData;
+        int32_t confirmedHeight = -1, bestHeight = -1;
+        if (GetNotarizationData(def.GetChainID(), EVAL_ACCEPTEDNOTARIZATION, nData))
+        {
+            confirmedHeight = nData.lastConfirmed != -1 ? nData.vtx[nData.lastConfirmed].second.notarizationHeight : 0;
+            bestHeight = nData.bestChain != -1 ? nData.vtx[nData.bestChain].second.notarizationHeight : 0;
+        }
+        oneChain.push_back(Pair("confirmedheight", confirmedHeight));
+        oneChain.push_back(Pair("latestheight", bestHeight));
+        ret.push_back(oneChain);
     }
 
     return ret;
