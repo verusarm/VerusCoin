@@ -406,30 +406,29 @@ bool GetNotarizationData(uint160 chainID, uint32_t ecode, CChainNotarizationData
             return false;
         }
 
-        // the first entry must either be a chain definition, which we should validate, must be block 1, or must refer to the last
-        // confirmed notarization
         if (!chainDef.IsValid() && !(ecode == EVAL_EARNEDNOTARIZATION && notarizationData.lastConfirmed == -1))
         {
-            // the first entry of all forks must reference a confirmed transaction
+            // the first entry of all forks must reference a confirmed transaction if there is one
             CTransaction rootTx;
             uint256 blkHash;
-            if (!myGetTransaction(sorted.begin()->second.second.prevNotarization, rootTx, blkHash))
+            auto prevHash = sorted.begin()->second.second.prevNotarization;
+            if (!prevHash.IsNull())
             {
-                return false;
-            }
-            // ensure that we have a finalization output
-            COptCCParams p;
-            CPBaaSNotarization notarization;
-
-            for (auto o : rootTx.vout)
-            {
-                if (IsPayToCryptoCondition(o.scriptPubKey, p, notarization) && notarization.IsValid())
+                if (!myGetTransaction(prevHash, rootTx, blkHash))
                 {
-                    if (p.vKeys.size() && GetDestinationID(p.vKeys[0]) == keyID)
-                    {
-                        notarizationData.vtx.push_back(make_pair(sorted.begin()->second.second.prevNotarization, notarization));
-                        notarizationData.lastConfirmed = notarizationData.vtx.size() - 1;
-                    }
+                    return false;
+                }
+
+                // ensure that we have a finalization output
+                COptCCParams p;
+                CPBaaSNotarization notarization;
+                CNotarizationFinalization finalization;
+                uint32_t notarizeIdx, finalizeIdx;
+
+                if (GetNotarizationAndFinalization(ecode, CMutableTransaction(rootTx), notarization, &notarizeIdx, &finalizeIdx))
+                {
+                    notarizationData.vtx.push_back(make_pair(prevHash, notarization));
+                    notarizationData.lastConfirmed = notarizationData.vtx.size() - 1;
                 }
             }
         }
@@ -446,10 +445,8 @@ bool GetNotarizationData(uint160 chainID, uint32_t ecode, CChainNotarizationData
             notarizationData.vtx.push_back(make_pair(it.second.first, it.second.second));
         }
 
-        // we now have all unspent notarizations sorted by block height
-        // put them into the notarization data, organize them into
-        // forks, then determine best chain of notarizations, and if they refer to a confirmed notarization
-        // there must be a common root in the forks or the confirmed notarization to which they refer
+        // we now have all unspent notarizations sorted by block height, and the last confirmed notarization as first, if there
+        // is one. if there is a confirmed notarization, all forks should refer to it, or they are invalid and should be spent.
 
         // find roots and create a chain from each
         for (int32_t i = 0; i < notarizationData.vtx.size(); i++)
@@ -465,7 +462,7 @@ bool GetNotarizationData(uint160 chainID, uint32_t ecode, CChainNotarizationData
             {
                 std::vector<int32_t> &fork = notarizationData.forks[it->second.first];
 
-                // if it is the end of the fork, put this entry there, if not the end, copy max once to another fork
+                // if it is the end of the fork, put this entry there, if not the end, copy up to it and start another fork
                 if (it->second.second == (fork.size() - 1))
                 {
                     fork.push_back(i);
@@ -474,7 +471,7 @@ bool GetNotarizationData(uint160 chainID, uint32_t ecode, CChainNotarizationData
                 }
                 else
                 {
-                    notarizationData.forks.push_back(vector<int32_t>(&fork[0], &fork[it->second.second]));
+                    notarizationData.forks.push_back(vector<int32_t>(&fork[0], &fork[it->second.second] + 1));
                     fork = notarizationData.forks.back();
                     fork.push_back(i);
                     chainIdx = notarizationData.forks.size() - 1;
