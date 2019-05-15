@@ -303,7 +303,11 @@ vector<CInputDescriptor> AddSpendsAndFinalizations(const CChainNotarizationData 
         }
     }
 
-    // either we have no last, or we found its notarization output
+    // either we have no last notarization, or we found its notarization output
+    if (lastNotarizationID.IsNull() || j < lastTx.vout.size())
+    {
+        printf("Cannot find notarization in transaction %s\n", lastTx.GetHash().GetHex().c_str());
+    }
     assert(lastNotarizationID.IsNull() || j < lastTx.vout.size());
 
     // if this isn't the first notarization, setup inputs
