@@ -774,7 +774,7 @@ UniValue submitacceptednotarization(const UniValue& params, bool fHelp)
         uint256 blkHash;
         {
             LOCK(cs_main);
-            if (!myGetTransaction(pbn.prevNotarization, lastTx, blkHash))
+            if (!myGetTransaction(nData.vtx.back().first, lastTx, blkHash))
             {
                 throw JSONRPCError(RPC_TRANSACTION_ERROR, "Cannot access prior notarization");
             }
@@ -843,7 +843,7 @@ UniValue submitacceptednotarization(const UniValue& params, bool fHelp)
                     if (myGetTransaction(mnewTx.vin[confirmedInput].prevout.hash, confirmedTx, hashBlock) &&
                         (it = mapBlockIndex.find(hashBlock)) != mapBlockIndex.end())
                     {
-                        pindex = mapBlockIndex.find(blkHash)->second;
+                        pindex = mapBlockIndex.find(hashBlock)->second;
                     }
 
                     // add all inputs that might provide notary reward and calculate notary reward based on that plus current

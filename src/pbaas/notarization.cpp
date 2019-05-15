@@ -310,8 +310,9 @@ vector<CInputDescriptor> AddSpendsAndFinalizations(const CChainNotarizationData 
     if (!lastNotarizationID.IsNull())
     {
         // spend notarization output of the last notarization
-        txInputs.push_back(CInputDescriptor(lastTx.vout[j].scriptPubKey, lastTx.vout[j].nValue, CTxIn(lastNotarizationID, j, CScript())));
-        mnewTx.vin.push_back(CTxIn(lastNotarizationID, j, CScript()));
+        uint256 lastTxHash = lastTx.GetHash();
+        txInputs.push_back(CInputDescriptor(lastTx.vout[j].scriptPubKey, lastTx.vout[j].nValue, CTxIn(lastTxHash, j, CScript())));
+        mnewTx.vin.push_back(CTxIn(lastTxHash, j, CScript()));
 
         LOCK(cs_main);
 
