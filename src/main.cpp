@@ -2201,7 +2201,7 @@ CAmount GetBlockSubsidy(int nHeight, const Consensus::Params& consensusParams)
 
 CAmount GetBlockOnePremine()
 {
-    return ASSETCHAINS_SUPPLY * COIN;
+    return ASSETCHAINS_SUPPLY;
 }
 
 bool IsInitialBlockDownload()
