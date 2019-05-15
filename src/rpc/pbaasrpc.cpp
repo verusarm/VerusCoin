@@ -763,7 +763,10 @@ UniValue submitacceptednotarization(const UniValue& params, bool fHelp)
         uint256 blkHash;
         {
             LOCK(cs_main);
-            myGetTransaction(pbn.prevNotarization, lastTx, blkHash);
+            if (!myGetTransaction(pbn.prevNotarization, lastTx, blkHash))
+            {
+                throw JSONRPCError(RPC_TRANSACTION_ERROR, "Cannot access prior notarization");
+            }
         }
 
         int32_t confirmedInput = -1;
@@ -818,7 +821,10 @@ UniValue submitacceptednotarization(const UniValue& params, bool fHelp)
                 CCoinsViewCache view(pcoinsTip);
                 int64_t dummyInterest;
                 valueIn = view.GetValueIn(chainActive.LastTip()->GetHeight(), &dummyInterest, newTx, chainActive.LastTip()->nTime);
-
+                if (!valueIn)
+                {
+                    throw JSONRPCError(RPC_TRANSACTION_REJECTED, "unable to spend necessary transaction outputs");
+                }
 
                 if (confirmedInput != -1)
                 {
