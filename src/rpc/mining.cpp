@@ -887,7 +887,7 @@ UniValue submitblock(const UniValue& params, bool fHelp)
         throw JSONRPCError(RPC_DESERIALIZATION_ERROR, "Block decode failed");
     }
 
-    printf("Received block submission for %s\nhash %s\n", ASSETCHAINS_SYMBOL, block.GetHash().GetHex().c_str());
+    printf("Received block submission for %s\nhash: %s\n", ASSETCHAINS_SYMBOL, block.GetHash().GetHex().c_str());
 
     uint256 hash = block.GetHash();
     bool fBlockPresent = false;

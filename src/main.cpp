@@ -1576,7 +1576,7 @@ bool AcceptToMemoryPoolInt(CTxMemPool& pool, CValidationState &state, const CTra
         size_t n = tx.vin.size();
         if (n > limit) {
             LogPrint("mempool", "Dropping txid %s : too many transparent inputs %zu > limit %zu\n", tx.GetHash().ToString(), n, limit );
-            return false;
+            return error("AcceptToMemoryPool: too many transparent inputs");
         }
     }
 
@@ -1641,7 +1641,8 @@ bool AcceptToMemoryPoolInt(CTxMemPool& pool, CValidationState &state, const CTra
             if (pool.mapNextTx.count(outpoint))
             {
                 // Disable replacement feature for now
-                return false;
+                //fprintf(stderr,"pool.mapNextTx.count\n");
+                return error("inputs have been spent in mempool");
             }
         }
         BOOST_FOREACH(const JSDescription &joinsplit, tx.vjoinsplit) {
@@ -4688,14 +4689,17 @@ bool CheckBlock(int32_t *futureblockp,int32_t height,CBlockIndex *pindex,const C
                         ptx = &sTx;
                     } else 
                     {
-                        rejects++;
+                        if (state.GetRejectCode() != REJECT_DUPLICATE)
+                        {
+                            rejects++;
+                        }
                     }
                 }
             }
             if ( rejects == 0 || rejects == lastrejects )
             {
-                if ( 0 && lastrejects != 0 )
-                    fprintf(stderr,"lastrejects.%d -> all tx in mempool\n",lastrejects);
+                //if ( lastrejects != 0 )
+                //    fprintf(stderr,"lastrejects.%d -> all tx in mempool\n",lastrejects);
                 break;
             }
             //fprintf(stderr,"addtomempool ht.%d for CC checking: n.%d rejects.%d last.%d\n",height,(int32_t)block.vtx.size(),rejects,lastrejects);
