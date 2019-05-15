@@ -859,6 +859,13 @@ uint256 CreateAcceptedNotarization(const CBlock &blk, int32_t txIndex, int32_t h
     }
 
     vector<CBaseChainObject *> chainObjects;
+    CChainObject<CBlockHeader> latestHeaderObj;
+    CChainObject<CHeaderRef> latestHeaderObjRef;
+    CChainObject<CMerkleBranch> latestHeaderProof;
+    CChainObject<CTransaction> strippedTxObj;
+    CChainObject<CMerkleBranch> txProofObj;
+    CChainObject<CPriorBlocksCommitment> priorBlocksObj;
+
     COpRetProof orp;
     CPBaaSNotarization pbn;
     {
@@ -897,19 +904,19 @@ uint256 CreateAcceptedNotarization(const CBlock &blk, int32_t txIndex, int32_t h
         // only the header ref and pre-header
         if (blk.IsVerusPOSBlock())
         {
-            CChainObject<CBlockHeader> latestHeaderObj(CHAINOBJ_HEADER, blk);
+            latestHeaderObj = CChainObject<CBlockHeader>(CHAINOBJ_HEADER, blk);
             chainObjects.push_back(&latestHeaderObj);
             orp.AddObject(CHAINOBJ_HEADER, blk.GetHash());
         }
         else
         {
             CHeaderRef hr(blk);
-            CChainObject<CHeaderRef> latestHeaderObj(CHAINOBJ_HEADER_REF, hr);
-            chainObjects.push_back(&latestHeaderObj);
+            latestHeaderObjRef = CChainObject<CHeaderRef>(CHAINOBJ_HEADER_REF, hr);
+            chainObjects.push_back(&latestHeaderObjRef);
             orp.AddObject(CHAINOBJ_HEADER_REF, blk.GetHash());
         }
 
-        CChainObject<CMerkleBranch> latestHeaderProof(CHAINOBJ_PROOF, blockProof);
+        latestHeaderProof = CChainObject<CMerkleBranch>(CHAINOBJ_PROOF, blockProof);
         chainObjects.push_back(&latestHeaderProof);
         orp.AddObject(blk, chainActive[height]->GetBlockHash());
 
@@ -932,12 +939,12 @@ uint256 CreateAcceptedNotarization(const CBlock &blk, int32_t txIndex, int32_t h
         printf("entx.vout size: %lu\n", entx.vout.size());
         printf("strippedTx.vout size: %lu\n", strippedTx.vout.size());
 
-        CChainObject<CTransaction> strippedTxObj(CHAINOBJ_TRANSACTION, strippedTx);
+        strippedTxObj = CChainObject<CTransaction>(CHAINOBJ_TRANSACTION, strippedTx);
         chainObjects.push_back(&strippedTxObj);
         orp.AddObject(CHAINOBJ_TRANSACTION, entx.GetHash());
 
         // add proof of the transaction
-        CChainObject<CMerkleBranch> txProofObj(CHAINOBJ_PROOF, txProof);
+        txProofObj = CChainObject<CMerkleBranch>(CHAINOBJ_PROOF, txProof);
         chainObjects.push_back(&txProofObj);
         orp.AddObject(CHAINOBJ_PROOF, txHash);
 
@@ -955,7 +962,7 @@ uint256 CreateAcceptedNotarization(const CBlock &blk, int32_t txIndex, int32_t h
             priorBlocks.priorBlocks.push_back(mmv.mmr.GetNode(height - i).hash);
         }
 
-        CChainObject<CPriorBlocksCommitment> priorBlocksObj(CHAINOBJ_PRIORBLOCKS, priorBlocks);
+        priorBlocksObj = CChainObject<CPriorBlocksCommitment>(CHAINOBJ_PRIORBLOCKS, priorBlocks);
         chainObjects.push_back(&priorBlocksObj);
         orp.AddObject(CHAINOBJ_PRIORBLOCKS, ::GetHash(priorBlocks));
 
