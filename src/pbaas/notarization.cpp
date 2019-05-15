@@ -558,12 +558,20 @@ bool CreateEarnedNotarization(CMutableTransaction &mnewTx, vector<CInputDescript
         }
         else
         {
-            CCoins coins;
-            if (!pcoinsTip->GetCoins(lastNotarizationID, coins))
+            uint256 hashBlk;
+            // get the last notarization
+            if (!myGetTransaction(lastNotarizationID, lastTx, hashBlk))
             {
+                printf("Error: cannot find notarization transaction %s on %s chain\n", lastNotarizationID.GetHex().c_str(), ASSETCHAINS_SYMBOL);
                 return false;
             }
-            pbn.prevHeight = coins.nHeight;
+            auto lastTxBlkIt = mapBlockIndex.find(hashBlk);
+            if (lastTxBlkIt == mapBlockIndex.end())
+            {
+                printf("Error: cannot find block %s on %s chain\n", hashBlk.GetHex().c_str(), ASSETCHAINS_SYMBOL);
+                return false;
+            }
+            pbn.prevHeight = lastTxBlkIt->second->GetHeight();
 
             if (pbn.prevHeight + CPBaaSNotarization::MIN_BLOCKS_BETWEEN_ACCEPTED > height)
             {
