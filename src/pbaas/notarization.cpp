@@ -945,8 +945,8 @@ uint256 CreateAcceptedNotarization(const CBlock &blk, int32_t txIndex, int32_t h
         CTransaction strippedTx(mentx);
 
         // debugging only
-        printf("entx.vout size: %lu\n", entx.vout.size());
-        printf("strippedTx.vout size: %lu\n", strippedTx.vout.size());
+        //printf("entx.vout size: %lu\n", entx.vout.size());
+        //printf("strippedTx.vout size: %lu\n", strippedTx.vout.size());
 
         strippedTxObj = CChainObject<CTransaction>(CHAINOBJ_TRANSACTION, strippedTx);
         chainObjects.push_back(&strippedTxObj);
