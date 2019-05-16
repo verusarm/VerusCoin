@@ -566,7 +566,9 @@ bool CreateEarnedNotarization(CMutableTransaction &mnewTx, vector<CInputDescript
             printf("Error: cannot find block %s on %s chain\n", hashBlk.GetHex().c_str(), ASSETCHAINS_SYMBOL);
             return false;
         }
-        pbn.prevHeight = lastTxBlkIt->second->GetHeight();
+
+        CPBaaSNotarization prevNZ(lastTx);
+        pbn.prevHeight = prevNZ.notarizationHeight;
 
         if (pbn.prevHeight + CPBaaSNotarization::MIN_BLOCKS_BETWEEN_ACCEPTED > height)
         {

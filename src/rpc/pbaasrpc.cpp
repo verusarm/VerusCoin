@@ -352,6 +352,8 @@ bool GetNotarizationData(uint160 chainID, uint32_t ecode, CChainNotarizationData
     std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> > unspentOutputs;
     CPBaaSChainDefinition chainDef;
 
+    LOCK(cs_main);
+
     if (!GetAddressUnspent(keyID, 1, unspentOutputs))
     {
         return false;
@@ -717,6 +719,8 @@ UniValue submitacceptednotarization(const UniValue& params, bool fHelp)
         // we cannot submit, aside from that, we will prepare and submit
         set<uint256> priorBlocks;
         map<uint256, CPBaaSNotarization *> notarizationData;
+
+        // printf("opRet: %s\n", notarization.vout[notarization.vout.size() - 1].scriptPubKey.ToString().c_str());
 
         auto chainObjects = RetrieveOpRetArray(notarization.vout[notarization.vout.size() - 1].scriptPubKey);
         bool stillValid = true;
@@ -1090,6 +1094,8 @@ UniValue getcrossnotarization(const UniValue& params, bool fHelp)
 
     CChainNotarizationData nData;
 
+    LOCK(cs_main);
+
     // get notarization data and check all transactions
     if (GetNotarizationData(chainID, ecode, nData))
     {
@@ -1103,7 +1109,7 @@ UniValue getcrossnotarization(const UniValue& params, bool fHelp)
         {
             try
             {
-                found = GetTransaction(nData.vtx[0].first, tx, blkHash, true) && (ourLast = CPBaaSNotarization(tx)).IsValid();
+                found = GetTransaction(nData.vtx[0].first, tx, blkHash) && (ourLast = CPBaaSNotarization(tx)).IsValid();
             }
             catch(const std::exception& e)
             {
@@ -1151,6 +1157,13 @@ UniValue getcrossnotarization(const UniValue& params, bool fHelp)
         {
             // make sure our MMR matches our tip height, etc.
             LOCK(cs_main);
+
+            CPBaaSNotarization prevNotarization(tx);
+
+            if(!prevNotarization.IsValid())
+            {
+                throw JSONRPCError(RPC_TRANSACTION_ERROR, "Invalid prior notarization");
+            }
 
             int32_t proofheight = chainActive.Height();
             ChainMerkleMountainView mmv(chainActive.GetMMR(), proofheight);
@@ -1306,7 +1319,7 @@ UniValue getcrossnotarization(const UniValue& params, bool fHelp)
                                                                  preHash,
                                                                  ArithToUint256(GetCompactPower(nzIndex->nNonce, nzIndex->nBits, nzIndex->nVersion)),
                                                                  uint256(), 0,
-                                                                 tx.GetHash(), prevHeight,
+                                                                 tx.GetHash(), prevNotarization.notarizationHeight,
                                                                  orp,
                                                                  nodes);
 
