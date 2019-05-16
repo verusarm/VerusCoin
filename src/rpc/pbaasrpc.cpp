@@ -342,7 +342,7 @@ UniValue getdefinedchains(const UniValue& params, bool fHelp)
     return ret;
 }
 
-bool GetNotarizationData(uint160 chainID, uint32_t ecode, CChainNotarizationData &notarizationData)
+bool GetNotarizationData(uint160 chainID, uint32_t ecode, CChainNotarizationData &notarizationData, vector<CTransaction> *optionalTxOut)
 {
     notarizationData.version = PBAAS_VERSION;
 
@@ -361,6 +361,7 @@ bool GetNotarizationData(uint160 chainID, uint32_t ecode, CChainNotarizationData
     else
     {
         multimap<int32_t, pair<uint256, CPBaaSNotarization>> sorted;
+        multimap<int32_t, CTransaction> sortedTxs;
 
         notarizationData.lastConfirmed = 0;
 
@@ -388,6 +389,10 @@ bool GetNotarizationData(uint160 chainID, uint32_t ecode, CChainNotarizationData
                     {
                         // sort by block height, index by transaction id
                         sorted.emplace(blkit->second->GetHeight(), make_pair(it->first.txhash, notarization));
+                        if (optionalTxOut)
+                        {
+                            sortedTxs.emplace(blkit->second->GetHeight(), ntx);
+                        }
                     }
                     // if we are the first notarization, none can be confirmed
                     if (notarization.prevHeight == 0)
@@ -429,8 +434,12 @@ bool GetNotarizationData(uint160 chainID, uint32_t ecode, CChainNotarizationData
 
                 if (GetNotarizationAndFinalization(ecode, CMutableTransaction(rootTx), notarization, &notarizeIdx, &finalizeIdx))
                 {
-                    notarizationData.vtx.push_back(make_pair(prevHash, notarization));
-                    notarizationData.lastConfirmed = notarizationData.vtx.size() - 1;
+                    notarizationData.vtx.insert(notarizationData.vtx.begin(), make_pair(prevHash, notarization));
+                    notarizationData.lastConfirmed = 0;
+                    if (optionalTxOut)
+                    {
+                        optionalTxOut->insert(optionalTxOut->begin(), rootTx);
+                    }
                 }
             }
         }
@@ -442,9 +451,17 @@ bool GetNotarizationData(uint160 chainID, uint32_t ecode, CChainNotarizationData
 
         multimap<uint256, pair<int32_t, int32_t>> references;       // associates the txid, the fork index, and the index in the fork
 
-        for (auto it : sorted)
+        for (auto p : sorted)
         {
-            notarizationData.vtx.push_back(make_pair(it.second.first, it.second.second));
+            notarizationData.vtx.push_back(make_pair(p.second.first, p.second.second));
+        }
+
+        if (optionalTxOut)
+        {
+            for (auto p : sortedTxs)
+            {
+                optionalTxOut->push_back(p.second);
+            }
         }
 
         // we now have all unspent notarizations sorted by block height, and the last confirmed notarization as first, if there
@@ -1111,18 +1128,11 @@ UniValue getcrossnotarization(const UniValue& params, bool fHelp)
         uint256 blkHash;
         bool found = false;
 
-        // if we are the first notarization on this chain, we don't have to find a match, chain definition is the match
+        // if we think we are the first notarization on this chain, we don't have to find a match, chain definition is the match
         if (txids.size() == 0 && ecode == EVAL_ACCEPTEDNOTARIZATION && !nData.IsConfirmed() && nData.vtx.size() != 0)
         {
-            try
-            {
-                found = GetTransaction(nData.vtx[0].first, tx, blkHash) && (ourLast = CPBaaSNotarization(tx)).IsValid();
-            }
-            catch(const std::exception& e)
-            {
-                std::cerr << e.what() << '\n';
-            }
-            
+            found = myGetTransaction(nData.vtx[0].first, tx, blkHash) && (ourLast = CPBaaSNotarization(tx)).IsValid();
+           
             if (found)
             {
                 // we have the first matching transaction, return it
@@ -1138,16 +1148,7 @@ UniValue getcrossnotarization(const UniValue& params, bool fHelp)
             {
                 const pair<uint256, CPBaaSNotarization> &nzp = nData.vtx[i];
                 auto nit = txids.find(nzp.second.crossNotarization);
-                try
-                {
-                    found = GetTransaction(nzp.first, tx, blkHash, true) && (ourLast = CPBaaSNotarization(tx)).IsValid();
-                }
-                catch(const std::exception& e)
-                {
-                    std::cerr << e.what() << '\n';
-                }
-                
-                if (found)
+                if (found = (!(nit == txids.end()) && myGetTransaction(nzp.first, tx, blkHash)))
                 {
                     // we have the first matching transaction, return it
                     ret.push_back(Pair("crosstxid", nzp.second.crossNotarization.GetHex()));

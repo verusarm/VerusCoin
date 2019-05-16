@@ -16,7 +16,7 @@
 #include <univalue.h>
 
 bool GetChainDefinition(std::string &name, CPBaaSChainDefinition &chainDef);
-bool GetNotarizationData(uint160 chainID, uint32_t ecode, CChainNotarizationData &notarizationData);
+bool GetNotarizationData(uint160 chainID, uint32_t ecode, CChainNotarizationData &notarizationData, std::vector<CTransaction> *optionalTxOut = NULL);
 
 UniValue getchaindefinition(const UniValue& params, bool fHelp);
 UniValue getnotarizationdata(const UniValue& params, bool fHelp);
