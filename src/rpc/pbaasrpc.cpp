@@ -767,10 +767,7 @@ UniValue submitacceptednotarization(const UniValue& params, bool fHelp)
             }
         }
 
-        for (auto o : chainObjects)
-        {
-            delete o;
-        }
+        DeleteOpRetObjects(chainObjects);
 
         auto lastIt = notarizationData.find(pbn.prevNotarization);
 

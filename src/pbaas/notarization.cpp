@@ -526,7 +526,7 @@ bool CreateEarnedNotarization(CMutableTransaction &mnewTx, vector<CInputDescript
             CHeaderRef hr = CHeaderRef(hash, CPBaaSPreHeader(((CChainObject<CBlockHeader> *)chainObjs[j])->object));
             CBaseChainObject *hRef = new CChainObject<CHeaderRef>(CHAINOBJ_HEADER_REF, hr);
             compressedChainObjs.push_back(hRef);
-            delete chainObjs[j];
+            delete (CChainObject<CBlockHeader> *)chainObjs[j];
         }
         else
         {
@@ -537,10 +537,7 @@ bool CreateEarnedNotarization(CMutableTransaction &mnewTx, vector<CInputDescript
     mnewTx.vout.back().scriptPubKey = StoreOpRetArray(compressedChainObjs);
 
     // now that we've finished making the opret, free the objects
-    for (auto o : compressedChainObjs)
-    {
-        delete o;
-    }
+    DeleteOpRetObjects(compressedChainObjs);
 
     if (!mnewTx.vout.back().scriptPubKey.size())
     {
@@ -834,19 +831,14 @@ bool ValidateEarnedNotarization(CTransaction &ntx, CPBaaSNotarization *notarizat
                     {
                         // store chainObjs into reconstructed opRet and verify txid and proof of reconstructed transaction
                     }
-                    for (auto p : chainObjs)
-                    {
-                        delete p;
-                    }
+                    DeleteOpRetObjects(chainObjs);
                 }
             }
         }
     }
 
-    for (auto o : chainObjects)
-    {
-        delete o;
-    }
+    DeleteOpRetObjects(chainObjects);
+
     return retVal;
 }
 

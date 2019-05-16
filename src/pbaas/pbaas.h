@@ -314,12 +314,7 @@ bool DehydrateChainObject(OStream &s, const CBaseChainObject *pobj)
 
         case CHAINOBJ_TRANSACTION:
         {
-            CTransaction &ref = ((CChainObject<CTransaction> *)pobj)->object;
-            printf("ref.vin.size(): %lu\n", ref.vin.size());
-
             s << *(CChainObject<CTransaction> *)pobj;
-
-            printf("ref.vout.size(): %lu, amount: %ld\n", ref.vin.size(), ref.GetValueOut());
             return true;
         }
 
@@ -369,6 +364,8 @@ std::vector<unsigned char> StoreChainObject(const SERIALIZABLE &obj)
 
 // this adds an opret to a mutable transaction that provides the necessary evidence of a signed, cheating stake transaction
 CScript StoreOpRetArray(std::vector<CBaseChainObject *> &objPtrs);
+
+void DeleteOpRetObjects(std::vector<CBaseChainObject *> &ora);
 
 std::vector<CBaseChainObject *> RetrieveOpRetArray(const CScript &opRetScript);
 

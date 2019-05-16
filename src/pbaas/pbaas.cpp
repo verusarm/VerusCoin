@@ -195,6 +195,48 @@ CScript StoreOpRetArray(std::vector<CBaseChainObject *> &objPtrs)
     return error ? CScript() : CScript() << OP_RETURN << vch;
 }
 
+void DeleteOpRetObjects(std::vector<CBaseChainObject *> &ora)
+{
+    for (auto pobj : ora)
+    {
+        switch(pobj->objectType)
+        {
+            case CHAINOBJ_HEADER:
+            {
+                delete (CChainObject<CBlockHeader> *)pobj;
+                break;
+            }
+
+            case CHAINOBJ_TRANSACTION:
+            {
+                delete (CChainObject<CTransaction> *)pobj;
+                break;
+            }
+
+            case CHAINOBJ_PROOF:
+            {
+                delete (CChainObject<CMerkleBranch> *)pobj;
+                break;
+            }
+
+            case CHAINOBJ_HEADER_REF:
+            {
+                delete (CChainObject<CHeaderRef> *)pobj;
+                break;
+            }
+
+            case CHAINOBJ_PRIORBLOCKS:
+            {
+                delete (CChainObject<CPriorBlocksCommitment> *)pobj;
+                break;
+            }
+
+            default:
+                delete pobj;
+        }
+    }
+}
+
 std::vector<CBaseChainObject *> RetrieveOpRetArray(const CScript &opRetScript)
 {
     std::vector<unsigned char> vch;
