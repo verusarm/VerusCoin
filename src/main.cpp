@@ -2436,6 +2436,7 @@ void UpdateCoins(const CTransaction& tx, CCoinsViewCache& inputs, CTxUndo &txund
             if (nPos >= coins->vout.size() || coins->vout[nPos].IsNull())
             {
                 printf("Failed to find coins for transactions in block %d\n", nHeight);
+                CCoinsModifier testcoins = inputs.ModifyCoins(txin.prevout.hash);
                 //assert(false);
             }
 
