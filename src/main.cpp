@@ -2429,15 +2429,20 @@ void UpdateCoins(const CTransaction& tx, CCoinsViewCache& inputs, CTxUndo &txund
         txundo.vprevout.reserve(tx.vin.size());
         for (int i = 0; i < tx.vin.size(); i++)
         {
-            const CTxIn &txin =  tx.vin[i];
+            const CTxIn &txin = tx.vin[i];
             CCoinsModifier coins = inputs.ModifyCoins(txin.prevout.hash);
             unsigned nPos = txin.prevout.n;
             
             if (nPos >= coins->vout.size() || coins->vout[nPos].IsNull())
             {
-                printf("Failed to find coins for transactions in block %d\n", nHeight);
-                CCoinsModifier testcoins = inputs.ModifyCoins(txin.prevout.hash);
-                //assert(false);
+                printf("Failed to find coins for transaction %s, output %d, at height %d\n", txin.prevout.hash.GetHex().c_str(), txin.prevout.n, nHeight);
+                LogPrintf("Failed to find coins for transaction %s, output %d, at height %d\n", txin.prevout.hash.GetHex().c_str(), txin.prevout.n, nHeight);
+                // we can't generate undo information for this, allow if it's a block bound transaction
+                assert(false);
+            }
+            else
+            {
+                LogPrintf("Spending transaction %s, output %d, at height %d\n", txin.prevout.hash.GetHex().c_str(), txin.prevout.n, nHeight);
             }
 
             // mark an outpoint spent, and construct undo information
@@ -3310,7 +3315,7 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
                                     (tpbn = CPBaaSNotarization(tx)).IsValid() &&    // these need to be generic tests vs. notarization
                                     ::GetHash(CPBaaSNotarization(block.vtx[0])) == ::GetHash(tpbn));
 
-        if (!tx.IsMint() && !isBlockBoundSmartTx)
+        if (!tx.IsMint())
         {
             if (!view.HaveInputs(tx))
             {
@@ -4703,8 +4708,11 @@ bool CheckBlock(int32_t *futureblockp,int32_t height,CBlockIndex *pindex,const C
             }
             if ( rejects == 0 || rejects == lastrejects )
             {
-                //if ( lastrejects != 0 )
-                //    fprintf(stderr,"lastrejects.%d -> all tx in mempool\n",lastrejects);
+                if ( lastrejects != 0 )
+                {
+                    fprintf(stderr,"lastrejects.%d -> all tx in mempool\n",lastrejects);
+                    return state.DoS(0, error("CheckBlock: invalid transactions in block"), REJECT_INVALID, "bad-txns-duplicate");
+                }
                 break;
             }
             //fprintf(stderr,"addtomempool ht.%d for CC checking: n.%d rejects.%d last.%d\n",height,(int32_t)block.vtx.size(),rejects,lastrejects);

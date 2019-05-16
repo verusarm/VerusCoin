@@ -865,8 +865,8 @@ CBlockTemplate* CreateNewBlock(const CScript& _scriptPubKeyIn, int32_t gpucount,
 
             // put now signed notarization back in the block
             pblock->vtx[pbaasNotarizationTx] = mntx;
-
-
+            LogPrintf("adding notarization tx at height %d, id: %s\n", nHeight, mntx.GetHash().GetHex().c_str());
+            printf("adding notarization tx at height %d, id: %s\n", nHeight, mntx.GetHash().GetHex().c_str());
         }
 
         pblock->vtx[0] = txNew;
