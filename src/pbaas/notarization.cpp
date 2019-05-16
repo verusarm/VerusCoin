@@ -496,85 +496,82 @@ bool CreateEarnedNotarization(CMutableTransaction &mnewTx, vector<CInputDescript
     vector<CBaseChainObject *> chainObjs = RetrieveOpRetArray(mnewTx.vout.back().scriptPubKey);
     vector<CBaseChainObject *> compressedChainObjs;
 
+    LOCK(cs_main);
+
+    // convert any op_return header to a smaller header_ref if it was merge mined, which modifies both the
+    // op_return and the opRetProof in the notarization
+    for (int j = 0; j < chainObjs.size(); j++)
     {
-        // protect use of the mapBlockIndex & pcoinsTip
-        LOCK(cs_main);
-
-        // convert any op_return header to a smaller header_ref if it was merge mined, which modifies both the
-        // op_return and the opRetProof in the notarization
-        for (int j = 0; j < chainObjs.size(); j++)
+        uint256 hash;
+        if (chainObjs[j]->objectType == CHAINOBJ_HEADER && 
+            !((CChainObject<CBlockHeader> *)chainObjs[j])->object.IsVerusPOSBlock() && 
+            mapBlockIndex.count(hash = ((CChainObject<CBlockHeader> *)chainObjs[j])->object.GetHash()))
         {
-            uint256 hash;
-            if (chainObjs[j]->objectType == CHAINOBJ_HEADER && 
-                !((CChainObject<CBlockHeader> *)chainObjs[j])->object.IsVerusPOSBlock() && 
-                mapBlockIndex.count(hash = ((CChainObject<CBlockHeader> *)chainObjs[j])->object.GetHash()))
-            {
-                // this is a common block between chains, replace the header with a header_ref in both the opret and proof
-                pbn.opRetProof.types[j] = CHAINOBJ_HEADER_REF;
-                CHeaderRef hr = CHeaderRef(hash, CPBaaSPreHeader(((CChainObject<CBlockHeader> *)chainObjs[j])->object));
-                CBaseChainObject *hRef = new CChainObject<CHeaderRef>(CHAINOBJ_HEADER_REF, hr);
-                compressedChainObjs.push_back(hRef);
-                delete chainObjs[j];
-            }
-            else
-            {
-                compressedChainObjs.push_back(chainObjs[j]);
-            }
-        }
-
-        mnewTx.vout.back().scriptPubKey = StoreOpRetArray(compressedChainObjs);
-
-        // now that we've finished making the opret, free the objects
-        for (auto o : compressedChainObjs)
-        {
-            delete o;
-        }
-
-        if (!mnewTx.vout.back().scriptPubKey.size())
-        {
-            printf("%sfailed to create OP_RETURN output", funcname);
-            return false;
-        }
-
-        // we need to update our earned notarization and finalization outputs, which should both be present and incomplete
-        // add up inputs, and make sure that the main notarization output holds any excess over minimum, if not enough, we need
-        // to spend a coinbase instant spend
-
-        CPBaaSNotarization crossNotarizaton(crossTx);
-        CPBaaSChainDefinition chainDef(crossTx);        // only matters if we get no cross notarization prior
-        if (crossNotarizaton.prevNotarization.IsNull() && !chainDef.IsValid())
-        {
-            // must either have a prior notarization or be the definition
-            return false;
-        }
-
-        pbn.prevNotarization = lastNotarizationID;
-        if (lastNotarizationID.IsNull())
-        {
-            pbn.prevHeight = 0;
+            // this is a common block between chains, replace the header with a header_ref in both the opret and proof
+            pbn.opRetProof.types[j] = CHAINOBJ_HEADER_REF;
+            CHeaderRef hr = CHeaderRef(hash, CPBaaSPreHeader(((CChainObject<CBlockHeader> *)chainObjs[j])->object));
+            CBaseChainObject *hRef = new CChainObject<CHeaderRef>(CHAINOBJ_HEADER_REF, hr);
+            compressedChainObjs.push_back(hRef);
+            delete chainObjs[j];
         }
         else
         {
-            uint256 hashBlk;
-            // get the last notarization
-            if (!myGetTransaction(lastNotarizationID, lastTx, hashBlk))
-            {
-                printf("Error: cannot find notarization transaction %s on %s chain\n", lastNotarizationID.GetHex().c_str(), ASSETCHAINS_SYMBOL);
-                return false;
-            }
-            auto lastTxBlkIt = mapBlockIndex.find(hashBlk);
-            if (lastTxBlkIt == mapBlockIndex.end())
-            {
-                printf("Error: cannot find block %s on %s chain\n", hashBlk.GetHex().c_str(), ASSETCHAINS_SYMBOL);
-                return false;
-            }
-            pbn.prevHeight = lastTxBlkIt->second->GetHeight();
+            compressedChainObjs.push_back(chainObjs[j]);
+        }
+    }
 
-            if (pbn.prevHeight + CPBaaSNotarization::MIN_BLOCKS_BETWEEN_ACCEPTED > height)
-            {
-                // can't make another notarization yet
-                return false;
-            }
+    mnewTx.vout.back().scriptPubKey = StoreOpRetArray(compressedChainObjs);
+
+    // now that we've finished making the opret, free the objects
+    for (auto o : compressedChainObjs)
+    {
+        delete o;
+    }
+
+    if (!mnewTx.vout.back().scriptPubKey.size())
+    {
+        printf("%sfailed to create OP_RETURN output", funcname);
+        return false;
+    }
+
+    // we need to update our earned notarization and finalization outputs, which should both be present and incomplete
+    // add up inputs, and make sure that the main notarization output holds any excess over minimum, if not enough, we need
+    // to spend a coinbase instant spend
+
+    CPBaaSNotarization crossNotarizaton(crossTx);
+    CPBaaSChainDefinition chainDef(crossTx);        // only matters if we get no cross notarization prior
+    if (crossNotarizaton.prevNotarization.IsNull() && !chainDef.IsValid())
+    {
+        // must either have a prior notarization or be the definition
+        return false;
+    }
+
+    pbn.prevNotarization = lastNotarizationID;
+    if (lastNotarizationID.IsNull())
+    {
+        pbn.prevHeight = 0;
+    }
+    else
+    {
+        uint256 hashBlk;
+        // get the last notarization
+        if (!myGetTransaction(lastNotarizationID, lastTx, hashBlk))
+        {
+            printf("Error: cannot find notarization transaction %s on %s chain\n", lastNotarizationID.GetHex().c_str(), ASSETCHAINS_SYMBOL);
+            return false;
+        }
+        auto lastTxBlkIt = mapBlockIndex.find(hashBlk);
+        if (lastTxBlkIt == mapBlockIndex.end())
+        {
+            printf("Error: cannot find block %s on %s chain\n", hashBlk.GetHex().c_str(), ASSETCHAINS_SYMBOL);
+            return false;
+        }
+        pbn.prevHeight = lastTxBlkIt->second->GetHeight();
+
+        if (pbn.prevHeight + CPBaaSNotarization::MIN_BLOCKS_BETWEEN_ACCEPTED > height)
+        {
+            // can't make another notarization yet
+            return false;
         }
     }
 
