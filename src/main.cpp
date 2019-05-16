@@ -2434,7 +2434,11 @@ void UpdateCoins(const CTransaction& tx, CCoinsViewCache& inputs, CTxUndo &txund
             unsigned nPos = txin.prevout.n;
             
             if (nPos >= coins->vout.size() || coins->vout[nPos].IsNull())
-                assert(false);
+            {
+                printf("Failed to find coins for transactions in block %d\n", nHeight);
+                //assert(false);
+            }
+
             // mark an outpoint spent, and construct undo information
             txundo.vprevout.push_back(CTxInUndo(coins->vout[nPos]));
             coins->Spend(nPos);
