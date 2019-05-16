@@ -1101,9 +1101,17 @@ UniValue getcrossnotarization(const UniValue& params, bool fHelp)
         // if we are the first notarization on this chain, we don't have to find a match, chain definition is the match
         if (txids.size() == 0 && ecode == EVAL_ACCEPTEDNOTARIZATION && !nData.IsConfirmed() && nData.vtx.size() != 0)
         {
-            if (GetTransaction(nData.vtx[0].first, tx, blkHash, true) && (ourLast = CPBaaSNotarization(tx)).IsValid())
+            try
             {
-                found = true;
+                found = GetTransaction(nData.vtx[0].first, tx, blkHash, true) && (ourLast = CPBaaSNotarization(tx)).IsValid();
+            }
+            catch(const std::exception& e)
+            {
+                std::cerr << e.what() << '\n';
+            }
+            
+            if (found)
+            {
                 // we have the first matching transaction, return it
                 ret.push_back(Pair("crosstxid", uint256().GetHex()));
                 ret.push_back(Pair("txid", nData.vtx[0].first.GetHex()));
@@ -1117,9 +1125,17 @@ UniValue getcrossnotarization(const UniValue& params, bool fHelp)
             {
                 const pair<uint256, CPBaaSNotarization> &nzp = nData.vtx[i];
                 auto nit = txids.find(nzp.second.crossNotarization);
-                if (GetTransaction(nzp.first, tx, blkHash, true) && (ourLast = CPBaaSNotarization(tx)).IsValid())
+                try
                 {
-                    found = true;
+                    found = GetTransaction(nzp.first, tx, blkHash, true) && (ourLast = CPBaaSNotarization(tx)).IsValid();
+                }
+                catch(const std::exception& e)
+                {
+                    std::cerr << e.what() << '\n';
+                }
+                
+                if (found)
+                {
                     // we have the first matching transaction, return it
                     ret.push_back(Pair("crosstxid", nzp.second.crossNotarization.GetHex()));
                     ret.push_back(Pair("txid", nzp.first.GetHex()));
