@@ -723,9 +723,12 @@ UniValue submitacceptednotarization(const UniValue& params, bool fHelp)
         // printf("opRet: %s\n", notarization.vout[notarization.vout.size() - 1].scriptPubKey.ToString().c_str());
 
         auto chainObjects = RetrieveOpRetArray(notarization.vout[notarization.vout.size() - 1].scriptPubKey);
-        bool stillValid = true;
-        if (chainObjects.size() > 0 && chainObjects.back()->objectType == CHAINOBJ_PRIORBLOCKS)
+        bool stillValid = false;
+        if (chainObjects.size() && chainObjects.back()->objectType == CHAINOBJ_PRIORBLOCKS)
         {
+            // once here, default to true
+            stillValid = true;
+
             CPriorBlocksCommitment &pbc = ((CChainObject<CPriorBlocksCommitment> *)chainObjects.back())->object;
             for (auto prior : pbc.priorBlocks)
             {
@@ -824,7 +827,6 @@ UniValue submitacceptednotarization(const UniValue& params, bool fHelp)
             CPBaaSChainDefinition chainDef;
 
             CAmount valueIn;
-            CTxDestination notaryRecipient, minerRecipient;
 
             BlockMap::iterator it;
             {
@@ -860,6 +862,11 @@ UniValue submitacceptednotarization(const UniValue& params, bool fHelp)
                     }
                 }
             }
+
+            // recipient of notary rewards and miner to share it with
+            // notary recipient is the one from the confirmed notarization
+            // and miner recipient is from the block it was mined into
+            CTxDestination notaryRecipient, minerRecipient;
 
             // get recipients of any reward output
             if (confirmedInput != -1)
@@ -1307,6 +1314,11 @@ UniValue getcrossnotarization(const UniValue& params, bool fHelp)
                     pkID = pubKey.GetID();
                 }
             }
+            else
+            {
+                printf("No notary public key recipient has been set, so this node cannot receive rewards for notarization");
+                LogPrintf("No notary public key recipient has been set, so this node cannot receive rewards for notarization");
+            }
 
             CBlockIndex *nzIndex = chainActive[proofheight];
 
@@ -1323,7 +1335,7 @@ UniValue getcrossnotarization(const UniValue& params, bool fHelp)
                                                                  orp,
                                                                  nodes);
 
-            // we now have the chain objects, all associated proofs, and notarization data, make an appropriate transactiontemplate with opret
+            // we now have the chain objects, all associated proofs, and notarization data, make an appropriate transaction template with opret
             // and return it. notarization will need to be completed, so the only thing we really need to construct on this chain is the opret
             CMutableTransaction newNotarization = CreateNewContextualCMutableTransaction(Params().GetConsensus(), proofheight);
 

@@ -246,7 +246,7 @@ vector<CInputDescriptor> AddSpendsAndFinalizations(const CChainNotarizationData 
     set<int32_t> finalized;
     int32_t confirmedIdx = -1;
 
-    // now, create inputs from lastTx and the finalization outputs that we either confirm or invalidate
+    // now, create inputs from the most recent notarization in cnd and the finalization outputs that we either confirm or invalidate
     for (int j = 0; j < cnd.forks.size(); j++)
     {
         int k;
@@ -292,27 +292,39 @@ vector<CInputDescriptor> AddSpendsAndFinalizations(const CChainNotarizationData 
     }
 
     // now, we should spend the last notarization output and all finalization outputs in the finalized set
-    // first, we need to get the outpoint for the notarization, and each finalization as well
+    // first, we need to get the outpoint for the notarization, then each finalization as well
+    uint256 notarizationThreadID, blkHash;
+    CTransaction threadTx;
     uint32_t j;
-    for (j = 0; j < lastTx.vout.size(); j++)
+    if (cnd.vtx.size())
     {
-        uint32_t code;
-        if (lastTx.vout[j].scriptPubKey.IsPayToCryptoCondition(&code) && (code == EVAL_EARNEDNOTARIZATION || code == EVAL_ACCEPTEDNOTARIZATION))
+        notarizationThreadID = cnd.vtx.back().first;
+        if (myGetTransaction(notarizationThreadID, threadTx, blkHash))
         {
-            break;
+            for (j = 0; j < threadTx.vout.size(); j++)
+            {
+                uint32_t code;
+                if (threadTx.vout[j].scriptPubKey.IsPayToCryptoCondition(&code) && (code == EVAL_EARNEDNOTARIZATION || code == EVAL_ACCEPTEDNOTARIZATION))
+                {
+                    break;
+                }
+            }
+        }
+        else
+        {
+            notarizationThreadID.SetNull();
         }
     }
 
     // either we have no last notarization, or we found its notarization output
-    assert(lastNotarizationID.IsNull() || j < lastTx.vout.size());
+    assert(notarizationThreadID.IsNull() || j < threadTx.vout.size());
 
     // if this isn't the first notarization, setup inputs
-    if (!lastNotarizationID.IsNull())
+    if (!notarizationThreadID.IsNull())
     {
         // spend notarization output of the last notarization
-        uint256 lastTxHash = lastTx.GetHash();
-        txInputs.push_back(CInputDescriptor(lastTx.vout[j].scriptPubKey, lastTx.vout[j].nValue, CTxIn(lastTxHash, j, CScript())));
-        mnewTx.vin.push_back(CTxIn(lastTxHash, j, CScript()));
+        txInputs.push_back(CInputDescriptor(threadTx.vout[j].scriptPubKey, threadTx.vout[j].nValue, CTxIn(notarizationThreadID, j, CScript())));
+        mnewTx.vin.push_back(CTxIn(notarizationThreadID, j, CScript()));
 
         LOCK(cs_main);
 
@@ -346,6 +358,8 @@ vector<CInputDescriptor> AddSpendsAndFinalizations(const CChainNotarizationData 
                 }
             }
             assert(k < coins.vout.size());
+
+            printf("spending finalization output of hash: %s\nprevout.n: %d\n", cnd.vtx[nidx].first.GetHex().c_str(), k);
 
             // spend all of them
             txInputs.push_back(CInputDescriptor(coins.vout[k].scriptPubKey, coins.vout[k].nValue, CTxIn(cnd.vtx[nidx].first, k, CScript())));
