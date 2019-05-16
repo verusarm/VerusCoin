@@ -772,9 +772,21 @@ UniValue submitacceptednotarization(const UniValue& params, bool fHelp)
             delete o;
         }
 
-        if (!stillValid || !notarizationData.count(pbn.prevNotarization))
+        auto lastIt = notarizationData.find(pbn.prevNotarization);
+
+        if (!stillValid || (lastIt == notarizationData.end()))
         {
             throw JSONRPCError(RPC_VERIFY_REJECTED, "Notarization not matched or invalidated by prior notarization");
+        }
+
+        if (pbn.prevHeight != lastIt->second->notarizationHeight)
+        {
+            throw JSONRPCError(RPC_VERIFY_REJECTED, "Notarization heights not matched with previous notarization");
+        }
+
+        if (pbn.prevHeight != 0 && (pbn.prevHeight + CPBaaSNotarization::MIN_BLOCKS_BETWEEN_ACCEPTED > pbn.notarizationHeight))
+        {
+            throw JSONRPCError(RPC_VERIFY_REJECTED, "Less than minimum number of blocks between notarizations");
         }
 
         // valid, spend notarization outputs, all needed finalizations, add any applicable reward output for 

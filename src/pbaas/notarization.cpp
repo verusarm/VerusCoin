@@ -584,7 +584,7 @@ bool CreateEarnedNotarization(CMutableTransaction &mnewTx, vector<CInputDescript
         CPBaaSNotarization prevNZ(lastTx);
         pbn.prevHeight = prevNZ.notarizationHeight;
 
-        if (pbn.prevHeight + CPBaaSNotarization::MIN_BLOCKS_BETWEEN_ACCEPTED > height)
+        if (pbn.prevHeight + CPBaaSNotarization::MIN_BLOCKS_BETWEEN_ACCEPTED > pbn.notarizationHeight)
         {
             // can't make another notarization yet
             return false;

@@ -1405,22 +1405,28 @@ void static VerusStaker(CWallet *pwallet)
 
             UpdateTime(pblock, consensusParams, pindexPrev);
 
-            ProcessBlockFound(pblock, *pwallet, reservekey);
-
-            LogPrintf("Using %s algorithm:\n", ASSETCHAINS_ALGORITHMS[ASSETCHAINS_ALGO]);
-            LogPrintf("Staked block found  \n  hash: %s  \ntarget: %s\n", pblock->GetHash().GetHex(), hashTarget.GetHex());
-            printf("Found block %d \n", Mining_height );
-            printf("staking reward %.8f %s!\n", (double)subsidy / (double)COIN, ASSETCHAINS_SYMBOL);
-            arith_uint256 post;
-            post.SetCompact(pblock->GetVerusPOSTarget());
-            pindexPrev = get_chainactive(Mining_height - 100);
-            CTransaction &sTx = pblock->vtx[pblock->vtx.size()-1];
-            printf("POS hash: %s  \ntarget:   %s\n", 
-                CTransaction::_GetVerusPOSHash(&(pblock->nNonce), sTx.vin[0].prevout.hash, sTx.vin[0].prevout.n, Mining_height, pindexPrev->GetBlockHeader().GetVerusEntropyHash(Mining_height - 100), sTx.vout[0].nValue).GetHex().c_str(), ArithToUint256(post).GetHex().c_str());
-            if (unlockTime > Mining_height && subsidy >= ASSETCHAINS_TIMELOCKGTE)
-                printf("- timelocked until block %i\n", unlockTime);
+            if (ProcessBlockFound(pblock, *pwallet, reservekey))
+            {
+                LogPrintf("Using %s algorithm:\n", ASSETCHAINS_ALGORITHMS[ASSETCHAINS_ALGO]);
+                LogPrintf("Staked block found  \n  hash: %s  \ntarget: %s\n", pblock->GetHash().GetHex(), hashTarget.GetHex());
+                printf("Found block %d \n", Mining_height );
+                printf("staking reward %.8f %s!\n", (double)subsidy / (double)COIN, ASSETCHAINS_SYMBOL);
+                arith_uint256 post;
+                post.SetCompact(pblock->GetVerusPOSTarget());
+                pindexPrev = get_chainactive(Mining_height - 100);
+                CTransaction &sTx = pblock->vtx[pblock->vtx.size()-1];
+                printf("POS hash: %s  \ntarget:   %s\n", 
+                    CTransaction::_GetVerusPOSHash(&(pblock->nNonce), sTx.vin[0].prevout.hash, sTx.vin[0].prevout.n, Mining_height, pindexPrev->GetBlockHeader().GetVerusEntropyHash(Mining_height - 100), sTx.vout[0].nValue).GetHex().c_str(), ArithToUint256(post).GetHex().c_str());
+                if (unlockTime > Mining_height && subsidy >= ASSETCHAINS_TIMELOCKGTE)
+                    printf("- timelocked until block %i\n", unlockTime);
+                else
+                    printf("\n");
+            }
             else
-                printf("\n");
+            {
+                LogPrintf("Found block rejected at staking height: %d\n", Mining_height);
+                printf("Found block rejected at staking height: %d\n", Mining_height);
+            }
 
             // Check for stop or if block needs to be rebuilt
             boost::this_thread::interruption_point();
