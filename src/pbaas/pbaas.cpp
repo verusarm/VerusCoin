@@ -16,6 +16,7 @@
 #include "pbaas/crosschainrpc.h"
 #include "base58.h"
 #include "timedata.h"
+#include "main.h"
 
 using namespace std;
 
@@ -952,7 +953,7 @@ void CConnectedChains::SubmissionThread()
                     int32_t txIndex = -1, height;
                     {
                         LOCK(cs_mergemining);
-                        if (earnedNotarizationHeight)
+                        if (earnedNotarizationHeight && earnedNotarizationHeight <= chainActive.Height())
                         {
                             blk = earnedNotarizationBlock;
                             earnedNotarizationBlock = CBlock();

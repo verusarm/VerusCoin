@@ -879,6 +879,11 @@ uint256 CreateAcceptedNotarization(const CBlock &blk, int32_t txIndex, int32_t h
     CPBaaSNotarization pbn;
     {
         LOCK(cs_main);
+        if (height > chainActive.Height())
+        {
+            LogPrintf("%sheight requested is greater than chain height\n", funcname);
+            return nullRet;
+        }
         // prepare a partial notarization with all that is needed from this PBaaS chain at the height requested
         // if it is from a mined block, prepare the notarization assuming merge mined block
         // it will be rejected if it was not successfully merge mined
