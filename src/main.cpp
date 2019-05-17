@@ -1630,9 +1630,12 @@ bool AcceptToMemoryPoolInt(CTxMemPool& pool, CValidationState &state, const CTra
         //fprintf(stderr,"already in mempool\n");
         return state.Invalid(false, REJECT_DUPLICATE, "already in mempool");
     }
-    
+
+    bool iscoinbase = tx.IsCoinBase();
+
     // Check for conflicts with in-memory transactions
     // TODO: including conflicts in chain definition and notarizations
+    if(!iscoinbase)
     {
         LOCK(pool.cs); // protect pool.mapNextTx
         for (unsigned int i = 0; i < tx.vin.size(); i++)
@@ -1659,8 +1662,6 @@ bool AcceptToMemoryPoolInt(CTxMemPool& pool, CValidationState &state, const CTra
             }
         }
     }
-
-    bool iscoinbase = tx.IsCoinBase();
 
     {
         CCoinsView dummy;
