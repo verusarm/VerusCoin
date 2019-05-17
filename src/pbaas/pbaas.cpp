@@ -569,7 +569,7 @@ bool CheckChainDefinitionOutput(struct CCcontract_info *cp, Eval* eval, const CT
     // get the source transaction
     uint256 blkHash;
     CTransaction thisTx;
-    if (!myGetTransaction(tx.vin[nIn].prevout.hash, thisTx, blkHash))
+    if (!GetTransaction(tx.vin[nIn].prevout.hash, thisTx, blkHash))
     {
         LogPrintf("failed to retrieve transaction %s\n", tx.vin[nIn].prevout.hash.GetHex().c_str());
         return false;

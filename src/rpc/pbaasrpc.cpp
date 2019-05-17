@@ -118,7 +118,7 @@ bool GetChainDefinition(string &name, CPBaaSChainDefinition &chainDef)
         {
             CTransaction tx;
             uint256 blkHash;
-            if (myGetTransaction(txidx.first.txhash, tx, blkHash))
+            if (GetTransaction(txidx.first.txhash, tx, blkHash))
             {
                 chainDef = CPBaaSChainDefinition(tx);
                 found = chainDef.IsValid() && chainDef.name == name;
@@ -160,7 +160,7 @@ bool GetChainDefinition(uint160 chainID, CPBaaSChainDefinition &chainDef)
         {
             CTransaction tx;
             uint256 blkHash;
-            if (myGetTransaction(txidx.first.txhash, tx, blkHash))
+            if (GetTransaction(txidx.first.txhash, tx, blkHash))
             {
                 chainDef = CPBaaSChainDefinition(tx);
                 if (found = chainDef.IsValid() && chainDef.GetChainID() == chainID)
@@ -194,7 +194,7 @@ void GetDefinedChains(vector<CPBaaSChainDefinition> &chains, bool includeExpired
         {
             CTransaction tx;
             uint256 blkHash;
-            if (myGetTransaction(txidx.first.txhash, tx, blkHash))
+            if (GetTransaction(txidx.first.txhash, tx, blkHash))
             {
                 chains.push_back(CPBaaSChainDefinition(tx));
                 // remove after to use less storage
@@ -352,7 +352,7 @@ bool GetNotarizationData(uint160 chainID, uint32_t ecode, CChainNotarizationData
     std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> > unspentOutputs;
     CPBaaSChainDefinition chainDef;
 
-    LOCK(cs_main);
+    LOCK2(cs_main, mempool.cs);
 
     if (!GetAddressUnspent(keyID, 1, unspentOutputs))
     {

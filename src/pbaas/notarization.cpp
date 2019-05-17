@@ -298,6 +298,8 @@ vector<CInputDescriptor> AddSpendsAndFinalizations(const CChainNotarizationData 
         }
     }
 
+    LOCK2(cs_main, mempool.cs);
+
     // now, we should spend the last notarization output and all finalization outputs in the finalized set
     // first, we need to get the outpoint for the notarization, then each finalization as well
     uint256 notarizationThreadID, blkHash;
@@ -332,8 +334,6 @@ vector<CInputDescriptor> AddSpendsAndFinalizations(const CChainNotarizationData 
         // spend notarization output of the last notarization
         txInputs.push_back(CInputDescriptor(threadTx.vout[j].scriptPubKey, threadTx.vout[j].nValue, CTxIn(notarizationThreadID, j, CScript())));
         mnewTx.vin.push_back(CTxIn(notarizationThreadID, j, CScript()));
-
-        LOCK(cs_main);
 
         for (auto nidx : finalized)
         {
@@ -517,7 +517,7 @@ bool CreateEarnedNotarization(CMutableTransaction &mnewTx, vector<CInputDescript
     vector<CBaseChainObject *> chainObjs = RetrieveOpRetArray(mnewTx.vout.back().scriptPubKey);
     vector<CBaseChainObject *> compressedChainObjs;
 
-    LOCK(cs_main);
+    LOCK2(cs_main, mempool.cs);
 
     // convert any op_return header to a smaller header_ref if it was merge mined, which modifies both the
     // op_return and the opRetProof in the notarization
