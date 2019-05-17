@@ -1078,7 +1078,7 @@ uint256 CreateAcceptedNotarization(const CBlock &blk, int32_t txIndex, int32_t h
 
     UniValue params(UniValue::VARR);
     params.push_back(EncodeHexTx(notarization));
-    UniValue result;
+    UniValue result = NullUniValue;
     try
     {
         result = find_value(RPCCallRoot("submitacceptednotarization", params), "result");

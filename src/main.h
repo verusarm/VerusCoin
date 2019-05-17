@@ -278,7 +278,7 @@ void PruneAndFlush();
 bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState &state, const CTransaction &tx, bool fLimitFree,
                         bool* pfMissingInputs, bool fRejectAbsurdFee=false, int dosLevel=-1);
 bool AcceptToMemoryPoolInt(CTxMemPool& pool, CValidationState &state, const CTransaction &tx, bool fLimitFree,
-                           bool* pfMissingInputs, bool fRejectAbsurdFee=false, int dosLevel=-1);
+                           bool* pfMissingInputs, bool fRejectAbsurdFee=false, int dosLevel=-1, int32_t simHeight = 0);
 
 
 struct CNodeStateStats {

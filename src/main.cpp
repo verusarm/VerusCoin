@@ -1557,13 +1557,13 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState &state, const CTransa
     return AcceptToMemoryPoolInt(pool, state, tx, fLimitFree, pfMissingInputs, fRejectAbsurdFee, dosLevel);
 }
 
-bool AcceptToMemoryPoolInt(CTxMemPool& pool, CValidationState &state, const CTransaction &tx, bool fLimitFree,bool* pfMissingInputs, bool fRejectAbsurdFee, int dosLevel)
+bool AcceptToMemoryPoolInt(CTxMemPool& pool, CValidationState &state, const CTransaction &tx, bool fLimitFree,bool* pfMissingInputs, bool fRejectAbsurdFee, int dosLevel, int32_t simHeight)
 {
     AssertLockHeld(cs_main);
     if (pfMissingInputs)
         *pfMissingInputs = false;
     
-    int flag=0,nextBlockHeight = chainActive.Height() + 1;
+    int flag=0, nextBlockHeight = simHeight ? simHeight : chainActive.Height() + 1;
     auto consensusBranchId = CurrentEpochBranchId(nextBlockHeight, Params().GetConsensus());
     
     // Node operator can choose to reject tx by number of transparent inputs
@@ -1949,14 +1949,14 @@ bool GetAddressUnspent(uint160 addressHash, int type,
     else return(coins.vout[n].nValue);
 }*/
 
-bool myAddtomempool(CTransaction &tx, CValidationState *pstate)
+bool myAddtomempool(CTransaction &tx, CValidationState *pstate, int32_t simHeight)
 {
     CValidationState state;
     if (!pstate)
         pstate = &state;
     CTransaction Ltx; bool fMissingInputs,fOverrideFees = false;
     if ( mempool.lookup(tx.GetHash(),Ltx) == 0 )
-        return(AcceptToMemoryPoolInt(mempool, *pstate, tx, false, &fMissingInputs, !fOverrideFees));
+        return(AcceptToMemoryPoolInt(mempool, *pstate, tx, false, &fMissingInputs, !fOverrideFees, -1, simHeight));
     else return(true);
 }
 
@@ -4684,7 +4684,7 @@ bool CheckBlock(int32_t *futureblockp,int32_t height,CBlockIndex *pindex,const C
                 if (((i == (block.vtx.size() - 1)) && (ASSETCHAINS_STAKED && komodo_isPoS((CBlock *)&block) != 0)))
                     continue;
                 Tx = tx;
-                if ( myAddtomempool(Tx, &state) == false ) // happens with out of order tx in block on resync
+                if ( myAddtomempool(Tx, &state, height) == false ) // happens with out of order tx in block on resync
                 {
                     //LogPrintf("Rejected by mempool, reason: .%s.\n", state.GetRejectReason().c_str());
                     uint32_t ecode;
@@ -4696,6 +4696,7 @@ bool CheckBlock(int32_t *futureblockp,int32_t height,CBlockIndex *pindex,const C
                         ptx = &sTx;
                     } else if (state.GetRejectCode() != REJECT_DUPLICATE)
                     {
+                        printf("Rejected transaction for %s, reject code %d\n", state.GetRejectReason().c_str(), state.GetRejectReason());
                         rejects++;
                     }
                 }
