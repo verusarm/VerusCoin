@@ -1960,6 +1960,12 @@ bool myAddtomempool(CTransaction &tx, CValidationState *pstate, int32_t simHeigh
     else return(true);
 }
 
+void myRemovefrommempool(const CTransaction &tx)
+{
+    std::list<CTransaction> removed;
+    mempool.remove(tx, removed, true);
+}
+
 bool myGetTransaction(const uint256 &hash, CTransaction &txOut, uint256 &hashBlock)
 {
     // need a GetTransaction without lock so the validation code for assets can run without deadlock
@@ -4670,6 +4676,7 @@ bool CheckBlock(int32_t *futureblockp,int32_t height,CBlockIndex *pindex,const C
     // Check transactions
     CTransaction sTx;
     CTransaction *ptx = NULL;
+    bool success = true;
     if ( ASSETCHAINS_CC != 0 ) // CC contracts might refer to transactions in the current block, from a CC spend within the same block and out of order
     {
         int32_t i,j,rejects=0,lastrejects=0;
@@ -4706,7 +4713,7 @@ bool CheckBlock(int32_t *futureblockp,int32_t height,CBlockIndex *pindex,const C
                 if ( lastrejects != 0 )
                 {
                     fprintf(stderr,"lastrejects.%d -> all tx in mempool\n",lastrejects);
-                    return state.DoS(0, error("CheckBlock: invalid transactions in block"), REJECT_INVALID, "bad-txns-duplicate");
+                    success = state.DoS(0, error("CheckBlock: invalid transactions in block"), REJECT_INVALID, "bad-txns-duplicate");
                 }
                 break;
             }
@@ -4717,36 +4724,46 @@ bool CheckBlock(int32_t *futureblockp,int32_t height,CBlockIndex *pindex,const C
         //fprintf(stderr,"done putting block's tx into mempool\n");
     }
 
-    for (uint32_t i = 0; i < block.vtx.size(); i++)
+    if (success)
     {
-        const CTransaction& tx = block.vtx[i];
-        if ( komodo_validate_interest(tx,height == 0 ? komodo_block2height((CBlock *)&block) : height,block.nTime,0) < 0 )
-            return error("CheckBlock: komodo_validate_interest failed");
-        if (!CheckTransaction(tx, state, verifier))
-            return error("CheckBlock: CheckTransaction failed");
-    }
-    unsigned int nSigOps = 0;
-    BOOST_FOREACH(const CTransaction& tx, block.vtx)
-    {
-        nSigOps += GetLegacySigOpCount(tx);
-    }
-    if (nSigOps > MAX_BLOCK_SIGOPS)
-        return state.DoS(100, error("CheckBlock: out-of-bounds SigOpCount"),
-                         REJECT_INVALID, "bad-blk-sigops", true);
-    if ( komodo_check_deposit(height,block,(pindex==0||pindex->pprev==0)?0:pindex->pprev->nTime) < 0 )
-    {
-        //static uint32_t counter;
-        //if ( counter++ < 100 && ASSETCHAINS_STAKED == 0 )
-        //    fprintf(stderr,"check deposit rejection\n");
-        LogPrintf("CheckBlockHeader komodo_check_deposit error");
-        return(false);
+        for (uint32_t i = 0; i < block.vtx.size(); i++)
+        {
+            const CTransaction& tx = block.vtx[i];
+            if ( komodo_validate_interest(tx,height == 0 ? komodo_block2height((CBlock *)&block) : height,block.nTime,0) < 0 )
+            {
+                success = error("CheckBlock: komodo_validate_interest failed");
+            }
+            if (success && !CheckTransaction(tx, state, verifier))
+                success = error("CheckBlock: CheckTransaction failed");
+        }
+        if (success)
+        {
+            unsigned int nSigOps = 0;
+            BOOST_FOREACH(const CTransaction& tx, block.vtx)
+            {
+                nSigOps += GetLegacySigOpCount(tx);
+            }
+            if (nSigOps > MAX_BLOCK_SIGOPS)
+                success = state.DoS(100, error("CheckBlock: out-of-bounds SigOpCount"),
+                                REJECT_INVALID, "bad-blk-sigops", true);
+            if ( success && komodo_check_deposit(height,block,(pindex==0||pindex->pprev==0)?0:pindex->pprev->nTime) < 0 )
+            {
+                LogPrintf("CheckBlock: komodo_check_deposit error");
+                success = error("CheckBlock: komodo_check_deposit error");
+            }
+        }
     }
 
-    if (ptx)
+    if (!success)
+    {
+        // remove coinbase and anything that depended on it
+        LOCK(mempool.cs);
+        myRemovefrommempool(block.vtx[0]);
+    } else if (ptx)
     {
         SyncWithWallets(*ptx, &block);
     }
-    return true;
+    return success;
 }
 
 bool ContextualCheckBlockHeader(const CBlockHeader& block, CValidationState& state, CBlockIndex * const pindexPrev)
