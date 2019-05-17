@@ -1001,7 +1001,10 @@ void CConnectedChains::SubmissionThread()
 
                     if (txIndex != -1)
                     {
+                        printf("SubmissionThread: testing notarization\n");
+
                         uint256 txId = CreateAcceptedNotarization(blk, txIndex, height);
+                       // uint256 txId;
 
                         if (!txId.IsNull())
                         {

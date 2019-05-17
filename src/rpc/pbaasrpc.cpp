@@ -713,11 +713,22 @@ UniValue submitacceptednotarization(const UniValue& params, bool fHelp)
     // decode the transaction and ensure that it is formatted as expected
     CTransaction notarization;
     CPBaaSNotarization pbn;
+
+    /*
     if (!DecodeHexTx(notarization, params[0].get_str()) || 
         notarization.vin.size() || 
         notarization.vout.size() != 2 ||
         !(pbn = CPBaaSNotarization(notarization)).IsValid() ||
         !notarization.vout.back().scriptPubKey.IsOpReturn())
+    {
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid notarization transaction");
+    }
+    */
+   // debugging leniency, no op_return
+    if (!DecodeHexTx(notarization, params[0].get_str()) || 
+        notarization.vin.size() || 
+        notarization.vout.size() != 1 ||
+        !(pbn = CPBaaSNotarization(notarization)).IsValid())
     {
         throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid notarization transaction");
     }
@@ -743,6 +754,8 @@ UniValue submitacceptednotarization(const UniValue& params, bool fHelp)
 
         // printf("opRet: %s\n", notarization.vout[notarization.vout.size() - 1].scriptPubKey.ToString().c_str());
 
+        // TODO: uncomment
+        /*
         auto chainObjects = RetrieveOpRetArray(notarization.vout[notarization.vout.size() - 1].scriptPubKey);
 
         bool stillValid = false;
@@ -787,6 +800,7 @@ UniValue submitacceptednotarization(const UniValue& params, bool fHelp)
             printf("Notarization heights not matched with previous notarization");
             throw JSONRPCError(RPC_VERIFY_REJECTED, "Notarization heights not matched with previous notarization");
         }
+        */
 
         if (pbn.prevHeight != 0 && (pbn.prevHeight + CPBaaSNotarization::MIN_BLOCKS_BETWEEN_ACCEPTED > pbn.notarizationHeight))
         {
@@ -843,7 +857,9 @@ UniValue submitacceptednotarization(const UniValue& params, bool fHelp)
             dests = std::vector<CTxDestination>({CKeyID(CCrossChainRPCData::GetConditionID(pbn.chainID, EVAL_FINALIZENOTARIZATION))});
 
             CNotarizationFinalization nf(confirmedInput);
-            mnewTx.vout.insert(mnewTx.vout.begin() + (mnewTx.vout.size() - 1), MakeCC1of1Vout(EVAL_FINALIZENOTARIZATION, CPBaaSChainDefinition::DEFAULT_OUTPUT_VALUE, pk, dests, nf));
+            // TODO UNCOMMENT: 
+            //mnewTx.vout.insert(mnewTx.vout.begin() + (mnewTx.vout.size() - 1), MakeCC1of1Vout(EVAL_FINALIZENOTARIZATION, CPBaaSChainDefinition::DEFAULT_OUTPUT_VALUE, pk, dests, nf));
+            mnewTx.vout.insert(mnewTx.vout.begin() + 1, MakeCC1of1Vout(EVAL_FINALIZENOTARIZATION, CPBaaSChainDefinition::DEFAULT_OUTPUT_VALUE, pk, dests, nf));
         }
 
         if (notarizationInputs.size() && GetNotarizationAndFinalization(EVAL_ACCEPTEDNOTARIZATION, mnewTx, dummy, &notarizationIdx, &finalizationIdx))
@@ -863,7 +879,7 @@ UniValue submitacceptednotarization(const UniValue& params, bool fHelp)
 
             BlockMap::iterator it;
             {
-                LOCK(cs_main);
+                LOCK2(cs_main, mempool.cs);
                 // get value in
                 CCoinsViewCache view(pcoinsTip);
                 int64_t dummyInterest;

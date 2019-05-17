@@ -418,6 +418,8 @@ bool CreateEarnedNotarization(CMutableTransaction &mnewTx, vector<CInputDescript
 {
     char funcname[] = "CreateEarnedNotarization: ";
 
+    printf("%senter\n", funcname);
+
     // we can only create a notarization if there is an available Verus chain
     if (!ConnectedChains.IsVerusPBaaSAvailable())
     {
@@ -445,6 +447,8 @@ bool CreateEarnedNotarization(CMutableTransaction &mnewTx, vector<CInputDescript
     }
 
     params.push_back(txidArr);
+
+    printf("%sabout to get cross notarization with %lu notarizations found\n", funcname, cnd.vtx.size());
 
     UniValue result;
     try
@@ -514,10 +518,11 @@ bool CreateEarnedNotarization(CMutableTransaction &mnewTx, vector<CInputDescript
         return false;
     }
 
+    LOCK2(cs_main, mempool.cs);
+
+    /*
     vector<CBaseChainObject *> chainObjs = RetrieveOpRetArray(mnewTx.vout.back().scriptPubKey);
     vector<CBaseChainObject *> compressedChainObjs;
-
-    LOCK2(cs_main, mempool.cs);
 
     // convert any op_return header to a smaller header_ref if it was merge mined, which modifies both the
     // op_return and the opRetProof in the notarization
@@ -551,6 +556,7 @@ bool CreateEarnedNotarization(CMutableTransaction &mnewTx, vector<CInputDescript
         printf("%sfailed to create OP_RETURN output", funcname);
         return false;
     }
+    */
 
     // we need to update our earned notarization and finalization outputs, which should both be present and incomplete
     // add up inputs, and make sure that the main notarization output holds any excess over minimum, if not enough, we need
@@ -1036,7 +1042,8 @@ uint256 CreateAcceptedNotarization(const CBlock &blk, int32_t txIndex, int32_t h
         pbn.nodes.erase(pbn.nodes.begin() + toErase);
     }
 
-    CScript opRet = StoreOpRetArray(chainObjects);
+    //TODO: UNCOMMENT
+    //CScript opRet = StoreOpRetArray(chainObjects);
 
     // we are ready to create a transaction to send to the other chain
 
@@ -1057,8 +1064,8 @@ uint256 CreateAcceptedNotarization(const CBlock &blk, int32_t txIndex, int32_t h
     vKeys.push_back(CTxDestination(CKeyID(CCrossChainRPCData::GetConditionID(ASSETCHAINS_CHAINID, EVAL_ACCEPTEDNOTARIZATION))));
     mnewTx.vout.push_back(MakeCC1of1Vout(EVAL_ACCEPTEDNOTARIZATION, PBAAS_MINNOTARIZATIONOUTPUT, pk, vKeys, pbn));
 
-    // make opret output
-    mnewTx.vout.push_back(CTxOut(0, opRet));
+    // TODO: UNCOMMENT make opret output
+    //mnewTx.vout.push_back(CTxOut(0, opRet));
 
     // finish transaction by sending it to the other notary chain for completion and submission
     CTransaction notarization(mnewTx);

@@ -422,6 +422,10 @@ CBlockTemplate* CreateNewBlock(const CScript& _scriptPubKeyIn, int32_t gpucount,
                     // failed to notarize at block 1
                     return NULL;
                 }
+                else
+                {
+                    printf("Skip creating earned notarization\n");
+                }
             }
             else
             {
