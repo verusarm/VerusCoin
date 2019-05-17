@@ -4694,12 +4694,9 @@ bool CheckBlock(int32_t *futureblockp,int32_t height,CBlockIndex *pindex,const C
                     {
                         sTx = Tx;
                         ptx = &sTx;
-                    } else if (!(state.GetRejectReason() == "already have coins"))
+                    } else if (state.GetRejectCode() != REJECT_DUPLICATE)
                     {
-                        if (state.GetRejectCode() != REJECT_DUPLICATE)
-                        {
-                            rejects++;
-                        }
+                        rejects++;
                     }
                 }
             }
