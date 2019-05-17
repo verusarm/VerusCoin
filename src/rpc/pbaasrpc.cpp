@@ -409,6 +409,7 @@ bool GetNotarizationData(uint160 chainID, uint32_t ecode, CChainNotarizationData
 
         if (!sorted.size())
         {
+            printf("no notarizations found\n");
             return false;
         }
 
@@ -441,7 +442,11 @@ bool GetNotarizationData(uint160 chainID, uint32_t ecode, CChainNotarizationData
                     }
                 }
             }
-        }
+            else
+            {
+                notarizationData.lastConfirmed = -1;
+            }
+         }
         else
         {
             // we still have the chain definition or block 1 in our forks, so no notarization has been confirmed yet
@@ -1163,38 +1168,21 @@ UniValue getcrossnotarization(const UniValue& params, bool fHelp)
         uint256 blkHash;
         bool found = false;
 
-        // if we think we are the first notarization on this chain, we don't have to find a match, chain definition is the match
-        if (txids.size() == 0 && ecode == EVAL_ACCEPTEDNOTARIZATION && !nData.IsConfirmed() && nData.vtx.size() != 0)
+        // loop in reverse through list, as most recent is at end
+        for (int32_t i = nData.vtx.size() - 1; i >= 0; i--)
         {
-            tx = nTxes[0].first;
-            blkHash = nTxes[0].second;
-            found = (ourLast = CPBaaSNotarization(tx)).IsValid();
-           
-            if (found)
+            const pair<uint256, CPBaaSNotarization> &nzp = nData.vtx[i];
+            tx = nTxes[i].first;
+            blkHash = nTxes[i].second;
+            auto nit = txids.find(nzp.second.crossNotarization);
+            if (i == 0 || !(nit == txids.end()))
             {
+                found = true;
                 // we have the first matching transaction, return it
-                ret.push_back(Pair("crosstxid", uint256().GetHex()));
-                ret.push_back(Pair("txid", nData.vtx[0].first.GetHex()));
+                ret.push_back(Pair("crosstxid", nzp.second.crossNotarization.GetHex()));
+                ret.push_back(Pair("txid", nzp.first.GetHex()));
                 ret.push_back(Pair("rawtx", EncodeHexTx(tx)));
-            }
-        }
-        else
-        {
-            // loop in reverse through list, as most recent is at end
-            for (int32_t i = nData.vtx.size() - 1; i >= 0; i--)
-            {
-                const pair<uint256, CPBaaSNotarization> &nzp = nData.vtx[i];
-                tx = nTxes[i].first;
-                blkHash = nTxes[i].second;
-                auto nit = txids.find(nzp.second.crossNotarization);
-                if (found = !(nit == txids.end()))
-                {
-                    // we have the first matching transaction, return it
-                    ret.push_back(Pair("crosstxid", nzp.second.crossNotarization.GetHex()));
-                    ret.push_back(Pair("txid", nzp.first.GetHex()));
-                    ret.push_back(Pair("rawtx", EncodeHexTx(tx)));
-                    break;
-                }
+                break;
             }
         }
 
