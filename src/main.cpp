@@ -2440,10 +2440,6 @@ void UpdateCoins(const CTransaction& tx, CCoinsViewCache& inputs, CTxUndo &txund
                 // we can't generate undo information for this, allow if it's a block bound transaction
                 assert(false);
             }
-            else
-            {
-                LogPrintf("Spending transaction %s, output %d, at height %d\n", txin.prevout.hash.GetHex().c_str(), txin.prevout.n, nHeight);
-            }
 
             // mark an outpoint spent, and construct undo information
             txundo.vprevout.push_back(CTxInUndo(coins->vout[nPos]));
