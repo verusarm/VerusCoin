@@ -370,7 +370,6 @@ bool GetNotarizationData(uint160 chainID, uint32_t ecode, CChainNotarizationData
         for (auto it = unspentOutputs.begin(); it != unspentOutputs.end(); it++)
         {
             // printf("txid: %s\n", it->first.txhash.GetHex().c_str());
-
             CTransaction ntx;
             uint256 blkHash;
 
@@ -388,13 +387,13 @@ bool GetNotarizationData(uint160 chainID, uint32_t ecode, CChainNotarizationData
                     if (blkit != mapBlockIndex.end())
                     {
                         // sort by block height, index by transaction id
-                        sorted.emplace(blkit->second->GetHeight(), make_pair(it->first.txhash, notarization));
+                        sorted.insert(make_pair(blkit->second->GetHeight(), make_pair(it->first.txhash, notarization)));
                         if (optionalTxOut)
                         {
-                            sortedTxs.emplace(blkit->second->GetHeight(), make_pair(ntx, blkHash));
+                            sortedTxs.insert(make_pair(blkit->second->GetHeight(), make_pair(ntx, blkHash)));
                         }
                     }
-                    // if we are the first notarization, none can be confirmed
+                    // if we are have a first notarization not confirmed, none can be confirmed yet
                     if (notarization.prevHeight == 0)
                     {
                         notarizationData.lastConfirmed = -1;
@@ -499,13 +498,13 @@ bool GetNotarizationData(uint160 chainID, uint32_t ecode, CChainNotarizationData
             }
             else
             {
-                // start a new fork
+                // start a new fork that references no one else
                 notarizationData.forks.push_back(vector<int32_t>(0));
                 notarizationData.forks.back().push_back(i);
                 chainIdx = notarizationData.forks.size() - 1;
                 posIdx = notarizationData.forks.back().size() - 1;
             }
-            references.emplace(nzp.first, make_pair(chainIdx, posIdx));
+            references.insert(make_pair(nzp.first, make_pair(chainIdx, posIdx)));
         }
 
         CChainPower best;
@@ -728,9 +727,10 @@ UniValue submitacceptednotarization(const UniValue& params, bool fHelp)
     // to the confirmed recipient
 
     CChainNotarizationData nData;
+    vector<pair<CTransaction, uint256>> txesBlkHashes;
 
     // get notarization data and check all transactions
-    if (GetNotarizationData(pbn.chainID, EVAL_ACCEPTEDNOTARIZATION, nData))
+    if (GetNotarizationData(pbn.chainID, EVAL_ACCEPTEDNOTARIZATION, nData, &txesBlkHashes))
     {
         // if any notarization exists that is accepted and more recent than the last one, but one we still agree with,
         // we cannot submit, aside from that, we will prepare and submit
@@ -740,6 +740,7 @@ UniValue submitacceptednotarization(const UniValue& params, bool fHelp)
         // printf("opRet: %s\n", notarization.vout[notarization.vout.size() - 1].scriptPubKey.ToString().c_str());
 
         auto chainObjects = RetrieveOpRetArray(notarization.vout[notarization.vout.size() - 1].scriptPubKey);
+
         bool stillValid = false;
         if (chainObjects.size() && chainObjects.back()->objectType == CHAINOBJ_PRIORBLOCKS)
         {
@@ -773,16 +774,19 @@ UniValue submitacceptednotarization(const UniValue& params, bool fHelp)
 
         if (!stillValid || (lastIt == notarizationData.end()))
         {
+            printf("Notarization not matched or invalidated by prior notarization");
             throw JSONRPCError(RPC_VERIFY_REJECTED, "Notarization not matched or invalidated by prior notarization");
         }
 
         if (pbn.prevHeight != lastIt->second->notarizationHeight)
         {
+            printf("Notarization heights not matched with previous notarization");
             throw JSONRPCError(RPC_VERIFY_REJECTED, "Notarization heights not matched with previous notarization");
         }
 
         if (pbn.prevHeight != 0 && (pbn.prevHeight + CPBaaSNotarization::MIN_BLOCKS_BETWEEN_ACCEPTED > pbn.notarizationHeight))
         {
+            printf("Less than minimum number of blocks between notarizations");
             throw JSONRPCError(RPC_VERIFY_REJECTED, "Less than minimum number of blocks between notarizations");
         }
 
@@ -800,23 +804,16 @@ UniValue submitacceptednotarization(const UniValue& params, bool fHelp)
             mnewTx.vout.push_back(output);
         }
 
-        CTransaction lastTx;
-        uint256 blkHash;
-        {
-            LOCK(cs_main);
-            if (!myGetTransaction(nData.vtx.back().first, lastTx, blkHash))
-            {
-                throw JSONRPCError(RPC_TRANSACTION_ERROR, "Cannot access prior notarization");
-            }
-        }
+        CTransaction lastTx = txesBlkHashes.back().first;
 
         int32_t confirmedInput = -1;
+        int32_t confirmedIndex;
         CTxDestination payee;
 
         uint32_t notarizationIdx = -1, finalizationIdx = -1;
         CPBaaSNotarization dummy;
 
-        notarizationInputs = AddSpendsAndFinalizations(nData, pbn.prevNotarization, lastTx, mnewTx, &confirmedInput, &payee);
+        notarizationInputs = AddSpendsAndFinalizations(nData, pbn.prevNotarization, lastTx, mnewTx, &confirmedInput, &confirmedIndex, &payee);
 
         // if we got our inputs, add finalization
         if (notarizationInputs.size())
@@ -869,8 +866,9 @@ UniValue submitacceptednotarization(const UniValue& params, bool fHelp)
                 if (confirmedInput != -1)
                 {
                     // get data from confirmed tx and block that contains confirmed tx
-                    if (myGetTransaction(mnewTx.vin[confirmedInput].prevout.hash, confirmedTx, hashBlock) &&
-                        (it = mapBlockIndex.find(hashBlock)) != mapBlockIndex.end())
+                    confirmedTx = txesBlkHashes[confirmedIndex].first;
+                    hashBlock = txesBlkHashes[confirmedIndex].second;
+                    if ((it = mapBlockIndex.find(hashBlock)) != mapBlockIndex.end())
                     {
                         pindex = mapBlockIndex.find(hashBlock)->second;
                     }
@@ -1011,7 +1009,7 @@ UniValue submitacceptednotarization(const UniValue& params, bool fHelp)
             CValidationState state;
             bool fMissingInputs;
             if (!AcceptToMemoryPool(mempool, state, tx, false, &fMissingInputs)) {
-                printf("Notarization submission failure %s\n", state.GetRejectReason().c_str());
+                printf("Cannot enter notarization into mempool %s\n", state.GetRejectReason().c_str());
                 if (state.IsInvalid()) {
                     throw JSONRPCError(RPC_TRANSACTION_REJECTED, strprintf("%i: %s", state.GetRejectCode(), state.GetRejectReason()));
                 } else {

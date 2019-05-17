@@ -237,14 +237,21 @@ UniValue CChainNotarizationData::ToUniValue() const
     return obj;
 }
 
-vector<CInputDescriptor> AddSpendsAndFinalizations(const CChainNotarizationData &cnd, const uint256 &lastNotarizationID, const CTransaction &lastTx, CMutableTransaction &mnewTx, int32_t *pConfirmedInput, CTxDestination *pConfirmedDest)
+vector<CInputDescriptor> AddSpendsAndFinalizations(const CChainNotarizationData &cnd, 
+                                                   const uint256 &lastNotarizationID, 
+                                                   const CTransaction &lastTx, 
+                                                   CMutableTransaction &mnewTx, 
+                                                   int32_t *pConfirmedInput, 
+                                                   int32_t *pConfirmedIdx, 
+                                                   CTxDestination *pConfirmedDest)
 {
     // determine all finalized transactions that should be spent as input
     // always spend the notarization thread
     vector<CInputDescriptor> txInputs;
 
     set<int32_t> finalized;
-    int32_t confirmedIdx = -1;
+    int32_t &confirmedIdx = *pConfirmedIdx;
+    confirmedIdx = -1;
 
     // now, create inputs from the most recent notarization in cnd and the finalization outputs that we either confirm or invalidate
     for (int j = 0; j < cnd.forks.size(); j++)
@@ -589,7 +596,8 @@ bool CreateEarnedNotarization(CMutableTransaction &mnewTx, vector<CInputDescript
     }
 
     // determine all finalized transactions that should be spent as input
-    inputs = AddSpendsAndFinalizations(cnd, lastNotarizationID, lastTx, mnewTx, pConfirmedInput, pConfirmedDest);
+    int32_t confirmedIndex;
+    inputs = AddSpendsAndFinalizations(cnd, lastNotarizationID, lastTx, mnewTx, pConfirmedInput, &confirmedIndex, pConfirmedDest);
 
     CCcontract_info CC;
     CCcontract_info *cp;
@@ -954,7 +962,6 @@ uint256 CreateAcceptedNotarization(const CBlock &blk, int32_t txIndex, int32_t h
         }
         CTransaction strippedTx(mentx);
 
-        // debugging only
         //printf("entx.vout size: %lu\n", entx.vout.size());
         //printf("strippedTx.vout size: %lu\n", strippedTx.vout.size());
 
@@ -1032,7 +1039,6 @@ uint256 CreateAcceptedNotarization(const CBlock &blk, int32_t txIndex, int32_t h
     CScript opRet = StoreOpRetArray(chainObjects);
 
     // we are ready to create a transaction to send to the other chain
-    // we will then need to execute on the notary chain to finish and submit this notarization
 
     // setup to create the accepted notarization transaction
     CMutableTransaction mnewTx = CreateNewContextualCMutableTransaction(Params().GetConsensus(), height);

@@ -274,7 +274,13 @@ public:
 
 bool CreateEarnedNotarization(CMutableTransaction &mnewTx, std::vector<CInputDescriptor> &inputs, CTransaction &lastTx, CTransaction &crossTx, int32_t height, int32_t *confirmedInput, CTxDestination *confirmedDest);
 uint256 CreateAcceptedNotarization(const CBlock &blk, int32_t txIndex, int32_t height);
-std::vector<CInputDescriptor> AddSpendsAndFinalizations(const CChainNotarizationData &cnd, const uint256 &lastNotarizationID, const CTransaction &lastTx, CMutableTransaction &mnewTx, int32_t *pConfirmedInput, CTxDestination *pConfirmedDest);
+std::vector<CInputDescriptor> AddSpendsAndFinalizations(const CChainNotarizationData &cnd, 
+                                                        const uint256 &lastNotarizationID, 
+                                                        const CTransaction &lastTx, 
+                                                        CMutableTransaction &mnewTx, 
+                                                        int32_t *pConfirmedInput, 
+                                                        int32_t *pConfirmedIdx, 
+                                                        CTxDestination *pConfirmedDest);
 bool GetNotarizationAndFinalization(int32_t ecode, CMutableTransaction mtx, CPBaaSNotarization &pbn, uint32_t *pNotarizeOutIndex, uint32_t *pFinalizeOutIndex);
 bool ValidateEarnedNotarization(CTransaction &ntx, CPBaaSNotarization *notarization = NULL);
 bool ValidateEarnedNotarization(struct CCcontract_info *cp, Eval* eval, const CTransaction &tx, uint32_t nIn);

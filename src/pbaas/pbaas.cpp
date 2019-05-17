@@ -260,10 +260,7 @@ std::vector<CBaseChainObject *> RetrieveOpRetArray(const CScript &opRetScript)
                 if (!s.empty())
                 {
                     printf("failed to load all objects in opret");
-                    for (auto o : vRet)
-                    {
-                        delete o;
-                    }
+                    DeleteOpRetObjects(vRet);
                     vRet.clear();
                 }
             }
@@ -271,10 +268,7 @@ std::vector<CBaseChainObject *> RetrieveOpRetArray(const CScript &opRetScript)
         catch(const std::exception& e)
         {
             std::cerr << e.what() << '\n';
-            for (auto o : vRet)
-            {
-                delete o;
-            }
+            DeleteOpRetObjects(vRet);
             vRet.clear();
         }
     }
@@ -995,7 +989,7 @@ void CConnectedChains::SubmissionThread()
                     int32_t txIndex = -1, height;
                     {
                         LOCK(cs_mergemining);
-                        if (earnedNotarizationHeight && earnedNotarizationHeight <= chainActive.Height())
+                        if (earnedNotarizationHeight && earnedNotarizationHeight <= chainActive.Height() && earnedNotarizationBlock.GetHash() == chainActive[earnedNotarizationHeight]->GetBlockHash())
                         {
                             blk = earnedNotarizationBlock;
                             earnedNotarizationBlock = CBlock();
