@@ -1060,7 +1060,7 @@ uint256 CreateAcceptedNotarization(const CBlock &blk, int32_t txIndex, int32_t h
     // make opret output
     mnewTx.vout.push_back(CTxOut(0, opRet));
 
-    // finish transaction by sending it to the othr notary chain for completion and submission
+    // finish transaction by sending it to the other notary chain for completion and submission
     CTransaction notarization(mnewTx);
 
     // call an API, submit notarization that takes a partially complete notarization tx
@@ -1077,12 +1077,12 @@ uint256 CreateAcceptedNotarization(const CBlock &blk, int32_t txIndex, int32_t h
     {
         result = NullUniValue;
     }
-    uint256 notaryId;
+    uint256 notarizationId;
     if (result.isStr())
     {
-        notaryId.SetHex(result.get_str());
+        notarizationId.SetHex(result.get_str());
     }
-    return notaryId;
+    return notarizationId;
 }
 
 /*

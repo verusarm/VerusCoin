@@ -732,6 +732,10 @@ UniValue submitacceptednotarization(const UniValue& params, bool fHelp)
     // get notarization data and check all transactions
     if (GetNotarizationData(pbn.chainID, EVAL_ACCEPTEDNOTARIZATION, nData, &txesBlkHashes))
     {
+
+        LogPrintf("Accepted notarization GetNotarizationData returns %lu entries\n", nData.vtx.size());
+        printf("Accepted notarization GetNotarizationData returns %lu entries\n", nData.vtx.size());
+
         // if any notarization exists that is accepted and more recent than the last one, but one we still agree with,
         // we cannot submit, aside from that, we will prepare and submit
         set<uint256> priorBlocks;
@@ -814,6 +818,12 @@ UniValue submitacceptednotarization(const UniValue& params, bool fHelp)
         CPBaaSNotarization dummy;
 
         notarizationInputs = AddSpendsAndFinalizations(nData, pbn.prevNotarization, lastTx, mnewTx, &confirmedInput, &confirmedIndex, &payee);
+
+        for (auto input : notarizationInputs)
+        {
+            LogPrintf("Accepted notarization value: %lu, input n: %d, hash: %s\n", input.nValue, input.txIn.prevout.n, input.txIn.prevout.hash);
+            printf("Accepted notarization value: %lu, input n: %d, hash: %s\n", input.nValue, input.txIn.prevout.n, input.txIn.prevout.hash);
+        }
 
         // if we got our inputs, add finalization
         if (notarizationInputs.size())
