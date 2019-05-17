@@ -495,10 +495,9 @@ bool GetNotarizationData(uint160 chainID, uint32_t ecode, CChainNotarizationData
                 else
                 {
                     notarizationData.forks.push_back(vector<int32_t>(&fork[0], &fork[it->second.second] + 1));
-                    fork = notarizationData.forks.back();
-                    fork.push_back(i);
+                    notarizationData.forks.back().push_back(i);
                     chainIdx = notarizationData.forks.size() - 1;
-                    posIdx = fork.size() - 1;
+                    posIdx = notarizationData.forks.back().size() - 1;
                 }
             }
             else
