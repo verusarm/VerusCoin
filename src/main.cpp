@@ -4709,7 +4709,7 @@ bool CheckBlock(int32_t *futureblockp,int32_t height,CBlockIndex *pindex,const C
                         ptx = &sTx;
                     } else if (state.GetRejectReason() != "already have coins" || (missinginputs && fCheckMerkleRoot))
                     {
-                        printf("Rejected transaction for %s, reject code %d\n", state.GetRejectReason().c_str(), state.GetRejectReason());
+                        printf("Rejected transaction for %s, reject code %d\n", state.GetRejectReason().c_str(), state.GetRejectCode());
                         for (auto input : Tx.vin)
                         {
                             LogPrintf("Accepted notarization input n: %d, hash: %s\n", input.prevout.n, input.prevout.hash.GetHex().c_str());
