@@ -252,7 +252,7 @@ vector<CInputDescriptor> AddSpendsAndFinalizations(const CChainNotarizationData 
     set<int32_t> finalized;
     int32_t &confirmedIdx = *pConfirmedIdx;
     confirmedIdx = -1;
-    confirmOffset = (cnd.lastConfirmed == -1) ? 0 : 1;
+    int32_t confirmOffset = (cnd.lastConfirmed == -1) ? 0 : 1;
 
     // now, create inputs from the most recent notarization in cnd and the finalization outputs that we either confirm or invalidate
     for (int j = 0; j < cnd.forks.size(); j++)
