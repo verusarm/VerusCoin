@@ -731,7 +731,9 @@ bool IsStandardTx(const CTransaction& tx, string& reason, const int nHeight)
         }
     }
     
-    if (!tx.IsCoinBase())
+    bool isCoinbase = tx.IsCoinBase();
+
+    if (!isCoinbase)
     {
         BOOST_FOREACH(const CTxIn& txin, tx.vin)
         {
@@ -777,7 +779,7 @@ bool IsStandardTx(const CTransaction& tx, string& reason, const int nHeight)
         else if ((whichType == TX_MULTISIG) && (!fIsBareMultisigStd)) {
             reason = "bare-multisig";
             return false;
-        } else if (txout.scriptPubKey.IsPayToCryptoCondition() == 0 && txout.IsDust(::minRelayTxFee)) {
+        } else if (txout.scriptPubKey.IsPayToCryptoCondition() == 0 && !isCoinbase && txout.IsDust(::minRelayTxFee)) {
             reason = "dust";
             return false;
         }
