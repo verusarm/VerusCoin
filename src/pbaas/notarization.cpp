@@ -270,7 +270,7 @@ vector<CInputDescriptor> AddSpendsAndFinalizations(const CChainNotarizationData 
                 // if we have a fork that is long enough that we will add to, we are confirming the entry final confirmations before us
                 if (k >= CPBaaSNotarization::FINAL_CONFIRMATIONS + confirmOffset)
                 {
-                    confirmedEntry = k - CPBaaSNotarization::FINAL_CONFIRMATIONS;
+                    int32_t confirmedEntry = k - CPBaaSNotarization::FINAL_CONFIRMATIONS;
                     confirmedIdx = cnd.forks[j][confirmedEntry];
                     finalized.insert(confirmedIdx);
                     // if we would add the 10th confirmation to the second in this fork, we are confirming 
