@@ -420,7 +420,7 @@ bool CreateEarnedNotarization(CMutableTransaction &mnewTx, vector<CInputDescript
 {
     char funcname[] = "CreateEarnedNotarization: ";
 
-    printf("%senter\n", funcname);
+    //printf("%senter\n", funcname);
 
     // we can only create a notarization if there is an available Verus chain
     if (!ConnectedChains.IsVerusPBaaSAvailable())
@@ -450,7 +450,7 @@ bool CreateEarnedNotarization(CMutableTransaction &mnewTx, vector<CInputDescript
 
     params.push_back(txidArr);
 
-    printf("%sabout to get cross notarization with %lu notarizations found\n", funcname, cnd.vtx.size());
+    //printf("%sabout to get cross notarization with %lu notarizations found\n", funcname, cnd.vtx.size());
 
     UniValue result;
     try
@@ -599,10 +599,11 @@ bool CreateEarnedNotarization(CMutableTransaction &mnewTx, vector<CInputDescript
         CPBaaSNotarization prevNZ(lastTx);
         pbn.prevHeight = prevNZ.notarizationHeight;
 
-        if (pbn.prevHeight + CPBaaSNotarization::MIN_BLOCKS_BETWEEN_ACCEPTED > pbn.notarizationHeight)
+        int32_t blocksToWait = (pbn.prevHeight + CPBaaSNotarization::MIN_BLOCKS_BETWEEN_ACCEPTED) - pbn.notarizationHeight;
+        if (blocksToWait > 0)
         {
             // can't make another notarization yet
-            printf("%sNot enough blocks to notarize - prevHeight.%d, notarizationHeight.%d\n", funcname, pbn.prevHeight, pbn.notarizationHeight);
+            printf("%sWaiting for %d blocks to notarize - prevHeight.%d, notarizationHeight.%d\n", funcname, blocksToWait, pbn.prevHeight, pbn.notarizationHeight);
             return false;
         }
     }
@@ -1124,7 +1125,7 @@ bool ValidateAcceptedNotarization(struct CCcontract_info *cp, Eval* eval, const 
     // 3. This notarization is not a superset of an earlier notarization posted before it that it does not
     //    reference. If that is the case, it is rejected.
     // 4. Has all relevant inputs, including finalizes all necessary transactions, both confirmed and orphaned
-    printf("ValidateAcceptedNotarization\n");
+    //printf("ValidateAcceptedNotarization\n");
     return true;
 }
 bool IsAcceptedNotarizationInput(const CScript &scriptSig)
@@ -1152,7 +1153,7 @@ bool ValidateEarnedNotarization(struct CCcontract_info *cp, Eval* eval, const CT
     // cryptographically correct, and that it spends the proper finalization outputs
     // if the notarization causes a fork, it must include additional proof of blocks and their
     // power based on random block hash bits
-    printf("ValidateEarnedNotarization\n");
+    //printf("ValidateEarnedNotarization\n");
     return true;
 }
 bool IsEarnedNotarizationInput(const CScript &scriptSig)
@@ -1172,7 +1173,7 @@ bool ValidateFinalizeNotarization(struct CCcontract_info *cp, Eval* eval, const 
 {
     // this must be spent by a transaction that is either the correct number of transactions ahead in confirming
     // us, or the correct number ahead in confirming another
-    printf("ValidateFinalizeNotarization\n");
+    //printf("ValidateFinalizeNotarization\n");
     return true;
 }
 bool IsFinalizeNotarizationInput(const CScript &scriptSig)
