@@ -739,8 +739,15 @@ UniValue submitacceptednotarization(const UniValue& params, bool fHelp)
     CChainNotarizationData nData;
     vector<pair<CTransaction, uint256>> txesBlkHashes;
 
+    bool success;
+    
+    {
+        LOCK(cs_main);
+        success = GetNotarizationData(pbn.chainID, EVAL_ACCEPTEDNOTARIZATION, nData, &txesBlkHashes);
+    }
+
     // get notarization data and check all transactions
-    if (GetNotarizationData(pbn.chainID, EVAL_ACCEPTEDNOTARIZATION, nData, &txesBlkHashes))
+    if (success)
     {
 
         LogPrintf("Accepted notarization GetNotarizationData returns %lu entries\n", nData.vtx.size());
@@ -916,6 +923,7 @@ UniValue submitacceptednotarization(const UniValue& params, bool fHelp)
             // get recipients of any reward output
             if (confirmedInput != -1)
             {
+                LOCK(cs_main);
                 if (pindex && ReadBlockFromDisk(confirmedBlock, pindex, false) && 
                     (confirmedPBN = CPBaaSNotarization(confirmedTx)).IsValid() &&
                     ExtractDestination(confirmedBlock.vtx[0].vout[0].scriptPubKey, minerRecipient, false))
@@ -1029,7 +1037,12 @@ UniValue submitacceptednotarization(const UniValue& params, bool fHelp)
 
             CValidationState state;
             bool fMissingInputs;
-            if (!AcceptToMemoryPool(mempool, state, tx, false, &fMissingInputs)) {
+            bool accepted;
+            {
+                LOCK2(cs_main, mempool.cs);
+                accepted = AcceptToMemoryPool(mempool, state, tx, false, &fMissingInputs);
+            }
+            if (!accepted) {
                 printf("Cannot enter notarization into mempool %s\n", state.GetRejectReason().c_str());
                 if (state.IsInvalid()) {
                     throw JSONRPCError(RPC_TRANSACTION_REJECTED, strprintf("%i: %s", state.GetRejectCode(), state.GetRejectReason()));

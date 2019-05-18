@@ -4681,6 +4681,9 @@ bool CheckBlock(int32_t *futureblockp,int32_t height,CBlockIndex *pindex,const C
     {
         int32_t i,j,rejects=0,lastrejects=0;
 
+        // we need this lock to prevent accepting transactions we shouldn't
+        LOCK(mempool.cs);
+
         //printf("checking block %d\n", height);
         while ( 1 )
         {
