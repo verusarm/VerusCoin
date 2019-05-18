@@ -3241,8 +3241,10 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
     BOOST_FOREACH(const CTransaction& tx, block.vtx) {
         const CCoins* coins = view.AccessCoins(tx.GetHash());
         if (coins && !coins->IsPruned())
+        {
             return state.DoS(100, error("ConnectBlock(): tried to overwrite transaction"),
                              REJECT_INVALID, "bad-txns-BIP30");
+        }
     }
     
     unsigned int flags = SCRIPT_VERIFY_P2SH | SCRIPT_VERIFY_CHECKLOCKTIMEVERIFY;
@@ -3906,6 +3908,13 @@ static int64_t nTimeFlush = 0;
 static int64_t nTimeChainState = 0;
 static int64_t nTimePostConnect = 0;
 
+void RemoveCoinbaseFromMemPool(const CBlock& block)
+{
+    // remove coinbase and anything that depended on it sooner, rather than later, if failure
+    LOCK2(cs_main, mempool.cs);
+    myRemovefrommempool(block.vtx[0]);
+}
+
 /**
  * Connect a new block to chainActive. pblock is either NULL or a pointer to a CBlock
  * corresponding to pindexNew, to bypass loading it again from disk.
@@ -3938,6 +3947,7 @@ bool static ConnectTip(CValidationState &state, CBlockIndex *pindexNew, CBlock *
         KOMODO_CONNECTING = -1;
         GetMainSignals().BlockChecked(*pblock, state);
         if (!rv) {
+            RemoveCoinbaseFromMemPool(*pblock);
             if (state.IsInvalid())
                 InvalidBlockFound(pindexNew, state);
             return error("ConnectTip(): ConnectBlock %s failed", pindexNew->GetBlockHash().ToString());
@@ -4768,9 +4778,8 @@ bool CheckBlock(int32_t *futureblockp,int32_t height,CBlockIndex *pindex,const C
 
     if (!success)
     {
-        // remove coinbase and anything that depended on it
-        LOCK2(cs_main, mempool.cs);
-        myRemovefrommempool(block.vtx[0]);
+        // remove coinbase and anything that depended on it sooner, rather than later, if failure
+        RemoveCoinbaseFromMemPool(block);
     } else if (ptx && fCheckTxInputs)
     {
         SyncWithWallets(*ptx, &block);
@@ -5216,6 +5225,7 @@ bool ProcessNewBlock(bool from_miner,int32_t height,CValidationState &state, CNo
             {
                 Misbehaving(pfrom->GetId(), 1);
             }
+            RemoveCoinbaseFromMemPool(*pblock);
             return error("%s: CheckBlock FAILED", __func__);
         }
         // Store to disk
@@ -5226,13 +5236,20 @@ bool ProcessNewBlock(bool from_miner,int32_t height,CValidationState &state, CNo
             mapBlockSource[pindex->GetBlockHash()] = pfrom->GetId();
         }
         CheckBlockIndex();
+
         if (!ret && futureblock == 0)
+        {
+            RemoveCoinbaseFromMemPool(*pblock);
             return error("%s: AcceptBlock FAILED", __func__);
+        }
         //else fprintf(stderr,"added block %s %p\n",pindex->GetBlockHash().ToString().c_str(),pindex->pprev);
     }
     
     if (futureblock == 0 && !ActivateBestChain(state, pblock))
+    {
+        RemoveCoinbaseFromMemPool(*pblock);
         return error("%s: ActivateBestChain failed", __func__);
+    }
     //fprintf(stderr,"finished ProcessBlock %d\n",(int32_t)chainActive.LastTip()->GetHeight());
 
     // submit notarization if there is one
@@ -5261,6 +5278,8 @@ bool TestBlockValidity(CValidationState &state, const CBlock& block, CBlockIndex
 {
     AssertLockHeld(cs_main);
     assert(pindexPrev == chainActive.Tip());
+
+    bool success = false;
     
     CCoinsViewCache viewNew(pcoinsTip);
     CBlockIndex indexDummy(block);
@@ -5269,31 +5288,18 @@ bool TestBlockValidity(CValidationState &state, const CBlock& block, CBlockIndex
     // JoinSplit proofs are verified in ConnectBlock
     auto verifier = libzcash::ProofVerifier::Disabled();
     // NOTE: CheckBlockHeader is called by CheckBlock
-    if (!ContextualCheckBlockHeader(block, state, pindexPrev))
-    {
-        //fprintf(stderr,"TestBlockValidity failure A checkPOW.%d\n",fCheckPOW);
-        return false;
-    }
     int32_t futureblock;
-    if (!CheckBlock(&futureblock,indexDummy.GetHeight(),0,block, state, verifier, fCheckPOW, fCheckMerkleRoot))
+    if (ContextualCheckBlockHeader(block, state, pindexPrev) &&
+        CheckBlock(&futureblock,indexDummy.GetHeight(),0,block, state, verifier, fCheckPOW, fCheckMerkleRoot) &&
+        ContextualCheckBlock(block, state, pindexPrev) &&
+        ConnectBlock(block, state, &indexDummy, viewNew, true,fCheckPOW) &&
+        futureblock == 0 )
     {
-        //fprintf(stderr,"TestBlockValidity failure B checkPOW.%d\n",fCheckPOW);
-        return false;
+        success = true;
     }
-    if (!ContextualCheckBlock(block, state, pindexPrev))
-    {
-        //fprintf(stderr,"TestBlockValidity failure C checkPOW.%d\n",fCheckPOW);
-        return false;
-    }
-    if (!ConnectBlock(block, state, &indexDummy, viewNew, true,fCheckPOW))
-    {
-        //fprintf(stderr,"TestBlockValidity failure D checkPOW.%d\n",fCheckPOW);
-        return false;
-    }
-    assert(state.IsValid());
-    if ( futureblock != 0 )
-        return(false);
-    return true;
+
+    RemoveCoinbaseFromMemPool(block);
+    return success;
 }
 
 /**
@@ -5749,7 +5755,10 @@ bool CVerifyDB::VerifyDB(CCoinsView *coinsview, int nCheckLevel, int nCheckDepth
             if (!ReadBlockFromDisk(block, pindex,0))
                 return error("VerifyDB(): *** ReadBlockFromDisk failed at %d, hash=%s", pindex->GetHeight(), pindex->GetBlockHash().ToString());
             if (!ConnectBlock(block, state, pindex, coins,false, true))
+            {
+                RemoveCoinbaseFromMemPool(block);
                 return error("VerifyDB(): *** found unconnectable block at %d, hash=%s", pindex->GetHeight(), pindex->GetBlockHash().ToString());
+            }
         }
     }
     
