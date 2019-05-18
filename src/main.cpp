@@ -4680,7 +4680,8 @@ bool CheckBlock(int32_t *futureblockp,int32_t height,CBlockIndex *pindex,const C
     if ( ASSETCHAINS_CC != 0 ) // CC contracts might refer to transactions in the current block, from a CC spend within the same block and out of order
     {
         int32_t i,j,rejects=0,lastrejects=0;
-        //fprintf(stderr,"put block's tx into mempool\n");
+
+        printf("checking block %d\n", height);
         while ( 1 )
         {
             for (i = block.hashPrevBlock.IsNull() ? 1 : 0; i < block.vtx.size(); i++)
@@ -4691,10 +4692,7 @@ bool CheckBlock(int32_t *futureblockp,int32_t height,CBlockIndex *pindex,const C
                 if (((i == (block.vtx.size() - 1)) && (ASSETCHAINS_STAKED && komodo_isPoS((CBlock *)&block) != 0)))
                     continue;
                 Tx = tx;
-                if (!lastrejects)
-                {
-                    printf("myAddToMemPool - %lu sent in %d outputs from %s\n", Tx.GetValueOut(), Tx.vout.size(), Tx.GetHash().GetHex().c_str());
-                }
+
                 if ( myAddtomempool(Tx, &state, height) == false ) // happens with out of order tx in block on resync
                 {
                     //LogPrintf("Rejected by mempool, reason: .%s.\n", state.GetRejectReason().c_str());
@@ -4705,13 +4703,9 @@ bool CheckBlock(int32_t *futureblockp,int32_t height,CBlockIndex *pindex,const C
                     {
                         sTx = Tx;
                         ptx = &sTx;
-                    } else if (state.GetRejectCode() != REJECT_DUPLICATE)
+                    } else if (state.GetRejectReason() != "already have coins")
                     {
                         printf("Rejected transaction for %s, reject code %d\n", state.GetRejectReason().c_str(), state.GetRejectReason());
-                        for (auto input : Tx.vin)
-                        {
-                            printf("Spending output #%d of %s\n", input.prevout.n, input.prevout.hash.GetHex().c_str());
-                        }
                         rejects++;
                     }
                 }
