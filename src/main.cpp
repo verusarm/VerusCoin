@@ -4707,7 +4707,7 @@ bool CheckBlock(int32_t *futureblockp,int32_t height,CBlockIndex *pindex,const C
                     {
                         sTx = Tx;
                         ptx = &sTx;
-                    } else if (state.GetRejectReason() != "already have coins" || !(missinginputs && !fCheckMerkleRoot))
+                    } else if (state.GetRejectReason() != "already have coins" && !(missinginputs && !fCheckMerkleRoot))
                     {
                         printf("Rejected transaction for %s, reject code %d\n", state.GetRejectReason().c_str(), state.GetRejectCode());
                         for (auto input : Tx.vin)
@@ -7437,7 +7437,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
         vector<unsigned char> vData;
         vRecv >> vData;
         
-        // Nodes must NEVER send a data item > 520 bytes (the max size for a script data object,
+        // Nodes must NEVER send a data item bigger than the max size for a script data object,
         // and thus, the maximum size any matched object can have) in a filteradd message
         if (vData.size() > MAX_SCRIPT_ELEMENT_SIZE)
         {
