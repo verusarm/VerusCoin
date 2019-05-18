@@ -869,8 +869,20 @@ CBlockTemplate* CreateNewBlock(const CScript& _scriptPubKeyIn, int32_t gpucount,
 
             // put now signed notarization back in the block
             pblock->vtx[pbaasNotarizationTx] = mntx;
+
+            LogPrintf("Coinbase source tx id: %s\n", txNew.GetHash().GetHex().c_str());
+            printf("Coinbase source tx id: %s\n", txNew.GetHash().GetHex().c_str());
             LogPrintf("adding notarization tx at height %d, index %d, id: %s\n", nHeight, pbaasNotarizationTx, mntx.GetHash().GetHex().c_str());
             printf("adding notarization tx at height %d, index %d, id: %s\n", nHeight, pbaasNotarizationTx, mntx.GetHash().GetHex().c_str());
+            {
+                LOCK(cs_main);
+                for (auto input : mntx.vin)
+                {
+                    LogPrintf("Accepted notarization input n: %d, hash: %s, HaveCoins: %s\n", input.prevout.n, input.prevout.hash.GetHex().c_str(), pcoinsTip->HaveCoins(input.prevout.hash) ? "true" : "false");
+                    printf("Accepted notarization input n: %d, hash: %s\n", input.prevout.n, input.prevout.hash.GetHex().c_str(), pcoinsTip->HaveCoins(input.prevout.hash) ? "true" : "false");
+                }
+            }
+
             for (auto inp : mntx.vin)
             {
                 printf("Spending n: %d, hash: %s\n", inp.prevout.n, inp.prevout.hash.GetHex().c_str());
