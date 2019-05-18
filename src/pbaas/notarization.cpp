@@ -245,7 +245,7 @@ vector<CInputDescriptor> AddSpendsAndFinalizations(const CChainNotarizationData 
                                                    int32_t *pConfirmedIdx, 
                                                    CTxDestination *pConfirmedDest)
 {
-    // determine all finalized transactions that should be spent as input
+    // determine all finalized and orphaned transactions that should be spent as input
     // always spend the notarization thread
     vector<CInputDescriptor> txInputs;
 
@@ -260,17 +260,18 @@ vector<CInputDescriptor> AddSpendsAndFinalizations(const CChainNotarizationData 
         int k;
         for (k = cnd.forks[j].size() - 1; k >= 0; k--)
         {
-            // the first instance of the prior notarization we find caps the prior fork we are confirming
+            // the first instance of the prior notarization we find represents the prior fork we are confirming
+            // it may be intact or part of another. in any case, we may create a new fork or add on to an existing one
+            // whether we create a new fork or add to an existing one, we may confirm an entry
+            // if we do, we will spend the finalizatoin output of every fork that does no include that entry as well
+            // as that entry itself
             if (cnd.vtx[cnd.forks[j][k]].first == lastNotarizationID)
             {
-                // the only way to get to greater than 10 is by breaking the rules, as the first
-                // entry should be the earliest notarization or the last confirmed
-                assert(k <= (CPBaaSNotarization::FINAL_CONFIRMATIONS + confirmOffset));
-
-                // if we have a fork that will be size 11, we are confirming the earliest entry
-                if (k == 10)
+                // if we have a fork that is long enough that we will add to, we are confirming the entry final confirmations before us
+                if (k >= CPBaaSNotarization::FINAL_CONFIRMATIONS + confirmOffset)
                 {
-                    confirmedIdx = cnd.forks[j][confirmOffset];
+                    confirmedEntry = k - CPBaaSNotarization::FINAL_CONFIRMATIONS;
+                    confirmedIdx = cnd.forks[j][confirmedEntry];
                     finalized.insert(confirmedIdx);
                     // if we would add the 10th confirmation to the second in this fork, we are confirming 
                     // a new notarization, spend it's finalization output and all those that disagree with it
@@ -278,9 +279,8 @@ vector<CInputDescriptor> AddSpendsAndFinalizations(const CChainNotarizationData 
                     // second position, which is the one we are confirming
                     for (int l = 0; l < cnd.forks.size(); l++)
                     {
-                        // if another fork branches at the confirmed notarization, the entire fork
-                        // is invalid, spend all its finalization outputs
-                        if (l != j && cnd.forks[l][confirmOffset] != confirmedIdx)
+                        // spend all forks that do not contain the notarization from the confirmed offset forward
+                        if (cnd.forks[l][confirmOffset] != confirmedIdx)
                         {
                             for (int m = confirmOffset; m < cnd.forks[l].size(); m++)
                             {
