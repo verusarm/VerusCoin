@@ -4707,7 +4707,8 @@ bool CheckBlock(int32_t *futureblockp,int32_t height,CBlockIndex *pindex,const C
                     {
                         sTx = Tx;
                         ptx = &sTx;
-                    } else if (state.GetRejectReason() != "already have coins" && !(missinginputs && !fCheckPOW)) // fCheckPOW overloaded for DB verify to pass
+                    } else if (state.GetRejectReason() != "already have coins" && 
+                               !((missinginputs || state.GetRejectCode() == REJECT_DUPLICATE) && !fCheckPOW)) // fCheckPOW overloaded for DB verify to pass
                     {
                         printf("Rejected transaction for %s, reject code %d\n", state.GetRejectReason().c_str(), state.GetRejectCode());
                         for (auto input : Tx.vin)
