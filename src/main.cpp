@@ -1949,14 +1949,14 @@ bool GetAddressUnspent(uint160 addressHash, int type,
     else return(coins.vout[n].nValue);
 }*/
 
-bool myAddtomempool(CTransaction &tx, CValidationState *pstate, int32_t simHeight)
+bool myAddtomempool(CTransaction &tx, CValidationState *pstate, int32_t simHeight, bool *missinginputs)
 {
     CValidationState state;
     if (!pstate)
         pstate = &state;
-    CTransaction Ltx; bool fMissingInputs,fOverrideFees = false;
+    CTransaction Ltx; bool fOverrideFees = false;
     if ( mempool.lookup(tx.GetHash(),Ltx) == 0 )
-        return(AcceptToMemoryPoolInt(mempool, *pstate, tx, false, &fMissingInputs, !fOverrideFees, -1, simHeight));
+        return(AcceptToMemoryPoolInt(mempool, *pstate, tx, false, missinginputs, !fOverrideFees, -1, simHeight));
     else return(true);
 }
 
@@ -4696,7 +4696,8 @@ bool CheckBlock(int32_t *futureblockp,int32_t height,CBlockIndex *pindex,const C
                     continue;
                 Tx = tx;
 
-                if ( myAddtomempool(Tx, &state, height) == false ) // happens with out of order tx in block on resync
+                bool missinginputs = false;
+                if ( myAddtomempool(Tx, &state, height, &missinginputs) == false ) // happens with out of order tx in block on resync
                 {
                     //LogPrintf("Rejected by mempool, reason: .%s.\n", state.GetRejectReason().c_str());
                     uint32_t ecode;
@@ -4706,7 +4707,7 @@ bool CheckBlock(int32_t *futureblockp,int32_t height,CBlockIndex *pindex,const C
                     {
                         sTx = Tx;
                         ptx = &sTx;
-                    } else if (state.GetRejectReason() != "already have coins")
+                    } else if (state.GetRejectReason() != "already have coins" || (missinginputs && fCheckMerkleRoot))
                     {
                         printf("Rejected transaction for %s, reject code %d\n", state.GetRejectReason().c_str(), state.GetRejectReason());
                         for (auto input : Tx.vin)
