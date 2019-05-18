@@ -4691,6 +4691,10 @@ bool CheckBlock(int32_t *futureblockp,int32_t height,CBlockIndex *pindex,const C
                 if (((i == (block.vtx.size() - 1)) && (ASSETCHAINS_STAKED && komodo_isPoS((CBlock *)&block) != 0)))
                     continue;
                 Tx = tx;
+                if (!lastrejects)
+                {
+                    printf("myAddToMemPool - %lu sent in %d outputs from %s\n", Tx.GetValueOut(), Tx.vout.size(), Tx.GetHash().GetHex().c_str());
+                }
                 if ( myAddtomempool(Tx, &state, height) == false ) // happens with out of order tx in block on resync
                 {
                     //LogPrintf("Rejected by mempool, reason: .%s.\n", state.GetRejectReason().c_str());
@@ -4704,6 +4708,10 @@ bool CheckBlock(int32_t *futureblockp,int32_t height,CBlockIndex *pindex,const C
                     } else if (state.GetRejectCode() != REJECT_DUPLICATE)
                     {
                         printf("Rejected transaction for %s, reject code %d\n", state.GetRejectReason().c_str(), state.GetRejectReason());
+                        for (auto input : Tx.vin)
+                        {
+                            printf("Spending output #%d of %s\n", input.prevout.n, input.prevout.hash.GetHex().c_str());
+                        }
                         rejects++;
                     }
                 }
