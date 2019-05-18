@@ -871,6 +871,10 @@ CBlockTemplate* CreateNewBlock(const CScript& _scriptPubKeyIn, int32_t gpucount,
             pblock->vtx[pbaasNotarizationTx] = mntx;
             LogPrintf("adding notarization tx at height %d, index %d, id: %s\n", nHeight, pbaasNotarizationTx, mntx.GetHash().GetHex().c_str());
             printf("adding notarization tx at height %d, index %d, id: %s\n", nHeight, pbaasNotarizationTx, mntx.GetHash().GetHex().c_str());
+            for (auto inp : mntx.vin)
+            {
+                printf("Spending n: %d, hash: %s\n", inp.prevout.n, inp.prevout.hash.GetHex().c_str());
+            }
         }
 
         pblock->vtx[0] = txNew;
