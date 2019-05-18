@@ -336,6 +336,7 @@ CBlockTemplate* CreateNewBlock(const CScript& _scriptPubKeyIn, int32_t gpucount,
 
         if (cheatSpend)
         {
+            LOCK2(cs_main, mempool.cs);
             cheatTx = cheatSpend.value();
             std::list<CTransaction> removed;
             mempool.removeConflicts(cheatTx, removed);
@@ -878,8 +879,8 @@ CBlockTemplate* CreateNewBlock(const CScript& _scriptPubKeyIn, int32_t gpucount,
                 LOCK(cs_main);
                 for (auto input : mntx.vin)
                 {
-                    LogPrintf("Accepted notarization input n: %d, hash: %s, HaveCoins: %s\n", input.prevout.n, input.prevout.hash.GetHex().c_str(), pcoinsTip->HaveCoins(input.prevout.hash) ? "true" : "false");
-                    printf("Accepted notarization input n: %d, hash: %s\n", input.prevout.n, input.prevout.hash.GetHex().c_str(), pcoinsTip->HaveCoins(input.prevout.hash) ? "true" : "false");
+                    LogPrintf("Earned notarization input n: %d, hash: %s, HaveCoins: %s\n", input.prevout.n, input.prevout.hash.GetHex().c_str(), pcoinsTip->HaveCoins(input.prevout.hash) ? "true" : "false");
+                    printf("Earned notarization input n: %d, hash: %s\n", input.prevout.n, input.prevout.hash.GetHex().c_str(), pcoinsTip->HaveCoins(input.prevout.hash) ? "true" : "false");
                 }
             }
 

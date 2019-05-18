@@ -4713,8 +4713,8 @@ bool CheckBlock(int32_t *futureblockp,int32_t height,CBlockIndex *pindex,const C
                         printf("Rejected transaction for %s, reject code %d\n", state.GetRejectReason().c_str(), state.GetRejectCode());
                         for (auto input : Tx.vin)
                         {
-                            LogPrintf("Accepted notarization input n: %d, hash: %s\n", input.prevout.n, input.prevout.hash.GetHex().c_str());
-                            printf("Accepted notarization input n: %d, hash: %s\n", input.prevout.n, input.prevout.hash.GetHex().c_str());
+                            LogPrintf("Notarization input n: %d, hash: %s\n", input.prevout.n, input.prevout.hash.GetHex().c_str());
+                            printf("Notarization input n: %d, hash: %s\n", input.prevout.n, input.prevout.hash.GetHex().c_str());
                         }
                         rejects++;
                     }
@@ -4769,9 +4769,9 @@ bool CheckBlock(int32_t *futureblockp,int32_t height,CBlockIndex *pindex,const C
     if (!success)
     {
         // remove coinbase and anything that depended on it
-        LOCK(mempool.cs);
+        LOCK2(cs_main, mempool.cs);
         myRemovefrommempool(block.vtx[0]);
-    } else if (ptx)
+    } else if (ptx && fCheckTxInputs)
     {
         SyncWithWallets(*ptx, &block);
     }
