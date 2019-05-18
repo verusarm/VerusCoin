@@ -4609,7 +4609,7 @@ int32_t komodo_checkPOW(int32_t slowflag,CBlock *pblock,int32_t height);
 
 bool CheckBlock(int32_t *futureblockp,int32_t height,CBlockIndex *pindex,const CBlock& block, CValidationState& state,
                 libzcash::ProofVerifier& verifier,
-                bool fCheckPOW, bool fCheckMerkleRoot)
+                bool fCheckPOW, bool fCheckMerkleRoot, bool fCheckTxInputs)
 {
     uint8_t pubkey33[33]; uint256 hash;
     // These are checks that are independent of context.
@@ -4708,7 +4708,7 @@ bool CheckBlock(int32_t *futureblockp,int32_t height,CBlockIndex *pindex,const C
                         sTx = Tx;
                         ptx = &sTx;
                     } else if (state.GetRejectReason() != "already have coins" && 
-                               !((missinginputs || state.GetRejectCode() == REJECT_DUPLICATE) && !fCheckPOW)) // fCheckPOW overloaded for DB verify to pass
+                               !((missinginputs || state.GetRejectCode() == REJECT_DUPLICATE) && !fCheckTxInputs)) // fCheckPOW overloaded for DB verify to pass
                     {
                         printf("Rejected transaction for %s, reject code %d\n", state.GetRejectReason().c_str(), state.GetRejectCode());
                         for (auto input : Tx.vin)
@@ -5202,7 +5202,7 @@ bool ProcessNewBlock(bool from_miner,int32_t height,CValidationState &state, CNo
         LOCK(cs_main);
         if ( chainActive.LastTip() != 0 )
             komodo_currentheight_set(chainActive.LastTip()->GetHeight());
-        checked = CheckBlock(&futureblock,height!=0?height:komodo_block2height(pblock),0,*pblock, state, verifier,0);
+        checked = CheckBlock(&futureblock,height!=0?height:komodo_block2height(pblock), 0, *pblock, state, verifier, 0, true, false);
         bool fRequested = MarkBlockAsReceived(hash);
         fRequested |= fForceProcessing;
         if ( checked != 0 && komodo_checkPOW(0,pblock,height) < 0 ) //from_miner && ASSETCHAINS_STAKED == 0
