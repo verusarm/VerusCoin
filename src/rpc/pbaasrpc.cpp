@@ -441,6 +441,11 @@ bool GetNotarizationData(uint160 chainID, uint32_t ecode, CChainNotarizationData
                         optionalTxOut->insert(optionalTxOut->begin(), make_pair(rootTx, blkHash));
                     }
                 }
+                // debugging, this else is not needed
+                else
+                {
+                    printf("previous transaction does not have both notarization and finalizaton outputs\n");
+                }
             }
             else
             {
@@ -783,19 +788,19 @@ UniValue submitacceptednotarization(const UniValue& params, bool fHelp)
 
         if (!stillValid || (lastIt == notarizationData.end()))
         {
-            //printf("Notarization not matched or invalidated by prior notarization");
+            //printf("Notarization not matched or invalidated by prior notarization\n");
             throw JSONRPCError(RPC_VERIFY_REJECTED, "Notarization not matched or invalidated by prior notarization");
         }
 
         if (pbn.prevHeight != lastIt->second->notarizationHeight)
         {
-            printf("Notarization heights not matched with previous notarization");
+            printf("Notarization heights not matched with previous notarization\n");
             throw JSONRPCError(RPC_VERIFY_REJECTED, "Notarization heights not matched with previous notarization");
         }
 
         if (pbn.prevHeight != 0 && (pbn.prevHeight + CPBaaSNotarization::MIN_BLOCKS_BETWEEN_ACCEPTED > pbn.notarizationHeight))
         {
-            //printf("Less than minimum number of blocks between notarizations");
+            //printf("Less than minimum number of blocks between notarizations\n");
             throw JSONRPCError(RPC_VERIFY_REJECTED, "Less than minimum number of blocks between notarizations");
         }
 
