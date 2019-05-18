@@ -215,7 +215,7 @@ UniValue CChainNotarizationData::ToUniValue() const
     for (int64_t i = 0; i < vtx.size(); i++)
     {
         UniValue notarization(UniValue::VOBJ);
-        obj.push_back(Pair("index", i));
+        notarization.push_back(Pair("index", i));
         notarization.push_back(Pair("txid", vtx[i].first.GetHex()));
         notarization.push_back(Pair("notarization", vtx[i].second.ToUniValue()));
         notarizations.push_back(notarization);
@@ -230,7 +230,7 @@ UniValue CChainNotarizationData::ToUniValue() const
         {
             Fork.push_back(forks[i][j]);
         }
-        Forks.push_back(Pair("fork", Fork));
+        Forks.push_back(Fork);
     }
     obj.push_back(Pair("forks", Forks));
     obj.push_back(Pair("bestchain", bestChain));

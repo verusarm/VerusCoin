@@ -783,7 +783,7 @@ UniValue submitacceptednotarization(const UniValue& params, bool fHelp)
 
         if (!stillValid || (lastIt == notarizationData.end()))
         {
-            printf("Notarization not matched or invalidated by prior notarization");
+            //printf("Notarization not matched or invalidated by prior notarization");
             throw JSONRPCError(RPC_VERIFY_REJECTED, "Notarization not matched or invalidated by prior notarization");
         }
 
@@ -795,7 +795,7 @@ UniValue submitacceptednotarization(const UniValue& params, bool fHelp)
 
         if (pbn.prevHeight != 0 && (pbn.prevHeight + CPBaaSNotarization::MIN_BLOCKS_BETWEEN_ACCEPTED > pbn.notarizationHeight))
         {
-            printf("Less than minimum number of blocks between notarizations");
+            //printf("Less than minimum number of blocks between notarizations");
             throw JSONRPCError(RPC_VERIFY_REJECTED, "Less than minimum number of blocks between notarizations");
         }
 
