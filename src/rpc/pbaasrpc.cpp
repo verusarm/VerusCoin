@@ -332,7 +332,7 @@ UniValue getdefinedchains(const UniValue& params, bool fHelp)
         if (GetNotarizationData(def.GetChainID(), EVAL_ACCEPTEDNOTARIZATION, nData))
         {
             confirmedHeight = nData.lastConfirmed != -1 ? nData.vtx[nData.lastConfirmed].second.notarizationHeight : 0;
-            bestHeight = nData.bestChain != -1 ? nData.vtx[nData.bestChain].second.notarizationHeight : 0;
+            bestHeight = nData.bestChain != -1 ? nData.vtx[nData.forks[nData.bestChain].back()].second.notarizationHeight : 0;
         }
         oneChain.push_back(Pair("confirmedheight", confirmedHeight));
         oneChain.push_back(Pair("latestheight", bestHeight));
