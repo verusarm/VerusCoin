@@ -252,6 +252,7 @@ vector<CInputDescriptor> AddSpendsAndFinalizations(const CChainNotarizationData 
     set<int32_t> finalized;
     int32_t &confirmedIdx = *pConfirmedIdx;
     confirmedIdx = -1;
+    confirmOffset = (cnd.lastConfirmed == -1) ? 0 : 1;
 
     // now, create inputs from the most recent notarization in cnd and the finalization outputs that we either confirm or invalidate
     for (int j = 0; j < cnd.forks.size(); j++)
@@ -264,11 +265,12 @@ vector<CInputDescriptor> AddSpendsAndFinalizations(const CChainNotarizationData 
             {
                 // the only way to get to greater than 10 is by breaking the rules, as the first
                 // entry should be the earliest notarization or the last confirmed
-                assert(k <= 10);
+                assert(k <= (CPBaaSNotarization::FINAL_CONFIRMATIONS + confirmOffset));
 
+                // if we have a fork that will be size 11, we are confirming the earliest entry
                 if (k == 10)
                 {
-                    confirmedIdx = cnd.forks[j][1];
+                    confirmedIdx = cnd.forks[j][confirmOffset];
                     finalized.insert(confirmedIdx);
                     // if we would add the 10th confirmation to the second in this fork, we are confirming 
                     // a new notarization, spend it's finalization output and all those that disagree with it
@@ -278,9 +280,9 @@ vector<CInputDescriptor> AddSpendsAndFinalizations(const CChainNotarizationData 
                     {
                         // if another fork branches at the confirmed notarization, the entire fork
                         // is invalid, spend all its finalization outputs
-                        if (l != j && cnd.forks[l][1] != confirmedIdx)
+                        if (l != j && cnd.forks[l][confirmOffset] != confirmedIdx)
                         {
-                            for (int m = 1; m < cnd.forks[l].size(); m++)
+                            for (int m = confirmOffset; m < cnd.forks[l].size(); m++)
                             {
                                 // put indexes of all orphans into the finalized set
                                 finalized.insert(cnd.forks[l][m]);
