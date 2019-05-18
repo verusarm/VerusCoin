@@ -524,7 +524,6 @@ bool CreateEarnedNotarization(CMutableTransaction &mnewTx, vector<CInputDescript
 
     LOCK2(cs_main, mempool.cs);
 
-    /*
     vector<CBaseChainObject *> chainObjs = RetrieveOpRetArray(mnewTx.vout.back().scriptPubKey);
     vector<CBaseChainObject *> compressedChainObjs;
 
@@ -560,7 +559,6 @@ bool CreateEarnedNotarization(CMutableTransaction &mnewTx, vector<CInputDescript
         printf("%sfailed to create OP_RETURN output", funcname);
         return false;
     }
-    */
 
     // we need to update our earned notarization and finalization outputs, which should both be present and incomplete
     // add up inputs, and make sure that the main notarization output holds any excess over minimum, if not enough, we need
