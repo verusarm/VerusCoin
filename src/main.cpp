@@ -4681,7 +4681,7 @@ bool CheckBlock(int32_t *futureblockp,int32_t height,CBlockIndex *pindex,const C
     {
         int32_t i,j,rejects=0,lastrejects=0;
 
-        printf("checking block %d\n", height);
+        //printf("checking block %d\n", height);
         while ( 1 )
         {
             for (i = block.hashPrevBlock.IsNull() ? 1 : 0; i < block.vtx.size(); i++)
