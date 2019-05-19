@@ -382,16 +382,12 @@ bool CScript::IsPayToCryptoCondition() const
 bool CScript::IsInstantSpend() const
 {
     uint32_t ecode;
-    if (IsPayToCryptoCondition(&ecode))
+    if (!IsPayToCryptoCondition(&ecode))
     {
-        switch(ecode)
-        {
-            case EVAL_EARNEDNOTARIZATION:
-            //case EVAL_FINALIZENOTARIZATION:
-                return true;
-        }
+        ecode = 0;
     }
-    return false;
+    // only instant spend for now
+    return ecode == EVAL_EARNEDNOTARIZATION;
 }
 
 bool CScript::IsPayToCryptoCondition(CScript *ccSubScript, std::vector<std::vector<unsigned char>> &vParams, COptCCParams &optParams) const
