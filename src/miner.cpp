@@ -1066,15 +1066,12 @@ void IncrementExtraNonce(CBlock* pblock, CBlockIndex* pindexPrev, unsigned int &
             uint32_t savebits;
             if ((savebits = ConnectedChains.CombineBlocks(*pblock)) && pSaveBits)
             {
-                if (pSaveBits)
+                arith_uint256 ours, merged;
+                ours.SetCompact(pblock->nBits);
+                merged.SetCompact(savebits);
+                if (merged > ours)
                 {
-                    arith_uint256 ours, merged;
-                    ours.SetCompact(pblock->nBits);
-                    merged.SetCompact(*pSaveBits);
-                    if (merged > ours)
-                    {
-                        *pSaveBits = savebits;
-                    }
+                    *pSaveBits = savebits;
                 }
             }
 
