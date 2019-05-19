@@ -55,7 +55,7 @@ static const uint32_t PBAAS_VERSION_INVALID = 0;
 static const uint32_t PBAAS_NODESPERNOTARIZATION = 2;       // number of nodes to reference in each notarization
 static const int64_t PBAAS_MINNOTARIZATIONOUTPUT = 10000;   // enough for one fee worth to finalization and notarization thread
 static const int64_t PBAAS_MAXNOTARIZATIONINPUTS = 50;      // max inputs on a notarization tx
-static const int32_t PBAAS_MINSTARTBLOCKDELTA = 10;         // minimum number of blocks to wait for starting a chain after definition
+static const int32_t PBAAS_MINSTARTBLOCKDELTA = 100;        // minimum number of blocks to wait for starting a chain after definition
 static const int32_t PBAAS_MAXPRIORBLOCKS = 16;             // maximum prior block commitments to include in prior blocks chain object
 
 enum CURRENCY_OPTIONS {
