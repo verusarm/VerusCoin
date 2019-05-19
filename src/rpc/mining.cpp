@@ -25,6 +25,7 @@
 #include "wallet/wallet.h"
 #endif
 #include "pbaas/pbaas.h"
+#include "pbaas/notarization.h"
 
 #include <stdint.h>
 
@@ -579,8 +580,10 @@ UniValue getblocktemplate(const UniValue& params, bool fHelp)
 
     std::string strMode = "template";
     UniValue lpval = NullUniValue;
+
     // TODO: Re-enable coinbasevalue once a specification has been written
     bool coinbasetxn = true;
+
     if (params.size() > 0)
     {
         const UniValue& oparam = params[0].get_obj();
@@ -884,7 +887,7 @@ UniValue submitblock(const UniValue& params, bool fHelp)
         throw JSONRPCError(RPC_DESERIALIZATION_ERROR, "Block decode failed");
     }
 
-    printf("Received block submission for %s\nhash %s\n", ASSETCHAINS_SYMBOL, block.GetHash().GetHex().c_str());
+    printf("Received block submission for %s\nhash: %s\n", ASSETCHAINS_SYMBOL, block.GetHash().GetHex().c_str());
 
     uint256 hash = block.GetHash();
     bool fBlockPresent = false;

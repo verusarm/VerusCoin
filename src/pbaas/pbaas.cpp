@@ -16,6 +16,7 @@
 #include "pbaas/crosschainrpc.h"
 #include "base58.h"
 #include "timedata.h"
+#include "main.h"
 
 using namespace std;
 
@@ -52,8 +53,7 @@ uint256 GetChainObjectHash(const CBaseChainObject &bo)
         const CChainObject<CTransaction> *pNewTx;
         const CChainObject<CMerkleBranch> *pNewProof;
         const CChainObject<CHeaderRef> *pNewHeaderRef;
-        const CChainObject<CTransactionRef> *pNewTxRef;
-        const CChainObject<COpRetRef> *pNewOpRetRef;
+        const CChainObject<CPriorBlocksCommitment> *pPriors;
         const CBaseChainObject *retPtr;
     };
 
@@ -73,11 +73,8 @@ uint256 GetChainObjectHash(const CBaseChainObject &bo)
         case CHAINOBJ_HEADER_REF:
             return pNewHeaderRef->GetHash();
 
-        case CHAINOBJ_TRANSACTION_REF:
-            return pNewTxRef->GetHash();
-
-        case CHAINOBJ_OPRET_REF:
-            return pNewOpRetRef->GetHash();
+        case CHAINOBJ_PRIORBLOCKS:
+            return pPriors->GetHash();
     }
     return uint256();
 }
@@ -99,7 +96,11 @@ bool ValidateChainImport(struct CCcontract_info *cp, Eval* eval, const CTransact
 // used to validate a specific service reward based on the spending transaction
 bool ValidateServiceReward(struct CCcontract_info *cp, Eval* eval, const CTransaction &tx, uint32_t nIn)
 {
-
+    // for each type of service reward, we need to check and see if the spender is
+    // correctly formatted to be a valid spend of the service reward. for notarization
+    // we ensure that the notarization and its outputs are valid and that the spend
+    // applies to the correct billing period
+    return true;
 }
 
 // used as a proxy token output for a reserve currency on its fractional reserve chain
@@ -136,39 +137,29 @@ bool ValidateOpretProof(CScript &opRet, COpRetProof &orProof)
         
 }
 
-int8_t ObjTypeCode(COpRetProof &obj)
-{
-    return CHAINOBJ_OPRETPROOF;
-}
-
-int8_t ObjTypeCode(CBlockHeader &obj)
+int8_t ObjTypeCode(const CBlockHeader &obj)
 {
     return CHAINOBJ_HEADER;
 }
 
-int8_t ObjTypeCode(CMerkleBranch &obj)
+int8_t ObjTypeCode(const CMerkleBranch &obj)
 {
     return CHAINOBJ_PROOF;
 }
 
-int8_t ObjTypeCode(CTransaction &obj)
+int8_t ObjTypeCode(const CTransaction &obj)
 {
     return CHAINOBJ_TRANSACTION;
 }
 
-int8_t ObjTypeCode(CHeaderRef &obj)
+int8_t ObjTypeCode(const CHeaderRef &obj)
 {
     return CHAINOBJ_HEADER_REF;
 }
 
-int8_t ObjTypeCode(CTransactionRef &obj)
+int8_t ObjTypeCode(const CPriorBlocksCommitment &obj)
 {
-    return CHAINOBJ_TRANSACTION_REF;
-}
-
-int8_t ObjTypeCode(COpRetRef &obj)
-{
-    return CHAINOBJ_OPRET_REF;
+    return CHAINOBJ_PRIORBLOCKS;
 }
 
 // this adds an opret to a mutable transaction that provides the necessary evidence of a signed, cheating stake transaction
@@ -176,22 +167,74 @@ CScript StoreOpRetArray(std::vector<CBaseChainObject *> &objPtrs)
 {
     CScript vData;
     CDataStream s = CDataStream(SER_NETWORK, PROTOCOL_VERSION);
+    s << (int32_t)OPRETTYPE_OBJECTARR;
     bool error = false;
 
     for (auto pobj : objPtrs)
     {
-        if (!DehydrateChainObject(s, pobj))
+        try
         {
+            if (!DehydrateChainObject(s, pobj))
+            {
+                error = true;
+                break;
+            }
+        }
+        catch(const std::exception& e)
+        {
+            std::cerr << e.what() << '\n';
             error = true;
             break;
         }
     }
 
-    std::vector<unsigned char> vch(s.begin(), s.end());
+    //std::vector<unsigned char> schars(s.begin(), s.begin() + 200);
+    //printf("stream vector chars: %s\n", HexBytes(&schars[0], schars.size()).c_str());
 
-    vData << OPRETTYPE_OBJECTARR << vch;
-    vch = std::vector<unsigned char>(vData.begin(), vData.end());
-    return CScript() << OP_RETURN << vch;
+    std::vector<unsigned char> vch(s.begin(), s.end());
+    return error ? CScript() : CScript() << OP_RETURN << vch;
+}
+
+void DeleteOpRetObjects(std::vector<CBaseChainObject *> &ora)
+{
+    for (auto pobj : ora)
+    {
+        switch(pobj->objectType)
+        {
+            case CHAINOBJ_HEADER:
+            {
+                delete (CChainObject<CBlockHeader> *)pobj;
+                break;
+            }
+
+            case CHAINOBJ_TRANSACTION:
+            {
+                delete (CChainObject<CTransaction> *)pobj;
+                break;
+            }
+
+            case CHAINOBJ_PROOF:
+            {
+                delete (CChainObject<CMerkleBranch> *)pobj;
+                break;
+            }
+
+            case CHAINOBJ_HEADER_REF:
+            {
+                delete (CChainObject<CHeaderRef> *)pobj;
+                break;
+            }
+
+            case CHAINOBJ_PRIORBLOCKS:
+            {
+                delete (CChainObject<CPriorBlocksCommitment> *)pobj;
+                break;
+            }
+
+            default:
+                delete pobj;
+        }
+    }
 }
 
 std::vector<CBaseChainObject *> RetrieveOpRetArray(const CScript &opRetScript)
@@ -202,10 +245,31 @@ std::vector<CBaseChainObject *> RetrieveOpRetArray(const CScript &opRetScript)
     {
         CDataStream s = CDataStream(vch, SER_NETWORK, PROTOCOL_VERSION);
 
-        CBaseChainObject *pobj;
-        while (!s.empty() && (pobj = RehydrateChainObject(s)))
+        int32_t opRetType;
+
+        try
         {
-            vRet.push_back(pobj);
+            s >> opRetType;
+            if (opRetType == OPRETTYPE_OBJECTARR)
+            {
+                CBaseChainObject *pobj;
+                while (!s.empty() && (pobj = RehydrateChainObject(s)))
+                {
+                    vRet.push_back(pobj);
+                }
+                if (!s.empty())
+                {
+                    printf("failed to load all objects in opret");
+                    DeleteOpRetObjects(vRet);
+                    vRet.clear();
+                }
+            }
+        }
+        catch(const std::exception& e)
+        {
+            std::cerr << e.what() << '\n';
+            DeleteOpRetObjects(vRet);
+            vRet.clear();
         }
     }
     return vRet;
@@ -214,14 +278,15 @@ std::vector<CBaseChainObject *> RetrieveOpRetArray(const CScript &opRetScript)
 CNodeData::CNodeData(UniValue &obj)
 {
     networkAddress = uni_get_str(find_value(obj, "networkaddress"));
-    paymentAddress = uni_get_str(find_value(obj, "paymentaddress"));
+    CBitcoinAddress ba(uni_get_str(find_value(obj, "paymentaddress")));
+    ba.GetKeyID(paymentAddress);
 }
 
 UniValue CNodeData::ToUniValue() const
 {
     UniValue obj(UniValue::VOBJ);
     obj.push_back(Pair("networkaddress", networkAddress));
-    obj.push_back(Pair("paymentaddress", paymentAddress));
+    obj.push_back(Pair("paymentaddress", CBitcoinAddress(paymentAddress).ToString()));
     return obj;
 }
 
@@ -229,7 +294,8 @@ CPBaaSChainDefinition::CPBaaSChainDefinition(const UniValue &obj)
 {
     nVersion = PBAAS_VERSION;
     name = uni_get_str(find_value(obj, "name"));
-    address = uni_get_str(find_value(obj, "address"));
+    CBitcoinAddress ba(uni_get_str(find_value(obj, "paymentaddress")));
+    ba.GetKeyID(address);
     premine = uni_get_int64(find_value(obj, "premine"));
     conversion = uni_get_int64(find_value(obj, "conversion"));
     launchFee = uni_get_int64(find_value(obj, "launchfee"));
@@ -268,10 +334,10 @@ CPBaaSChainDefinition::CPBaaSChainDefinition(const CTransaction &tx, bool valida
     nVersion = PBAAS_VERSION_INVALID;
     for (auto out : tx.vout)
     {
-        uint32_t ecode;
-        if (out.scriptPubKey.IsPayToCryptoCondition(&ecode))
+        COptCCParams p;
+        if (IsPayToCryptoCondition(out.scriptPubKey, p))
         {
-            if (ecode == EVAL_PBAASDEFINITION)
+            if (p.evalCode == EVAL_PBAASDEFINITION)
             {
                 if (definitionFound)
                 {
@@ -279,12 +345,8 @@ CPBaaSChainDefinition::CPBaaSChainDefinition(const CTransaction &tx, bool valida
                 }
                 else
                 {
-                    COptCCParams p;
+                    FromVector(p.vData[0], *this);
                     definitionFound = true;
-                    if (!IsPayToCryptoCondition(out.scriptPubKey, p, *this))
-                    {
-                        nVersion = PBAAS_VERSION_INVALID;
-                    }
                 }
             }
         }
@@ -295,6 +357,30 @@ CPBaaSChainDefinition::CPBaaSChainDefinition(const CTransaction &tx, bool valida
         
     }
 }
+
+CServiceReward::CServiceReward(const CTransaction &tx, bool validate)
+{
+    nVersion = PBAAS_VERSION_INVALID;
+    for (auto out : tx.vout)
+    {
+        COptCCParams p;
+        if (IsPayToCryptoCondition(out.scriptPubKey, p))
+        {
+            // always take the first for now
+            if (p.evalCode == EVAL_SERVICEREWARD)
+            {
+                FromVector(p.vData[0], *this);
+                break;
+            }
+        }
+    }
+
+    if (validate)
+    {
+        
+    }
+}
+
 
 uint160 CPBaaSChainDefinition::GetChainID(std::string name)
 {
@@ -313,7 +399,7 @@ UniValue CPBaaSChainDefinition::ToUniValue() const
     UniValue obj(UniValue::VOBJ);
     obj.push_back(Pair("version", (int64_t)nVersion));
     obj.push_back(Pair("name", name));
-    obj.push_back(Pair("address", address));
+    obj.push_back(Pair("paymentaddress", CBitcoinAddress(CTxDestination(address)).ToString()));
     obj.push_back(Pair("premine", (int64_t)premine));
     obj.push_back(Pair("conversion", (int64_t)conversion));
     obj.push_back(Pair("launchfee", (int64_t)launchFee));
@@ -378,6 +464,9 @@ bool SetThisChain(UniValue &chainDefinition)
 
     if (ConnectedChains.ThisChain().IsValid())
     {
+        memset(ASSETCHAINS_SYMBOL, 0, sizeof(ASSETCHAINS_SYMBOL));
+        strcpy(ASSETCHAINS_SYMBOL, ConnectedChains.ThisChain().name.c_str());
+
         // set all command line parameters into mapArgs from chain definition
         vector<string> nodeStrs;
         for (auto node : ConnectedChains.ThisChain().nodes)
@@ -480,7 +569,7 @@ bool CheckChainDefinitionOutput(struct CCcontract_info *cp, Eval* eval, const CT
     // get the source transaction
     uint256 blkHash;
     CTransaction thisTx;
-    if (!myGetTransaction(tx.vin[nIn].prevout.hash, thisTx, blkHash))
+    if (!GetTransaction(tx.vin[nIn].prevout.hash, thisTx, blkHash))
     {
         LogPrintf("failed to retrieve transaction %s\n", tx.vin[nIn].prevout.hash.GetHex().c_str());
         return false;
@@ -511,6 +600,9 @@ bool CConnectedChains::RemoveMergedBlock(uint160 chainID)
 {
     bool retval = false;
     LOCK(cs_mergemining);
+
+    //printf("RemoveMergedBlock ID: %s\n", chainID.GetHex().c_str());
+
     auto chainIt = mergeMinedChains.find(chainID);
     if (chainIt != mergeMinedChains.end())
     {
@@ -553,6 +645,7 @@ uint32_t CConnectedChains::PruneOldChains(uint32_t pruneBefore)
 
     for (auto id : toRemove)
     {
+        //printf("Pruning chainID: %s\n", id.GetHex().c_str());
         RemoveMergedBlock(id);
     }
 }
@@ -570,26 +663,13 @@ bool CConnectedChains::AddMergedBlock(CPBaaSMergeMinedChainData &blkData)
         auto it = mergeMinedChains.find(cID);
         if (it != mergeMinedChains.end())
         {
-            // remove and reinsert target, replace data
-            target.SetCompact(it->second.block.nBits);
-            for (auto removeRange = mergeMinedTargets.equal_range(target); removeRange.first != removeRange.second; removeRange.first++)
-            {
-                // make sure we don't just match by target
-                if (removeRange.first->second->GetChainID() == cID)
-                {
-                    mergeMinedTargets.erase(removeRange.first);
-                    break;
-                }
-            }
-            it->second = blkData;
-            target.SetCompact(blkData.block.nBits);
-            mergeMinedTargets.insert(make_pair(target, &it->second));
+            RemoveMergedBlock(cID);             // remove it if already there
         }
-        else
-        {
-            target.SetCompact(blkData.block.nBits);
-            mergeMinedTargets.insert(make_pair(target, &(mergeMinedChains.insert(make_pair(cID, blkData)).first->second)));
-        }
+        target.SetCompact(blkData.block.nBits);
+
+        //printf("AddMergedBlock name: %s, ID: %s\n", blkData.chainDefinition.name.c_str(), cID.GetHex().c_str());
+
+        mergeMinedTargets.insert(make_pair(target, &(mergeMinedChains.insert(make_pair(cID, blkData)).first->second)));
         dirty = true;
     }
     return true;
@@ -624,9 +704,10 @@ CPBaaSMergeMinedChainData *CConnectedChains::GetChainInfo(uint160 chainID)
 
 bool CConnectedChains::QueueNewBlockHeader(CBlockHeader &bh)
 {
-    printf("QueueNewBlockHeader %s\n", bh.GetHash().GetHex().c_str());
+    //printf("QueueNewBlockHeader %s\n", bh.GetHash().GetHex().c_str());
     {
         LOCK(cs_mergemining);
+
         qualifiedHeaders[UintToArith256(bh.GetHash())] = bh;
     }
     sem_submitthread.post();
@@ -683,11 +764,15 @@ vector<pair<string, UniValue>> CConnectedChains::SubmitQualifiedBlocks()
 
                             submissionFound = true;
                         }
-                        //else // not an error condition. code was here for debugging
+                        //else // not an error condition. code is here for debugging
                         //{
                         //    printf("Mismatch in non-canonical data for chain %s\n", chainIt->second->chainDefinition.name.c_str());
                         //}
                     }
+                    //else // not an error condition. code is here for debugging
+                    //{
+                    //    printf("Not found in header %s\n", chainIt->second->chainDefinition.name.c_str());
+                    //}
                 }
 
                 // if this header matched no block, discard and move to the next, otherwise, we'll drop through
@@ -767,6 +852,7 @@ uint32_t CConnectedChains::CombineBlocks(CBlockHeader &bh)
         {
             // get the native PBaaS header for each chain and put it into the
             // header we are given
+            // it must have itself in as a PBaaS header
             uint160 cid = chain.second.GetChainID();
             if (chain.second.block.GetPBaaSHeader(pbh, cid) != -1)
             {
@@ -785,9 +871,15 @@ uint32_t CConnectedChains::CombineBlocks(CBlockHeader &bh)
                     }
                 }
             }
+            else
+            {
+                LogPrintf("Merge mined block for %s does not contain PBaaS information\n", chain.second.chainDefinition.name.c_str());
+            }
+            
         }
         dirty = false;
     }
+
     return target.GetCompact();
 }
 
@@ -859,35 +951,69 @@ void CConnectedChains::SubmissionThread()
         {
             if (IsVerusActive())
             {
-                // blocks get discarded after no refresh for 5 minutes by default
+                // blocks get discarded after no refresh for 5 minutes by default, probably should be more often
+                //printf("SubmissionThread: pruning\n");
                 ConnectedChains.PruneOldChains(GetAdjustedTime() - 300);
                 bool submit = false;
                 {
                     LOCK(cs_mergemining);
+                    if (mergeMinedChains.size() == 0 && qualifiedHeaders.size() != 0)
+                    {
+                        qualifiedHeaders.clear();
+                    }
                     submit = qualifiedHeaders.size() != 0 && mergeMinedChains.size() != 0;
+
+                    //printf("SubmissionThread: qualifiedHeaders.size(): %lu, mergeMinedChains.size(): %lu\n", qualifiedHeaders.size(), mergeMinedChains.size());
                 }
                 if (submit)
                 {
+                    //printf("SubmissionThread: calling submit qualified blocks\n");
                     SubmitQualifiedBlocks();
                 }
                 else
                 {
+                    //printf("SubmissionThread: waiting on sem\n");
                     sem_submitthread.wait();
                 }
             }
             else
             {
-                UniValue result;
-
                 // if this is a PBaaS chain, poll for presence of Verus / root chain and current Verus block and version number
                 CheckVerusPBaaSAvailable();
-                for (int i = 0; i < 10; i++)
-                {
-                    boost::this_thread::interruption_point();
-                    sleep(1);
-                }
-            }
 
+                // check to see if we have recently earned a block with an earned notarization that qualifies for
+                // submitting an accepted notarization
+                if (earnedNotarizationHeight)
+                {
+                    CBlock blk;
+                    int32_t txIndex = -1, height;
+                    {
+                        LOCK(cs_mergemining);
+                        if (earnedNotarizationHeight && earnedNotarizationHeight <= chainActive.Height() && earnedNotarizationBlock.GetHash() == chainActive[earnedNotarizationHeight]->GetBlockHash())
+                        {
+                            blk = earnedNotarizationBlock;
+                            earnedNotarizationBlock = CBlock();
+                            txIndex = earnedNotarizationIndex;
+                            height = earnedNotarizationHeight;
+                            earnedNotarizationHeight = 0;
+                        }
+                    }
+
+                    if (txIndex != -1)
+                    {
+                        printf("SubmissionThread: testing notarization\n");
+
+                        uint256 txId = CreateAcceptedNotarization(blk, txIndex, height);
+
+                        if (!txId.IsNull())
+                        {
+                            printf("Submitted notarization for acceptance: %s\n", txId.GetHex().c_str());
+                            LogPrintf("Submitted notarization for acceptance: %s\n", txId.GetHex().c_str());
+                        }
+                    }
+                }
+                sleep(1);
+            }
             boost::this_thread::interruption_point();
         }
     }
@@ -902,8 +1028,29 @@ void CConnectedChains::SubmissionThreadStub()
     ConnectedChains.SubmissionThread();
 }
 
+void CConnectedChains::QueueEarnedNotarization(CBlock &blk, int32_t txIndex, int32_t height)
+{
+    // called after winning a block that contains an earned notarization
+    // the earned notarization and its height are queued for processing by the submission thread
+    // when a new notarization is added, older notarizations are removed, but all notarizations in the current height are
+    // kept
+    LOCK(cs_mergemining);
+
+    // we only care about the last
+    earnedNotarizationHeight = height;
+    earnedNotarizationBlock = blk;
+    earnedNotarizationIndex = txIndex;
+}
+
 bool IsChainDefinitionInput(const CScript &scriptSig)
 {
     uint32_t ecode;
     return scriptSig.IsPayToCryptoCondition(&ecode) && ecode == EVAL_PBAASDEFINITION;
+}
+
+bool IsServiceRewardInput(const CScript &scriptSig)
+{
+    // this is an output check, and is incorrect. need to change to input
+    uint32_t ecode;
+    return scriptSig.IsPayToCryptoCondition(&ecode) && ecode == EVAL_SERVICEREWARD;
 }

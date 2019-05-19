@@ -387,7 +387,7 @@ bool CScript::IsInstantSpend() const
         switch(ecode)
         {
             case EVAL_EARNEDNOTARIZATION:
-            case EVAL_FINALIZENOTARIZATION:
+            //case EVAL_FINALIZENOTARIZATION:
                 return true;
         }
     }

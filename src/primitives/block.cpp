@@ -73,7 +73,7 @@ arith_uint256 GetCompactPower(const uint256 &nNonce, uint32_t nBits, int32_t ver
     }
 }
 
-CPBaaSPreHeader::CPBaaSPreHeader(CBlockHeader &bh)
+CPBaaSPreHeader::CPBaaSPreHeader(const CBlockHeader &bh)
 {
     hashPrevBlock = bh.hashPrevBlock;
     hashMerkleRoot = bh.hashMerkleRoot;
@@ -89,7 +89,7 @@ CMMRPowerNode CBlockHeader::GetMMRNode() const
     uint256 preHash = Hash(BEGIN(hashMerkleRoot), END(hashMerkleRoot), BEGIN(blockHash), END(blockHash));
     uint256 power = ArithToUint256(GetCompactPower(nNonce, nBits, nVersion));
 
-    return CMMRPowerNode(Hash(BEGIN(hashMerkleRoot), END(hashMerkleRoot), BEGIN(power), END(power)), power);
+    return CMMRPowerNode(Hash(BEGIN(preHash), END(preHash), BEGIN(power), END(power)), power);
 }
 
 void CBlockHeader::AddMerkleProofBridge(CMerkleBranch &branch) const
@@ -101,7 +101,7 @@ void CBlockHeader::AddMerkleProofBridge(CMerkleBranch &branch) const
 
 void CBlockHeader::AddBlockProofBridge(CMerkleBranch &branch) const
 {
-    // we need to add the block hash on the right
+    // we need to add the merkle root on the left
     branch.branch.push_back(hashMerkleRoot);
     branch.nIndex = branch.nIndex << 1 + 1;
 }

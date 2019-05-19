@@ -74,6 +74,14 @@ bool Eval::Dispatch(const CC *cond, const CTransaction &txTo, unsigned int nIn)
     switch ( ecode )
     {
         case EVAL_STAKEGUARD:
+        case EVAL_PBAASDEFINITION:
+        case EVAL_SERVICEREWARD:
+        case EVAL_EARNEDNOTARIZATION:
+        case EVAL_ACCEPTEDNOTARIZATION:
+        case EVAL_FINALIZENOTARIZATION:
+        case EVAL_RESERVEOUTPUT:
+        case EVAL_RESERVEEXPORT:
+        case EVAL_RESERVEIMPORT:
             return(ProcessCC(cp,this, vparams, txTo, nIn));
             break;
 

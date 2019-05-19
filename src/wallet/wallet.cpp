@@ -1335,7 +1335,7 @@ bool CWallet::VerusSelectStakeOutput(CBlock *pBlock, arith_uint256 &hashResult, 
     pBlock->nNonce.SetPOSTarget(bnTarget, pBlock->nVersion);
     target.SetCompact(bnTarget);
 
-    pwalletMain->AvailableCoins(vecOutputs, true, NULL, false, false);
+    pwalletMain->AvailableCoins(vecOutputs, true, NULL, false, !Params().GetConsensus().fCoinbaseMustBeProtected);
 
     if (pastBlockIndex = komodo_chainactive(nHeight - 100))
     {
@@ -1348,13 +1348,18 @@ bool CWallet::VerusSelectStakeOutput(CBlock *pBlock, arith_uint256 &hashResult, 
             if (txout.fSpendable && (UintToArith256(txout.tx->GetVerusPOSHash(&(pBlock->nNonce), txout.i, nHeight, pastHash)) <= target) && (txout.nDepth >= VERUS_MIN_STAKEAGE))
             {
                 CDataStream s(SER_NETWORK, PROTOCOL_VERSION);
+                int32_t txSize = GetSerializeSize(s, *(CTransaction *)txout.tx);
 
-                printf("Serialized size of transaction %lu\n", GetSerializeSize(s, *(CTransaction *)txout.tx));
+                //printf("Serialized size of transaction %s is %lu\n", txout.tx->GetHash().GetHex().c_str(), txSize);
+                if (txSize > MAX_TX_SIZE_FOR_STAKING)
+                {
+                    LogPrintf("Transaction %s is too large to stake. Serialized size == %lu\n", txout.tx->GetHash().GetHex().c_str(), txSize);
+                }
 
-                if ((!pwinner || UintToArith256(curNonce) > UintToArith256(pBlock->nNonce)) &&
+                if (txSize <= MAX_TX_SIZE_FOR_STAKING &&
+                    (!pwinner || UintToArith256(curNonce) > UintToArith256(pBlock->nNonce)) &&
                     (Solver(txout.tx->vout[txout.i].scriptPubKey, whichType, vSolutions) && (whichType == TX_PUBKEY || whichType == TX_PUBKEYHASH)) &&
-                    !cheatList.IsUTXOInList(COutPoint(txout.tx->GetHash(), txout.i), nHeight <= 100 ? 1 : nHeight-100) &&
-                    GetSerializeSize(s, *(CTransaction *)txout.tx) <= MAX_TX_SIZE_FOR_STAKING)
+                    !cheatList.IsUTXOInList(COutPoint(txout.tx->GetHash(), txout.i), nHeight <= 100 ? 1 : nHeight-100))
                 {
                     //printf("Found PoS block\nnNonce:    %s\n", pBlock->nNonce.GetHex().c_str());
                     pwinner = &txout;
@@ -2297,16 +2302,16 @@ isminetype CWallet::IsMine(const CTransaction& tx, uint32_t voutNum)
                         return ret;
                 }
             }
-            else if (tx.vout.size() > (voutNext = voutNum + 1) &&
-                tx.vout[voutNext].scriptPubKey.size() > 7 &&
-                tx.vout[voutNext].scriptPubKey[0] == OP_RETURN)
+            else if (tx.vout.size() > (voutNum + 1) &&
+                tx.vout.back().scriptPubKey.size() > 7 &&
+                tx.vout.back().scriptPubKey[0] == OP_RETURN)
             {
                 // get the opret script from next vout, verify that the front is CLTV and hash matches
                 // if so, remove it and use the solver
                 opcodetype op;
                 std::vector<uint8_t> opretData;
-                CScript::const_iterator it = tx.vout[voutNext].scriptPubKey.begin() + 1;
-                if (tx.vout[voutNext].scriptPubKey.GetOp2(it, op, &opretData))
+                CScript::const_iterator it = tx.vout.back().scriptPubKey.begin() + 1;
+                if (tx.vout.back().scriptPubKey.GetOp2(it, op, &opretData))
                 {
                     if (opretData.size() > 0 && opretData[0] == OPRETTYPE_TIMELOCK)
                     {

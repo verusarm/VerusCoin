@@ -21,6 +21,7 @@
 #include "script/script.h"
 #include "amount.h"
 #include "pbaas/crosschainrpc.h"
+#include "mmr.h"
 
 #include <boost/algorithm/string.hpp>
 
@@ -53,33 +54,34 @@ static const uint32_t PBAAS_VERSION = 1;
 static const uint32_t PBAAS_VERSION_INVALID = 0;
 static const uint32_t PBAAS_NODESPERNOTARIZATION = 2;       // number of nodes to reference in each notarization
 static const int64_t PBAAS_MINNOTARIZATIONOUTPUT = 10000;   // enough for one fee worth to finalization and notarization thread
-static const int32_t PBAAS_MINSTARTBLOCKDELTA = 100;        // minimum number of blocks to wait for starting a chain after definition
+static const int64_t PBAAS_MAXNOTARIZATIONINPUTS = 50;      // max inputs on a notarization tx
+static const int32_t PBAAS_MINSTARTBLOCKDELTA = 10;         // minimum number of blocks to wait for starting a chain after definition
+static const int32_t PBAAS_MAXPRIORBLOCKS = 16;             // maximum prior block commitments to include in prior blocks chain object
 
 enum CURRENCY_OPTIONS {
     CURRENCY_FUNGIBLE = 1,
     CURRENCY_FRACTIONAL = 2
 };
 
+// we wil uncomment service types as they are implemented
+// commented service types are here as guidance and reminders
 enum PBAAS_SERVICE_TYPES {
     SERVICE_INVALID = 0,
-    SERVICE_MINING = 1,
-    SERVICE_STAKING = 2,
-    SERVICE_NOTARIZATION = 3,
-    SERVICE_NODE = 4,
-    SERVICE_ELECTRUM = 5,
-    SERVICE_LAST = 5
+    SERVICE_NOTARIZATION = 1,
+    //SERVICE_NODE = 2,
+    //SERVICE_ELECTRUM = 3,
+    SERVICE_LAST = 1
 };
 
+// these are object types that can be stored and recognized in an opret array
 enum CHAIN_OBJECT_TYPES
 {
     CHAINOBJ_INVALID = 0,
-    CHAINOBJ_HEADER = 1,
-    CHAINOBJ_TRANSACTION = 2,
-    CHAINOBJ_PROOF = 3,
-    CHAINOBJ_OPRETPROOF = 4,
-    CHAINOBJ_HEADER_REF = 5,
-    CHAINOBJ_TRANSACTION_REF = 6,
-    CHAINOBJ_OPRET_REF = 7
+    CHAINOBJ_HEADER = 1,            // serialized full block header
+    CHAINOBJ_TRANSACTION = 2,       // serialized transaction, sometimes without an opret, which will be reconstructed
+    CHAINOBJ_PROOF = 3,             // merkle proof of preceding block or transaction
+    CHAINOBJ_HEADER_REF = 4,        // equivalent to header, but only includes non-canonical data, assuming merge mine reconstruction
+    CHAINOBJ_PRIORBLOCKS = 5        // prior block commitments to ensure recognition of overlapping notarizations
 };
 
 template <typename SERIALIZABLE>
@@ -140,33 +142,15 @@ public:
     }
 };
 
-// refers to an object stored in a specific position of a specific opret that stores an object array
-class COpRetRef
-{
-public:
-    uint256 txid;       // transaction with opret
-    uint16_t index;     // index of object in opret
-
-    COpRetRef() : txid(), index(0) {}
-    COpRetRef(uint256 txHash, uint16_t objIndex) : txid(txHash), index(objIndex) {}
-
-    ADD_SERIALIZE_METHODS;
-
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action)
-    {
-        READWRITE(txid);
-        READWRITE(index);
-    }
-};
-
 class CHeaderRef
 {
 public:
-    uint256 hash;
+    uint256 hash;               // block hash
+    CPBaaSPreHeader preHeader;  // non-canonical pre-header data of source chain
 
     CHeaderRef() : hash() {}
-    CHeaderRef(uint256 &rHash) : hash(rHash) {}
+    CHeaderRef(uint256 &rHash, CPBaaSPreHeader ph) : hash(rHash), preHeader(ph) {}
+    CHeaderRef(const CBlockHeader &bh) : hash(bh.GetHash()), preHeader(bh) {}
 
     ADD_SERIALIZE_METHODS;
 
@@ -174,23 +158,26 @@ public:
     inline void SerializationOp(Stream& s, Operation ser_action)
     {
         READWRITE(hash);
+        READWRITE(preHeader);
     }
+
+    uint256 GetHash() { return hash; }
 };
 
-class CTransactionRef
+class CPriorBlocksCommitment
 {
 public:
-    uint256 hash;
+    std::vector<uint256> priorBlocks;       // prior block commitments, which are node hashes that include merkle root, block hash, and compact power
 
-    CTransactionRef() : hash() {}
-    CTransactionRef(uint256 &rHash) : hash(rHash) {}
+    CPriorBlocksCommitment() : priorBlocks() {}
+    CPriorBlocksCommitment(std::vector<uint256> priors) : priorBlocks(priors) {}
 
     ADD_SERIALIZE_METHODS;
 
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action)
     {
-        READWRITE(hash);
+        READWRITE(priorBlocks);
     }
 };
 
@@ -219,7 +206,7 @@ public:
 
     CChainObject() : CBaseChainObject() {}
 
-    CChainObject(uint16_t objType, SERIALIZABLE &rObject) : CBaseChainObject(objType)
+    CChainObject(uint16_t objType, const SERIALIZABLE &rObject) : CBaseChainObject(objType)
     {
         object = rObject;
     }
@@ -249,9 +236,9 @@ uint256 GetChainObjectHash(const CBaseChainObject &bo);
 // returns a pointer to a base chain object, which can be cast to the
 // object type indicated in its objType member
 template <typename OStream>
-CBaseChainObject *RehydrateChainObject(OStream s)
+CBaseChainObject *RehydrateChainObject(OStream &s)
 {
-    uint8_t objType;
+    uint16_t objType;
 
     s >> objType;
 
@@ -260,8 +247,7 @@ CBaseChainObject *RehydrateChainObject(OStream s)
         CChainObject<CTransaction> *pNewTx;
         CChainObject<CMerkleBranch> *pNewProof;
         CChainObject<CHeaderRef> *pNewHeaderRef;
-        CChainObject<CTransactionRef> *pNewTxRef;
-        CChainObject<COpRetRef> *pNewOpRetRef;
+        CChainObject<CPriorBlocksCommitment> *pPriors;
         CBaseChainObject *retPtr;
     };
 
@@ -301,20 +287,12 @@ CBaseChainObject *RehydrateChainObject(OStream s)
                 pNewHeaderRef->objectType = objType;
             }
             break;
-        case CHAINOBJ_TRANSACTION_REF:
-            pNewTxRef = new CChainObject<CTransactionRef>();
-            if (pNewTxRef)
+        case CHAINOBJ_PRIORBLOCKS:
+            pPriors = new CChainObject<CPriorBlocksCommitment>();
+            if (pPriors)
             {
-                s >> pNewTxRef->object;
-                pNewTxRef->objectType = objType;
-            }
-            break;
-        case CHAINOBJ_OPRET_REF:
-            pNewOpRetRef = new CChainObject<COpRetRef>();
-            if (pNewOpRetRef)
-            {
-                s >> pNewOpRetRef->object;
-                pNewOpRetRef->objectType = objType;
+                s >> pPriors->object;
+                pPriors->objectType = objType;
             }
             break;
     }
@@ -324,47 +302,52 @@ CBaseChainObject *RehydrateChainObject(OStream s)
 // returns a pointer to a base chain object, which can be cast to the
 // object type indicated in its objType member
 template <typename OStream>
-bool DehydrateChainObject(OStream s, const CBaseChainObject *pobj)
+bool DehydrateChainObject(OStream &s, const CBaseChainObject *pobj)
 {
-    s << pobj->objectType;
     switch(pobj->objectType)
     {
         case CHAINOBJ_HEADER:
+        {
             s << *(CChainObject<CBlockHeader> *)pobj;
             return true;
+        }
 
         case CHAINOBJ_TRANSACTION:
+        {
             s << *(CChainObject<CTransaction> *)pobj;
             return true;
+        }
 
         case CHAINOBJ_PROOF:
+        {
             s << *(CChainObject<CMerkleBranch> *)pobj;
             return true;
+        }
 
         case CHAINOBJ_HEADER_REF:
+        {
             s << *(CChainObject<CHeaderRef> *)pobj;
             return true;
+        }
 
-        case CHAINOBJ_TRANSACTION_REF:
-            s << *(CChainObject<CTransactionRef> *)pobj;
+        case CHAINOBJ_PRIORBLOCKS:
+        {
+            s << *(CChainObject<CPriorBlocksCommitment> *)pobj;
             return true;
+        }
     }
     return false;
 }
 
-int8_t ObjTypeCode(COpRetProof &obj);
+int8_t ObjTypeCode(const CBlockHeader &obj);
 
-int8_t ObjTypeCode(CBlockHeader &obj);
+int8_t ObjTypeCode(const CMerkleBranch &obj);
 
-int8_t ObjTypeCode(CMerkleBranch &obj);
+int8_t ObjTypeCode(const CTransaction &obj);
 
-int8_t ObjTypeCode(CTransaction &obj);
+int8_t ObjTypeCode(const CHeaderRef &obj);
 
-int8_t ObjTypeCode(CHeaderRef &obj);
-
-int8_t ObjTypeCode(CTransactionRef &obj);
-
-int8_t ObjTypeCode(COpRetRef &obj);
+int8_t ObjTypeCode(const CPriorBlocksCommitment &obj);
 
 // this creates an opret script that stores a specific chain object
 template <typename SERIALIZABLE>
@@ -382,19 +365,25 @@ std::vector<unsigned char> StoreChainObject(const SERIALIZABLE &obj)
 // this adds an opret to a mutable transaction that provides the necessary evidence of a signed, cheating stake transaction
 CScript StoreOpRetArray(std::vector<CBaseChainObject *> &objPtrs);
 
+void DeleteOpRetObjects(std::vector<CBaseChainObject *> &ora);
+
 std::vector<CBaseChainObject *> RetrieveOpRetArray(const CScript &opRetScript);
 
 class CNodeData
 {
 public:
     std::string networkAddress;
-    std::string paymentAddress;
+    CKeyID paymentAddress;
 
     CNodeData() {}
     CNodeData(UniValue &);
-
+    CNodeData(std::string netAddr, uint160 paymentKeyID) : networkAddress(netAddr), paymentAddress(paymentKeyID) {}
     CNodeData(std::string netAddr, std::string paymentAddr) :
-        networkAddress(netAddr), paymentAddress(paymentAddr) {}
+        networkAddress(netAddr)
+    {
+        CBitcoinAddress ba(paymentAddr);
+        ba.GetKeyID(paymentAddress);
+    }
     
     ADD_SERIALIZE_METHODS;
 
@@ -417,7 +406,7 @@ public:
 
     uint32_t nVersion;                      // version of this chain definition data structure to allow for extensions (not daemon version)
     std::string name;                       // chain name, maximum 64 characters
-    std::string address;                    // non-purchased/converted premine and fee recipient address
+    CKeyID address;                         // non-purchased/converted premine and fee recipient address
     int64_t premine;                        // initial supply that is distributed to the premine output address, but not purchased
     int64_t conversion;                     // factor / 100000000 for conversion of VRSC to coin on launch
     int64_t launchFee;                      // ratio of satoshis to send from contribution to convertible to fee address
@@ -453,7 +442,6 @@ public:
                           int32_t BillingPeriod, int64_t NotaryReward, std::vector<CNodeData> &Nodes) :
                             nVersion(PBAAS_VERSION),
                             name(Name),
-                            address(Address),
                             premine(Premine),
                             conversion(Conversion),
                             launchFee(LaunchFee),
@@ -474,6 +462,8 @@ public:
             Name.resize(KOMODO_ASSETCHAIN_MAXLEN - 1);
         }
         name = Name;
+        CBitcoinAddress ba(Address);
+        ba.GetKeyID(address);
     }
 
     ADD_SERIALIZE_METHODS;
@@ -565,28 +555,45 @@ public:
 class CServiceReward
 {
 public:
+    uint32_t nVersion;                      // version of this chain definition data structure to allow for extensions (not daemon version)
     uint16_t serviceType;                   // type of service
-    CAmount nPerReward;                     // amount to pay per reward
+    int32_t billingPeriod;                  // this is used to identify to which billing period of a chain, this reward applies
 
-    CServiceReward() : serviceType(SERVICE_INVALID) {}
+    CServiceReward() : nVersion(PBAAS_VERSION_INVALID), serviceType(SERVICE_INVALID) {}
 
-    CServiceReward(PBAAS_SERVICE_TYPES ServiceType, CAmount PerReward)
-    {
-        serviceType = ServiceType; 
-        nPerReward = PerReward;
-    }
+    CServiceReward(PBAAS_SERVICE_TYPES ServiceType, int32_t period) : nVersion(PBAAS_VERSION), serviceType(ServiceType), billingPeriod(period) {}
 
     ADD_SERIALIZE_METHODS;
 
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action) {
         READWRITE(serviceType);
-        READWRITE(VARINT(nPerReward));
+        READWRITE(billingPeriod);
     }
 
     CServiceReward(const std::vector<unsigned char> &asVector)
     {
         FromVector(asVector, *this);
+    }
+
+    CServiceReward(const UniValue &obj) : nVersion(PBAAS_VERSION)
+    {
+        serviceType = uni_get_str(find_value(obj, "servicetype")) == "notarization" ? SERVICE_NOTARIZATION : SERVICE_INVALID;
+        billingPeriod = uni_get_int(find_value(obj, "billingperiod"));
+        if (!billingPeriod)
+        {
+            serviceType = SERVICE_INVALID;
+        }
+    }
+
+    CServiceReward(const CTransaction &tx, bool validate = false);
+
+    UniValue ToUniValue() const
+    {
+        UniValue obj(UniValue::VOBJ);
+        obj.push_back(Pair("servicetype", serviceType == SERVICE_NOTARIZATION ? "notarization" : "unknown"));
+        obj.push_back(Pair("billingperiod", billingPeriod));
+        return obj;
     }
 
     std::vector<unsigned char> AsVector()
@@ -863,6 +870,10 @@ public:
 
     CPBaaSChainDefinition thisChain;
 
+    int32_t earnedNotarizationHeight;           // zero or the height of one or more potential submissions
+    CBlock earnedNotarizationBlock;
+    int32_t earnedNotarizationIndex;            // index of earned notarization in block
+
     bool dirty;
     bool lastSubmissionFailed;                  // if we submit a failed block, make another
     std::map<arith_uint256, CBlockHeader> qualifiedHeaders;
@@ -870,7 +881,7 @@ public:
     CCriticalSection cs_mergemining;
     CSemaphore sem_submitthread;
 
-    CConnectedChains() : sem_submitthread(0), dirty(0), lastSubmissionFailed(0) {}
+    CConnectedChains() : sem_submitthread(0), earnedNotarizationHeight(0), dirty(0), lastSubmissionFailed(0) {}
 
     arith_uint256 LowestTarget()
     {
@@ -889,6 +900,7 @@ public:
     std::vector<std::pair<std::string, UniValue>> SubmitQualifiedBlocks();
 
     bool QueueNewBlockHeader(CBlockHeader &bh);
+    void QueueEarnedNotarization(CBlock &blk, int32_t txIndex, int32_t height);
 
     bool AddMergedBlock(CPBaaSMergeMinedChainData &blkData);
     bool RemoveMergedBlock(uint160 chainID);
@@ -966,6 +978,7 @@ bool ValidateChainImport(struct CCcontract_info *cp, Eval* eval, const CTransact
 
 // used to validate a specific service reward based on the spending transaction
 bool ValidateServiceReward(struct CCcontract_info *cp, Eval* eval, const CTransaction &tx, uint32_t nIn);
+bool IsServiceRewardInput(const CScript &scriptSig);
 
 // used as a proxy token output for a reserve currency on its fractional reserve chain
 bool ValidateReserveOutput(struct CCcontract_info *cp, Eval* eval, const CTransaction &tx, uint32_t nIn);

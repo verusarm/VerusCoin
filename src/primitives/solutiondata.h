@@ -75,7 +75,7 @@ public:
     CPBaaSPreHeader(const uint256 &prevBlock, const uint256 &merkleRoot, const uint256 &finalSaplingRoot,const uint256 &nonce, uint32_t compactTarget) : 
                     hashPrevBlock(prevBlock), hashMerkleRoot(merkleRoot), hashFinalSaplingRoot(finalSaplingRoot), nNonce(nonce), nBits(compactTarget) {}
 
-    CPBaaSPreHeader(CBlockHeader &bh);
+    CPBaaSPreHeader(const CBlockHeader &bh);
 
     ADD_SERIALIZE_METHODS;
 
@@ -502,7 +502,7 @@ class CVerusSolutionVector
             auto descr = Descriptor();
             descr.extraDataSize = len;
             SetDescriptor(descr);
-            std::memcpy(&(vch.data()[4]), pbegin, len);
+            std::memcpy(ExtraDataPtr(), pbegin, len);
             return true;
         }
 };

@@ -159,7 +159,18 @@ unsigned int lwmaCalculateNextWorkRequired(const CBlockIndex* pindexLast, const 
 
     // Check we have enough blocks
     if (!pindexFirst)
-        return bnLimit.GetCompact();
+    {
+        if (!_IsVerusActive() && ASSETCHAINS_ALGO == ASSETCHAINS_VERUSHASH)
+        {
+            // startup 16 times harder on PBaaS chains
+            bnLimit = bnLimit >> 4;
+            return bnLimit.GetCompact();
+        }
+        else
+        {
+            return bnLimit.GetCompact();
+        }
+    }
 
     // Keep t reasonable in case strange solvetimes occurred.
     if (t < N * k / 3)

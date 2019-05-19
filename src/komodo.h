@@ -853,10 +853,7 @@ void komodo_connectblock(CBlockIndex *pindex,CBlock& block)
                     }
                 } else
                 {
-                    if (!IsBlockBoundTransaction(block.vtx[i]))
-                    {
-                        printf("cant get scriptPubKey for ht.%d txi.%d vin.%d\n",height,i,j);
-                    }
+                    printf("cant get scriptPubKey for ht.%d txi.%d vin.%d\n",height,i,j);
                 }
             }
             numvalid = bitweight(signedmask);

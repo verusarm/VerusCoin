@@ -69,6 +69,12 @@
 // Part of a transaction with an opret that contains only the hashes and proofs, without the source
 // headers, transactions, and objects. This type of notarizatoin is mined into a block by the miner, and is created on the PBaaS
 // chain.
+//
+// Notarizations include the following elements in order:
+//  Latest block header being notarized, or a header ref for a merge-mined header
+//  Proof of the header using the latest MMR root
+//  Cross notarization transaction less its op_ret
+//  Proof of the cross notarization using the latest MMR root
 class CPBaaSNotarization
 {
 public:
@@ -77,15 +83,16 @@ public:
     static const int CURRENT_VERSION = PBAAS_VERSION;
     uint32_t nVersion;                      // PBAAS version
     uint160 chainID;                        // chain being notarized
-    CAmount rewardPerBlock;                 // amount to pay per reward, cannot be changed under normal circumstances
+    uint160 notaryKeyID;                    // confirmed notary rewards are spent to this address when this notarization is confirmed
 
     uint32_t notarizationHeight;            // height of the notarization we certify
     uint256 mmrRoot;                        // latest MMR root of the notarization height
+    uint256 notarizationPreHash;            // combination of block hash, merkle root, and compact power for the notarization height
     uint256 compactPower;                   // compact power of the block height notarization to compare
 
     uint256 prevNotarization;               // txid of the prior notarization on this chain that we agree with, even those not accepted yet
     int32_t prevHeight;
-    uint256 crossNotarization;              // hash of last notarization transaction on the other chain, which is the first tx object in the opret input
+    uint256 crossNotarization;              // hash of previous notarization transaction on the other chain, which is the first tx object in the opret input
     int32_t crossHeight;
 
     COpRetProof opRetProof;                 // hashes and types of all objects in our opret, enabling reconstruction without the opret on notarized chain
@@ -96,9 +103,10 @@ public:
 
     CPBaaSNotarization(uint32_t version,
                        uint160 chainid,
-                       CAmount rewardperblock,
+                       uint160 notarykey,
                        int32_t notarizationheight, 
-                       uint256 MMRRoot, 
+                       uint256 MMRRoot,
+                       uint256 preHash,
                        uint256 compactpower,
                        uint256 prevnotarization,
                        int32_t prevheight,
@@ -108,10 +116,11 @@ public:
                        std::vector<CNodeData> &Nodes) : 
                        nVersion(version),
                        chainID(chainid),
-                       rewardPerBlock(rewardperblock),
+                       notaryKeyID(notarykey),
 
                        notarizationHeight(notarizationheight),
                        mmrRoot(MMRRoot),
+                       notarizationPreHash(preHash),
                        compactPower(compactpower),
 
                        prevNotarization(prevnotarization),
@@ -139,9 +148,10 @@ public:
     inline void SerializationOp(Stream& s, Operation ser_action) {
         READWRITE(VARINT(nVersion));
         READWRITE(chainID);
-        READWRITE(rewardPerBlock);
+        READWRITE(notaryKeyID);
         READWRITE(notarizationHeight);
         READWRITE(mmrRoot);
+        READWRITE(notarizationPreHash);
         READWRITE(compactPower);
         READWRITE(prevNotarization);
         READWRITE(prevHeight);
@@ -252,14 +262,34 @@ public:
     UniValue ToUniValue() const;
 };
 
-bool CreateEarnedNotarization(CMutableTransaction &mnewTx, CTransaction &lastTx, CTransaction &crossTx, int32_t height, uint256 &prevMMR);
+class CInputDescriptor
+{
+public:
+    CScript scriptPubKey;
+    CAmount nValue;
+    CTxIn txIn;
+    CInputDescriptor() : nValue(0) {}
+    CInputDescriptor(CScript script, CAmount value, CTxIn input) : scriptPubKey(script), nValue(value), txIn(input) {}
+};
 
+bool CreateEarnedNotarization(CMutableTransaction &mnewTx, std::vector<CInputDescriptor> &inputs, CTransaction &lastTx, CTransaction &crossTx, int32_t height, int32_t *confirmedInput, CTxDestination *confirmedDest);
+uint256 CreateAcceptedNotarization(const CBlock &blk, int32_t txIndex, int32_t height);
+std::vector<CInputDescriptor> AddSpendsAndFinalizations(const CChainNotarizationData &cnd, 
+                                                        const uint256 &lastNotarizationID, 
+                                                        const CTransaction &lastTx, 
+                                                        CMutableTransaction &mnewTx, 
+                                                        int32_t *pConfirmedInput, 
+                                                        int32_t *pConfirmedIdx, 
+                                                        CTxDestination *pConfirmedDest);
+bool GetNotarizationAndFinalization(int32_t ecode, CMutableTransaction mtx, CPBaaSNotarization &pbn, uint32_t *pNotarizeOutIndex, uint32_t *pFinalizeOutIndex);
+bool ValidateEarnedNotarization(CTransaction &ntx, CPBaaSNotarization *notarization = NULL);
 bool ValidateEarnedNotarization(struct CCcontract_info *cp, Eval* eval, const CTransaction &tx, uint32_t nIn);
 bool IsEarnedNotarizationInput(const CScript &scriptSig);
 bool ValidateAcceptedNotarization(struct CCcontract_info *cp, Eval* eval, const CTransaction &tx, uint32_t nIn);
 bool IsAcceptedNotarizationInput(const CScript &scriptSig);
 bool ValidateFinalizeNotarization(struct CCcontract_info *cp, Eval* eval, const CTransaction &tx, uint32_t nIn);
 bool IsFinalizeNotarizationInput(const CScript &scriptSig);
+bool IsServiceRewardInput(const CScript &scriptSig);
 bool IsBlockBoundTransaction(const CTransaction &tx);
 
 #endif

@@ -322,6 +322,14 @@ struct CCcontract_info *CCinit(struct CCcontract_info *cp, uint8_t evalcode)
             break;
 
         case EVAL_SERVICEREWARD:
+            strcpy(cp->unspendableCCaddr,ServiceRewardAddr.c_str());
+            strcpy(cp->normaladdr,ServiceRewardAddr.c_str());
+            strcpy(cp->CChexstr,ServiceRewardPubKey.c_str());
+            memcpy(cp->CCpriv,DecodeSecret(ServiceRewardWIF).begin(),32);
+            cp->validate = ValidateServiceReward;
+            cp->ismyvin = IsServiceRewardInput;
+            break;
+
         case EVAL_RESERVEIMPORT:
         case EVAL_RESERVEEXPORT:
         case EVAL_RESERVEOUTPUT:

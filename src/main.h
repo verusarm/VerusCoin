@@ -239,6 +239,7 @@ bool GetTransaction(const uint256 &hash, CTransaction &tx, uint256 &hashBlock, b
 /** Find the best known block, and make it the tip of the block chain */
 bool ActivateBestChain(CValidationState &state, CBlock *pblock = NULL);
 CAmount GetBlockSubsidy(int nHeight, const Consensus::Params& consensusParams);
+CAmount GetBlockOnePremine();
 
 /**
  * Prune block and undo files (blk???.dat and undo???.dat) so that the disk space used is less than a user-defined target.
@@ -276,6 +277,8 @@ void PruneAndFlush();
 /** (try to) add transaction to memory pool **/
 bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState &state, const CTransaction &tx, bool fLimitFree,
                         bool* pfMissingInputs, bool fRejectAbsurdFee=false, int dosLevel=-1);
+bool AcceptToMemoryPoolInt(CTxMemPool& pool, CValidationState &state, const CTransaction &tx, bool fLimitFree,
+                           bool* pfMissingInputs, bool fRejectAbsurdFee=false, int dosLevel=-1, int32_t simHeight = 0);
 
 
 struct CNodeStateStats {
@@ -492,10 +495,6 @@ enum ADDRESS_INDEX_QUERY_CODES {
     ADDRESSINDEX_NOTARIZATION = 0x81,           // for POS-based notarization
     ADDRESSINDEX_MULTICHOICE = 0x82,            // used for sorting by numbered selection, for example in polls or elections
     ADDRESSINDEX_OFFERLIMIT = 0x83              // for good until cancelled and fill or kill (anti-front running) limit orders
-};
-
-enum PBAAS_CONSTANTS {
-    PBAAS_NOTARYCONFIRMS = 20                   // number of confirms necessary to consider a notarization valid
 };
 
 struct CUniqueHash
@@ -985,7 +984,7 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
 bool CheckBlockHeader(int32_t *futureblockp,int32_t height,CBlockIndex *pindex,const CBlockHeader& block, CValidationState& state, bool fCheckPOW = true);
 bool CheckBlock(int32_t *futureblockp,int32_t height,CBlockIndex *pindex,const CBlock& block, CValidationState& state,
                 libzcash::ProofVerifier& verifier,
-                bool fCheckPOW = true, bool fCheckMerkleRoot = true);
+                bool fCheckPOW = true, bool fCheckMerkleRoot = true, bool fCheckTxInputs = true);
 
 /** Context-dependent validity checks */
 bool ContextualCheckBlockHeader(const CBlockHeader& block, CValidationState& state, CBlockIndex *pindexPrev);

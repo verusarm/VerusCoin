@@ -235,7 +235,7 @@ void *chainparams_commandline(void *ptr)
         mainParams.pchMessageStart[1] = (ASSETCHAINS_MAGIC >> 8) & 0xff;
         mainParams.pchMessageStart[2] = (ASSETCHAINS_MAGIC >> 16) & 0xff;
         mainParams.pchMessageStart[3] = (ASSETCHAINS_MAGIC >> 24) & 0xff;
-        fprintf(stderr,">>>>>>>>>> %s: p2p.%u rpc.%u magic.%08x %u %u coins\n",ASSETCHAINS_SYMBOL,ASSETCHAINS_P2PPORT,ASSETCHAINS_RPCPORT,ASSETCHAINS_MAGIC,ASSETCHAINS_MAGIC,(uint32_t)ASSETCHAINS_SUPPLY);
+        fprintf(stderr,">>>>>>>>>> %s: p2p.%u rpc.%u magic.%08x %u %lu coins\n",ASSETCHAINS_SYMBOL,ASSETCHAINS_P2PPORT,ASSETCHAINS_RPCPORT,ASSETCHAINS_MAGIC,ASSETCHAINS_MAGIC,ASSETCHAINS_SUPPLY / COIN);
 
         if (ASSETCHAINS_ALGO != ASSETCHAINS_EQUIHASH)
         {
@@ -678,7 +678,12 @@ static CRegTestParams regTestParams;
 static CChainParams *pCurrentParams = 0;
 
 const CChainParams &Params() {
-    assert(pCurrentParams);
+    // the only reason this should occur is before initialization to convert addresses
+    // we don't use others besides main, and the only risk in returning it would be something else not initialized
+    if (!pCurrentParams)
+    {
+        return mainParams;
+    }
     return *pCurrentParams;
 }
 
