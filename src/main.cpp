@@ -4736,10 +4736,13 @@ bool CheckBlock(int32_t *futureblockp,int32_t height,CBlockIndex *pindex,const C
             }
             if ( rejects == 0 || rejects == lastrejects )
             {
-                if ( !vrscCompat && lastrejects != 0 )
+                if ( lastrejects != 0 )
                 {
-                    fprintf(stderr,"lastrejects.%d -> all tx in mempool\n",lastrejects);
-                    success = state.DoS(0, error("CheckBlock: invalid transactions in block"), REJECT_INVALID, "bad-txns-duplicate");
+                    LogPrintf("lastrejects.%d -> all tx in mempool\n", lastrejects);
+                    if (!vrscCompat)
+                    {
+                        success = state.DoS(0, error("CheckBlock: invalid transactions in block"), REJECT_INVALID, "bad-txns-duplicate");
+                    }
                 }
                 break;
             }

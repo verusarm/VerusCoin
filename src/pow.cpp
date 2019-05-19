@@ -448,9 +448,11 @@ bool CheckProofOfWork(const CBlockHeader &blkHeader, uint8_t *pubkey33, int32_t 
     }
     else if (ASSETCHAINS_ALGO == ASSETCHAINS_VERUSHASH)
     {
-        if (CConstVerusSolutionVector::activationHeight.ActiveVersion(height) >= CConstVerusSolutionVector::activationHeight.SOLUTION_VERUSV2)
+        int32_t verusVersion = CConstVerusSolutionVector::activationHeight.ActiveVersion(height);
+        if (verusVersion >= CConstVerusSolutionVector::activationHeight.SOLUTION_VERUSV2)
         {
-            bnLimit = UintToArith256(params.powAlternate) << VERUSHASH2_SHIFT;
+            int32_t pbaasAdjust = (verusVersion >= CConstVerusSolutionVector::activationHeight.SOLUTION_VERUSV3 && (height < params.nPowAveragingWindow)) ? 4 : 0;
+            bnLimit = UintToArith256(params.powAlternate) << (VERUSHASH2_SHIFT - pbaasAdjust);
         }
         else
         {
@@ -465,6 +467,7 @@ bool CheckProofOfWork(const CBlockHeader &blkHeader, uint8_t *pubkey33, int32_t 
         arith_uint256 bnMaxPoSdiff;
         bnTarget.SetCompact(KOMODO_MINDIFF_NBITS,&fNegative,&fOverflow);
     }
+
     // Check proof of work matches claimed amount
     if ( UintToArith256(hash = blkHeader.GetHash()) > bnTarget && !blkHeader.IsVerusPOSBlock() )
     {
