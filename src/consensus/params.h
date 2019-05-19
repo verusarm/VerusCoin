@@ -95,7 +95,6 @@ struct Params {
     /** Proof of work parameters */
     uint256 powLimit;
     uint256 powAlternate;
-    uint256 powDefault;
     boost::optional<uint32_t> nPowAllowMinDifficultyBlocksAfterHeight;
     int64_t nPowAveragingWindow;
     int64_t nPowMaxAdjustDown;
