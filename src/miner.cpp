@@ -1066,7 +1066,16 @@ void IncrementExtraNonce(CBlock* pblock, CBlockIndex* pindexPrev, unsigned int &
             uint32_t savebits;
             if ((savebits = ConnectedChains.CombineBlocks(*pblock)) && pSaveBits)
             {
-                *pSaveBits = savebits;
+                if (pSaveBits)
+                {
+                    arith_uint256 ours, merged;
+                    ours.SetCompact(pblock->nBits);
+                    merged.SetCompact(*pSaveBits);
+                    if (merged > ours)
+                    {
+                        *pSaveBits = savebits;
+                    }
+                }
             }
 
             // extra nonce is kept in the header, not in the coinbase any longer
