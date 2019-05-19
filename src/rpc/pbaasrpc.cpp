@@ -1477,6 +1477,15 @@ UniValue definechain(const UniValue& params, bool fHelp)
                                                " blocks and per-block notary rewards of >= 1000000 are required to define a chain\n");
     }
 
+    for (int i = 0; i < newChain.eras; i++)
+    {
+        arith_uint256 reward(newChain.rewards[i]), decay(newChain.rewardsDecay[i]), limit(0x7fffffffffffffff);
+        if (reward * decay > limit)
+        {
+            throw JSONRPCError(RPC_INVALID_PARAMS, "reward * decay exceeds 64 bit integer limit of 9,223,372,036,854,775,807\n");
+        }
+    }
+
     vector<CRecipient> outputs;
 
     // default double fee for miner of chain definition tx
