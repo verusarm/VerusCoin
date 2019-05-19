@@ -483,6 +483,7 @@ bool SetThisChain(UniValue &chainDefinition)
         }
 
         ASSETCHAINS_SUPPLY = ConnectedChains.ThisChain().premine;
+        mapArgs["-ac_supply"] = to_string(ASSETCHAINS_SUPPLY);
         ASSETCHAINS_ALGO = ASSETCHAINS_VERUSHASH;
         ASSETCHAINS_LWMAPOS = 50;
 
