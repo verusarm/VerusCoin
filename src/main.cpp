@@ -4696,6 +4696,8 @@ bool CheckBlock(int32_t *futureblockp,int32_t height,CBlockIndex *pindex,const C
         // we need this lock to prevent accepting transactions we shouldn't
         LOCK(mempool.cs);
 
+        bool vrscCompat = CConstVerusSolutionVector::activationHeight.ActiveVersion(height) < CConstVerusSolutionVector::activationHeight.SOLUTION_VERUSV3;
+
         //printf("checking block %d\n", height);
         while ( 1 )
         {
@@ -4722,7 +4724,7 @@ bool CheckBlock(int32_t *futureblockp,int32_t height,CBlockIndex *pindex,const C
                     } else if (state.GetRejectReason() != "already have coins" && 
                                !((missinginputs || state.GetRejectCode() == REJECT_DUPLICATE) && !fCheckTxInputs)) // fCheckPOW overloaded for DB verify to pass
                     {
-                        printf("Rejected transaction for %s, reject code %d\n", state.GetRejectReason().c_str(), state.GetRejectCode());
+                        //printf("Rejected transaction for %s, reject code %d\n", state.GetRejectReason().c_str(), state.GetRejectCode());
                         for (auto input : Tx.vin)
                         {
                             LogPrintf("Notarization input n: %d, hash: %s\n", input.prevout.n, input.prevout.hash.GetHex().c_str());
@@ -4734,7 +4736,7 @@ bool CheckBlock(int32_t *futureblockp,int32_t height,CBlockIndex *pindex,const C
             }
             if ( rejects == 0 || rejects == lastrejects )
             {
-                if ( lastrejects != 0 )
+                if ( !vrscCompat && lastrejects != 0 )
                 {
                     fprintf(stderr,"lastrejects.%d -> all tx in mempool\n",lastrejects);
                     success = state.DoS(0, error("CheckBlock: invalid transactions in block"), REJECT_INVALID, "bad-txns-duplicate");
