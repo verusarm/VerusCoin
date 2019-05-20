@@ -716,12 +716,14 @@ CBlockTemplate* CreateNewBlock(const CScript& _scriptPubKeyIn, int32_t gpucount,
             {
                 if (!p.pk.IsValid() || !MakeGuardedOutput(txNew.vout[0].nValue, p.pk, stakeTx, txNew.vout[0]))
                 {
+                    LogPrintf("CreateNewBlock: failed to make GuardedOutput on staking coinbase\n");
                     fprintf(stderr,"CreateNewBlock: failed to make GuardedOutput on staking coinbase\n");
                     return 0;
                 }
             }
             else
             {
+                LogPrintf("CreateNewBlock: invalid stake transaction\n");
                 fprintf(stderr,"CreateNewBlock: invalid stake transaction\n");
                 return 0;
             }
@@ -763,6 +765,7 @@ CBlockTemplate* CreateNewBlock(const CScript& _scriptPubKeyIn, int32_t gpucount,
             opretScript.AddCheckLockTimeVerify(komodo_block_unlocktime(nHeight));
             if (scriptPubKeyIn.IsPayToScriptHash() || scriptPubKeyIn.IsPayToCryptoCondition())
             {
+                LogPrintf("CreateNewBlock: attempt to add timelock to pay2sh or pay2cc\n");
                 fprintf(stderr,"CreateNewBlock: attempt to add timelock to pay2sh or pay2cc\n");
                 return 0;
             }
@@ -878,22 +881,24 @@ CBlockTemplate* CreateNewBlock(const CScript& _scriptPubKeyIn, int32_t gpucount,
             pblock->vtx[pbaasNotarizationTx] = mntx;
 
             LogPrintf("Coinbase source tx id: %s\n", txNew.GetHash().GetHex().c_str());
-            printf("Coinbase source tx id: %s\n", txNew.GetHash().GetHex().c_str());
+            //printf("Coinbase source tx id: %s\n", txNew.GetHash().GetHex().c_str());
             LogPrintf("adding notarization tx at height %d, index %d, id: %s\n", nHeight, pbaasNotarizationTx, mntx.GetHash().GetHex().c_str());
-            printf("adding notarization tx at height %d, index %d, id: %s\n", nHeight, pbaasNotarizationTx, mntx.GetHash().GetHex().c_str());
+            //printf("adding notarization tx at height %d, index %d, id: %s\n", nHeight, pbaasNotarizationTx, mntx.GetHash().GetHex().c_str());
             {
                 LOCK(cs_main);
                 for (auto input : mntx.vin)
                 {
                     LogPrintf("Earned notarization input n: %d, hash: %s, HaveCoins: %s\n", input.prevout.n, input.prevout.hash.GetHex().c_str(), pcoinsTip->HaveCoins(input.prevout.hash) ? "true" : "false");
-                    printf("Earned notarization input n: %d, hash: %s, HaveCoins: %s\n", input.prevout.n, input.prevout.hash.GetHex().c_str(), pcoinsTip->HaveCoins(input.prevout.hash) ? "true" : "false");
+                    //printf("Earned notarization input n: %d, hash: %s, HaveCoins: %s\n", input.prevout.n, input.prevout.hash.GetHex().c_str(), pcoinsTip->HaveCoins(input.prevout.hash) ? "true" : "false");
                 }
             }
 
+            /*
             for (auto inp : mntx.vin)
             {
                 printf("Spending n: %d, hash: %s\n", inp.prevout.n, inp.prevout.hash.GetHex().c_str());
             }
+            */
         }
 
         pblock->vtx[0] = txNew;
