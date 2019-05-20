@@ -451,7 +451,7 @@ bool CheckProofOfWork(const CBlockHeader &blkHeader, uint8_t *pubkey33, int32_t 
         int32_t verusVersion = CConstVerusSolutionVector::activationHeight.ActiveVersion(height);
         if (verusVersion >= CConstVerusSolutionVector::activationHeight.SOLUTION_VERUSV2)
         {
-            int32_t pbaasAdjust = _IsVerusActive() ? 0 : 4;
+            int32_t pbaasAdjust = !_IsVerusActive() && height < params.nPOSAveragingWindow ? 4 : 0;
             bnLimit = UintToArith256(params.powAlternate) << (VERUSHASH2_SHIFT - pbaasAdjust);
         }
         else
