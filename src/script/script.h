@@ -24,7 +24,8 @@
 #define OPRETTYPE_OBJECT 4
 #define OPRETTYPE_OBJECTARR 5
 
-static const unsigned int MAX_SCRIPT_ELEMENT_SIZE = 520; // bytes
+static const unsigned int MAX_SCRIPT_ELEMENT_SIZE = 1024; // bytes
+static const unsigned int MAX_SCRIPT_ELEMENT_SIZE_PRE_PBAAS = 520;
 
 // Max size of pushdata in a CC sig in bytes
 static const unsigned int MAX_SCRIPT_CRYPTOCONDITION_FULFILLMENT_SIZE = 2048;

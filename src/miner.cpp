@@ -860,7 +860,13 @@ CBlockTemplate* CreateNewBlock(const CScript& _scriptPubKeyIn, int32_t gpucount,
 
                 if (!signSuccess)
                 {
-                    fprintf(stderr,"CreateNewBlock: failure to sign earned notarization\n");
+                    if (ntx.vin[i].prevout.hash == txNew.GetHash())
+                    {
+                        LogPrintf("Coinbase source tx id: %s\n", txNew.GetHash().GetHex().c_str());
+                        printf("Coinbase source tx - amount: %lu, n: %d, id: %s\n", txNew.vout[ntx.vin[i].prevout.n].nValue, ntx.vin[i].prevout.n, txNew.GetHash().GetHex().c_str());
+                    }
+                    LogPrintf("CreateNewBlock: failure to sign earned notarization for input %d from output %d of %s\n", i, ntx.vin[i].prevout.n, ntx.vin[i].prevout.hash.GetHex().c_str());
+                    printf("CreateNewBlock: failure to sign earned notarization for input %d from output %d of %s\n", i, ntx.vin[i].prevout.n, ntx.vin[i].prevout.hash.GetHex().c_str());
                     return NULL;
                 } else {
                     UpdateTransaction(mntx, i, sigdata);
@@ -880,7 +886,7 @@ CBlockTemplate* CreateNewBlock(const CScript& _scriptPubKeyIn, int32_t gpucount,
                 for (auto input : mntx.vin)
                 {
                     LogPrintf("Earned notarization input n: %d, hash: %s, HaveCoins: %s\n", input.prevout.n, input.prevout.hash.GetHex().c_str(), pcoinsTip->HaveCoins(input.prevout.hash) ? "true" : "false");
-                    printf("Earned notarization input n: %d, hash: %s\n", input.prevout.n, input.prevout.hash.GetHex().c_str(), pcoinsTip->HaveCoins(input.prevout.hash) ? "true" : "false");
+                    printf("Earned notarization input n: %d, hash: %s, HaveCoins: %s\n", input.prevout.n, input.prevout.hash.GetHex().c_str(), pcoinsTip->HaveCoins(input.prevout.hash) ? "true" : "false");
                 }
             }
 
