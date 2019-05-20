@@ -7455,7 +7455,13 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
         
         // Nodes must NEVER send a data item bigger than the max size for a script data object,
         // and thus, the maximum size any matched object can have) in a filteradd message
-        if (vData.size() > MAX_SCRIPT_ELEMENT_SIZE)
+        int maxDataSize = MAX_SCRIPT_ELEMENT_SIZE_PRE_PBAAS;
+        if (CConstVerusSolutionVector::activationHeight.ActiveVersion(nHeight) >= CConstVerusSolutionVector::activationHeight.SOLUTION_VERUSV3 &&
+            pfrom->nVersion >= MIN_PBAAS_VERSION)
+        {
+            maxDataSize = MAX_SCRIPT_ELEMENT_SIZE;
+        }
+        if (vData.size() > maxDataSize)
         {
             Misbehaving(pfrom->GetId(), 100);
         } else {

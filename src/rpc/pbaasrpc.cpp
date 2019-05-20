@@ -1024,7 +1024,7 @@ UniValue submitacceptednotarization(const UniValue& params, bool fHelp)
 
                     if (!signSuccess)
                     {
-                        fprintf(stderr,"CreateNewBlock: failure to sign earned notarization\n");
+                        fprintf(stderr,"submitacceptednotarization: failure to sign accepted notarization\n");
                         throw JSONRPCError(RPC_VERIFY_ERROR, "Failed to sign notarizaton for " + chainDef.name);
                     } else {
                         UpdateTransaction(mnewTx, i, sigdata);
