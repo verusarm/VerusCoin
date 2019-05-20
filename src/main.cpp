@@ -4694,7 +4694,7 @@ bool CheckBlock(int32_t *futureblockp,int32_t height,CBlockIndex *pindex,const C
         int32_t i,j,rejects=0,lastrejects=0;
 
         // we need this lock to prevent accepting transactions we shouldn't
-        LOCK(mempool.cs);
+        LOCK2(cs_main, mempool.cs);
 
         bool vrscCompat = CConstVerusSolutionVector::activationHeight.ActiveVersion(height) < CConstVerusSolutionVector::activationHeight.SOLUTION_VERUSV3;
 
@@ -4722,13 +4722,13 @@ bool CheckBlock(int32_t *futureblockp,int32_t height,CBlockIndex *pindex,const C
                         sTx = Tx;
                         ptx = &sTx;
                     } else if (state.GetRejectReason() != "already have coins" && 
-                               !((missinginputs || state.GetRejectCode() == REJECT_DUPLICATE) && !fCheckTxInputs)) // fCheckPOW overloaded for DB verify to pass
+                               !((missinginputs || state.GetRejectCode() == REJECT_DUPLICATE) && (!fCheckTxInputs || chainActive.Height() < height - 1)))
                     {
                         //printf("Rejected transaction for %s, reject code %d\n", state.GetRejectReason().c_str(), state.GetRejectCode());
                         for (auto input : Tx.vin)
                         {
-                            LogPrintf("Notarization input n: %d, hash: %s\n", input.prevout.n, input.prevout.hash.GetHex().c_str());
-                            printf("Notarization input n: %d, hash: %s\n", input.prevout.n, input.prevout.hash.GetHex().c_str());
+                            LogPrintf("input n: %d, hash: %s\n", input.prevout.n, input.prevout.hash.GetHex().c_str());
+                            printf("chainActive.Height(): %d, height: %d, input n: %d, hash: %s\n", chainActive.Height(), height, input.prevout.n, input.prevout.hash.GetHex().c_str());
                         }
                         rejects++;
                     }
@@ -5022,7 +5022,7 @@ bool AcceptBlockHeader(int32_t *futureblockp,const CBlockHeader& block, CValidat
     return true;
 }
 
-bool AcceptBlock(int32_t *futureblockp,CBlock& block, CValidationState& state, CBlockIndex** ppindex, bool fRequested, CDiskBlockPos* dbp)
+bool AcceptBlock(int32_t *futureblockp, CBlock& block, CValidationState& state, CBlockIndex** ppindex, bool fRequested, CDiskBlockPos* dbp)
 {
     const CChainParams& chainparams = Params();
     AssertLockHeld(cs_main);
@@ -7244,7 +7244,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
         // Such an unrequested block may still be processed, subject to the
         // conditions in AcceptBlock().
         bool forceProcessing = pfrom->fWhitelisted && !IsInitialBlockDownload();
-        ProcessNewBlock(0,0,state, pfrom, &block, forceProcessing, NULL);
+        ProcessNewBlock(0, 0, state, pfrom, &block, forceProcessing, NULL);
         int nDoS;
         if (state.IsInvalid(nDoS)) {
             pfrom->PushMessage("reject", strCommand, state.GetRejectCode(),
@@ -7254,7 +7254,6 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
                 Misbehaving(pfrom->GetId(), nDoS);
             }
         }
-        
     }
     
     
