@@ -49,7 +49,7 @@ build:linux:
     - chmod +x verus-cli/verus
     - chmod +x verus-cli/verusd
     - chmod +x verus-cli/fetch-params
-    - if [ "${STRIP_BINARIES}" = "true" ]; then strip -g verus-cli/verus && strip -g verus-cli/verusd; fi
+    - if [ "${STRIP_BINARIES}" = "true" ]; then strip --strip-unneeded verus-cli/verus && strip --strip-unneeded verus-cli/verusd; fi
     - tar -czvf ${VERUS_CLI_LINUX} verus-cli
     - sha256sum ${VERUS_CLI_LINUX} > ${VERUS_CLI_LINUX}.sha256
   after_script:
@@ -87,7 +87,7 @@ build:windows:
       zcutil/fetch-params.bat
       zcutil/wget64.exe
       verus-cli
-  - if [ "${STRIP_BINARIES}" = "true" ]; then strip -g verus-cli/verusd.exe && strip -g verus-cli/verus.exe; fi
+  - if [ "${STRIP_BINARIES}" = "true" ]; then strip --strip-unneeded verus-cli/verusd.exe && strip --strip-unneeded verus-cli/verus.exe; fi
   - zip -r ${VERUS_CLI_WINDOWS} verus-cli
   - sha256sum ${VERUS_CLI_WINDOWS} > ${VERUS_CLI_WINDOWS}.sha256
   - curl -F file=@"${VERUS_CLI_WINDOWS}"
