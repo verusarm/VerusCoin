@@ -1359,10 +1359,14 @@ bool CWallet::VerusSelectStakeOutput(CBlock *pBlock, arith_uint256 &hashResult, 
                     LogPrintf("Transaction %s is too large to stake. Serialized size == %lu\n", txout.tx->GetHash().GetHex().c_str(), txSize);
                 }
 
+                CCoinsViewCache view(pcoinsTip);
+                uint256 txHash = txout.tx->GetHash();
+
                 if (txSize <= MAX_TX_SIZE_FOR_STAKING &&
                     (!pwinner || UintToArith256(curNonce) > UintToArith256(pBlock->nNonce)) &&
                     (Solver(txout.tx->vout[txout.i].scriptPubKey, whichType, vSolutions) && (whichType == TX_PUBKEY || whichType == TX_PUBKEYHASH)) &&
                     !cheatList.IsUTXOInList(COutPoint(txout.tx->GetHash(), txout.i), nHeight <= 100 ? 1 : nHeight-100) &&
+                    view.AccessCoins(txHash) &&
                     Consensus::CheckTxInputs(*txout.tx, state, pcoinsTip, nHeight, consensusParams))
                 {
                     //printf("Found PoS block\nnNonce:    %s\n", pBlock->nNonce.GetHex().c_str());
