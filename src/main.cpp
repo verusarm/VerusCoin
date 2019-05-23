@@ -1747,13 +1747,6 @@ bool AcceptToMemoryPoolInt(CTxMemPool& pool, CValidationState &state, const CTra
             return state.DoS(1, error("AcceptToMemoryPool: too many sigops %s, %d > %d", hash.ToString(), nSigOps, MAX_STANDARD_TX_SIGOPS),REJECT_NONSTANDARD, "bad-txns-too-many-sigops");
         }
         
-        // if this is a valid stake transaction, don't put it in the mempool
-        CStakeParams p;
-        if (ValidateStakeTransaction(tx, p, false))
-        {
-            return state.DoS(0, false, REJECT_INVALID, "staking");
-        }
-
         CAmount nValueOut = tx.GetValueOut();
         CAmount nFees = nValueIn-nValueOut;
         double dPriority = view.GetPriority(tx, chainActive.Height());
@@ -1839,7 +1832,7 @@ bool AcceptToMemoryPoolInt(CTxMemPool& pool, CValidationState &state, const CTra
         if (!ContextualCheckInputs(tx, state, view, true, STANDARD_SCRIPT_VERIFY_FLAGS, true, txdata, Params().GetConsensus(), consensusBranchId))
         {
             //fprintf(stderr,"accept failure.9\n");
-            return error("AcceptToMemoryPool: ConnectInputs failed %s", hash.ToString());
+            return error("AcceptToMemoryPool: ConnectInputs failed (%s) %s", state.GetRejectReason(), hash.ToString());
         }
         
         // Check again against just the consensus-critical mandatory script
@@ -1863,6 +1856,14 @@ bool AcceptToMemoryPoolInt(CTxMemPool& pool, CValidationState &state, const CTra
                 KOMODO_CONNECTING = -1;
             return error("AcceptToMemoryPool: BUG! PLEASE REPORT THIS! ConnectInputs failed against MANDATORY but not STANDARD flags %s", hash.ToString());
         }
+
+        // if this is a valid stake transaction, don't put it in the mempool
+        CStakeParams p;
+        if (ValidateStakeTransaction(tx, p, false))
+        {
+            return state.DoS(0, false, REJECT_INVALID, "staking");
+        }
+
         if ( flag != 0 )
             KOMODO_CONNECTING = -1;
 
@@ -4711,6 +4712,39 @@ bool CheckBlock(int32_t *futureblockp,int32_t height,CBlockIndex *pindex,const C
                 Tx = tx;
 
                 bool missinginputs = false;
+
+                if (Tx.vout.size() == 0)
+                {
+                    if (!Tx.IsCoinBase())
+                    {
+                        for (int j = 0; j < Tx.vin.size(); j++)
+                        {
+                            if (Tx.vin[j].prevout.hash.IsNull())
+                            {
+                                success = false;
+                            }
+                            CTransaction inputTx;
+                            uint256 blkHash;
+                            if (myGetTransaction(Tx.vin[j].prevout.hash, inputTx, blkHash))
+                            {
+                                CPBaaSNotarization p(inputTx);
+                                if (p.IsValid())
+                                {
+                                    LogPrintf("transaction input from %s on input %d is a notarization of %s\n", Tx.vin[j].prevout.hash.GetHex().c_str(), Tx.vin[j].prevout.n, p.chainID.GetHex().c_str());                          
+                                    printf("transaction input from %s on input %d is a notarization of %s\n", Tx.vin[j].prevout.hash.GetHex().c_str(), Tx.vin[j].prevout.n, p.chainID.GetHex().c_str());                          
+                                }
+                                else
+                                {
+                                    LogPrintf("transaction input from %s on input %d is not a notarization\n", Tx.vin[j].prevout.hash.GetHex().c_str(), Tx.vin[j].prevout.n);                          
+                                    printf("transaction input from %s on input %d is not a notarization\n", Tx.vin[j].prevout.hash.GetHex().c_str(), Tx.vin[j].prevout.n);                          
+                                }
+                            }
+                        }
+                    }
+                    printf("%s%s %s at height %d has no outputs\n", Tx.IsCoinBase() ? "coinbase transaction" : "transaction #", i == 0 ? "" : to_string(i).c_str(), Tx.GetHash().GetHex().c_str(), height);
+                    LogPrintf("%s%s %s at height %d has no outputs\n", Tx.IsCoinBase() ? "coinbase transaction" : "transaction #", i == 0 ? "" : to_string(i).c_str(), Tx.GetHash().GetHex().c_str(), height);
+                }
+
                 if ( myAddtomempool(Tx, &state, height, &missinginputs) == false ) // happens with out of order tx in block on resync
                 {
                     //LogPrintf("Rejected by mempool, reason: .%s.\n", state.GetRejectReason().c_str());

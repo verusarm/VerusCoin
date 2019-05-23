@@ -1335,7 +1335,10 @@ bool CWallet::VerusSelectStakeOutput(CBlock *pBlock, arith_uint256 &hashResult, 
     pBlock->nNonce.SetPOSTarget(bnTarget, pBlock->nVersion);
     target.SetCompact(bnTarget);
 
-    pwalletMain->AvailableCoins(vecOutputs, true, NULL, false, !Params().GetConsensus().fCoinbaseMustBeProtected);
+    auto consensusParams = Params().GetConsensus();
+    CValidationState state;
+
+    pwalletMain->AvailableCoins(vecOutputs, true, NULL, false, !consensusParams.fCoinbaseMustBeProtected);
 
     if (pastBlockIndex = komodo_chainactive(nHeight - 100))
     {
@@ -1359,7 +1362,8 @@ bool CWallet::VerusSelectStakeOutput(CBlock *pBlock, arith_uint256 &hashResult, 
                 if (txSize <= MAX_TX_SIZE_FOR_STAKING &&
                     (!pwinner || UintToArith256(curNonce) > UintToArith256(pBlock->nNonce)) &&
                     (Solver(txout.tx->vout[txout.i].scriptPubKey, whichType, vSolutions) && (whichType == TX_PUBKEY || whichType == TX_PUBKEYHASH)) &&
-                    !cheatList.IsUTXOInList(COutPoint(txout.tx->GetHash(), txout.i), nHeight <= 100 ? 1 : nHeight-100))
+                    !cheatList.IsUTXOInList(COutPoint(txout.tx->GetHash(), txout.i), nHeight <= 100 ? 1 : nHeight-100) &&
+                    Consensus::CheckTxInputs(*txout.tx, state, pcoinsTip, nHeight, consensusParams))
                 {
                     //printf("Found PoS block\nnNonce:    %s\n", pBlock->nNonce.GetHex().c_str());
                     pwinner = &txout;
