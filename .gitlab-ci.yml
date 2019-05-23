@@ -6,7 +6,7 @@ stages:
 ####START####                                     PROJECT LEVEL VARIABLES                                  ####START####
 ########################################################################################################################
 variables:
-  VERSION: 0.6.0-PBaaS-Cross-chain-Technology-Preview
+  VERSION: 0.6.0.2-PBaaS-Cross-chain-Technology-Preview
   VERUS_CLI_LINUX: Verus-CLI-Linux-v${VERSION}.tar.gz
   VERUS_CLI_WINDOWS: Verus-CLI-Windows-v${VERSION}.zip
   VERUS_CLI_MACOS: Verus-CLI-MacOS-v${VERSION}.tar.gz
@@ -39,6 +39,7 @@ build:linux:
     - scl enable devtoolset-7 sh
     - source /opt/rh/devtoolset-7/enable
     - zcutil/build.sh -j$(nproc)
+    - if [ "${STRIP_BINARIES}" = "true" ]; then strip --strip-unneeded  src/verus && strip --strip-unneeded  src/verusd; fi
     - mkdir verus-cli
     - cp src/verus
       src/verusd
@@ -49,7 +50,6 @@ build:linux:
     - chmod +x verus-cli/verus
     - chmod +x verus-cli/verusd
     - chmod +x verus-cli/fetch-params
-    - if [ "${STRIP_BINARIES}" = "true" ]; then strip --strip-unneeded verus-cli/verus && strip --strip-unneeded verus-cli/verusd; fi
     - tar -czvf ${VERUS_CLI_LINUX} verus-cli
     - sha256sum ${VERUS_CLI_LINUX} > ${VERUS_CLI_LINUX}.sha256
   after_script:
