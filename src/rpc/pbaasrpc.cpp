@@ -750,8 +750,8 @@ UniValue submitacceptednotarization(const UniValue& params, bool fHelp)
     if (success)
     {
 
-        LogPrintf("Accepted notarization GetNotarizationData returns %lu entries\n", nData.vtx.size());
-        printf("Accepted notarization GetNotarizationData returns %lu entries\n", nData.vtx.size());
+        //LogPrintf("Accepted notarization GetNotarizationData returns %lu entries\n", nData.vtx.size());
+        //printf("Accepted notarization GetNotarizationData returns %lu entries\n", nData.vtx.size());
 
         // if any notarization exists that is accepted and more recent than the last one, but one we still agree with,
         // we cannot submit, aside from that, we will prepare and submit
@@ -839,7 +839,7 @@ UniValue submitacceptednotarization(const UniValue& params, bool fHelp)
         for (auto input : notarizationInputs)
         {
             LogPrintf("Accepted notarization value: %lu, input n: %d, hash: %s\n", input.nValue, input.txIn.prevout.n, input.txIn.prevout.hash.GetHex().c_str());
-            printf("Accepted notarization value: %lu, input n: %d, hash: %s\n", input.nValue, input.txIn.prevout.n, input.txIn.prevout.hash.GetHex().c_str());
+            //printf("Accepted notarization value: %lu, input n: %d, hash: %s\n", input.nValue, input.txIn.prevout.n, input.txIn.prevout.hash.GetHex().c_str());
         }
 
         // if we got our inputs, add finalization
@@ -1043,7 +1043,10 @@ UniValue submitacceptednotarization(const UniValue& params, bool fHelp)
                 accepted = AcceptToMemoryPool(mempool, state, tx, false, &fMissingInputs);
             }
             if (!accepted) {
-                printf("Cannot enter notarization into mempool %s\n", state.GetRejectReason().c_str());
+                if (state.GetRejectReason() != "")
+                {
+                    printf("Cannot enter notarization into mempool %s\n", state.GetRejectReason().c_str());
+                }
                 if (state.IsInvalid()) {
                     throw JSONRPCError(RPC_TRANSACTION_REJECTED, strprintf("%i: %s", state.GetRejectCode(), state.GetRejectReason()));
                 } else {
