@@ -120,6 +120,12 @@ src/wallet-utility
 src/komodo-cli.exe
 src/komodod.exe
 src/komodo-tx.exe
+src/verusd
+src/verus
+src/verus-tx
+src/verusd.exe
+src/verus.exe
+src/verus-tx.exe
 
 #output during builds, symbol tables?
 *.dSYM
