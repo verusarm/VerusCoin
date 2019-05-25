@@ -839,7 +839,7 @@ UniValue submitacceptednotarization(const UniValue& params, bool fHelp)
         for (auto input : notarizationInputs)
         {
             LogPrintf("Accepted notarization value: %lu, input n: %d, hash: %s\n", input.nValue, input.txIn.prevout.n, input.txIn.prevout.hash.GetHex().c_str());
-            printf("Accepted notarization value: %lu, input n: %d, hash: %s\n", input.nValue, input.txIn.prevout.n, input.txIn.prevout.hash.GetHex().c_str());
+            //printf("Accepted notarization value: %lu, input n: %d, hash: %s\n", input.nValue, input.txIn.prevout.n, input.txIn.prevout.hash.GetHex().c_str());
         }
 
         // if we got our inputs, add finalization
