@@ -293,7 +293,12 @@ UniValue CNodeData::ToUniValue() const
 CPBaaSChainDefinition::CPBaaSChainDefinition(const UniValue &obj)
 {
     nVersion = PBAAS_VERSION;
-    name = uni_get_str(find_value(obj, "name"));
+    name = std::string(uni_get_str(find_value(obj, "name")), 0, (KOMODO_ASSETCHAIN_MAXLEN - 1));
+
+    char nameChars[KOMODO_ASSETCHAIN_MAXLEN];
+    strcpy(nameChars, name.c_str());
+    for (char *pch = nameChars; (pch = strpbrk(pch , "\\/:?\"<>|")) != NULL; *pch++ = '_');
+
     CBitcoinAddress ba(uni_get_str(find_value(obj, "paymentaddress")));
     ba.GetKeyID(address);
     premine = uni_get_int64(find_value(obj, "premine"));
@@ -346,6 +351,12 @@ CPBaaSChainDefinition::CPBaaSChainDefinition(const CTransaction &tx, bool valida
                 else
                 {
                     FromVector(p.vData[0], *this);
+
+                    // TODO - remove this after validation is finished, check now in case some larger strings got into the chain
+                    char nameChars[KOMODO_ASSETCHAIN_MAXLEN];
+                    strcpy(nameChars, name.c_str());
+                    for (char *pch = nameChars; (pch = strpbrk(pch , "\\/:?\"<>|")) != NULL; *pch++ = '_');
+
                     definitionFound = true;
                 }
             }
@@ -1002,7 +1013,7 @@ void CConnectedChains::SubmissionThread()
 
                     if (txIndex != -1)
                     {
-                        printf("SubmissionThread: testing notarization\n");
+                        //printf("SubmissionThread: testing notarization\n");
 
                         uint256 txId = CreateAcceptedNotarization(blk, txIndex, height);
 
