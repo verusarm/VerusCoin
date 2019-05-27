@@ -126,6 +126,8 @@ src/verus-tx
 src/verusd.exe
 src/verus.exe
 src/verus-tx.exe
+Verus-CLI*
+verus-cli
 
 #output during builds, symbol tables?
 *.dSYM
