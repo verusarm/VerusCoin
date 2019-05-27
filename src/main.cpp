@@ -4913,13 +4913,13 @@ bool ContextualCheckBlockHeader(const CBlockHeader& block, CValidationState& sta
         // Don't accept any forks from the main chain prior to last checkpoint
         CBlockIndex* pcheckpoint = Checkpoints::GetLastCheckpoint(chainParams.Checkpoints());
         int32_t notarized_height;
-        if ( nHeight == 1 && chainActive.LastTip() != 0 && chainActive.LastTip()->GetHeight() > 1 )
-        {
-            CBlockIndex *heightblock = chainActive[nHeight];
-            if ( heightblock != 0 && heightblock->GetBlockHash() == hash )
-                return true;
-            return state.DoS(1, error("%s: trying to change height 1 forbidden", __func__));
-        }
+        //if ( nHeight == 1 && chainActive.LastTip() != 0 && chainActive.LastTip()->GetHeight() > 1 )
+        //{
+        //   CBlockIndex *heightblock = chainActive[nHeight];
+        //    if ( heightblock != 0 && heightblock->GetBlockHash() == hash )
+        //        return true;
+        //    return state.DoS(1, error("%s: trying to change height 1 forbidden", __func__));
+        //}
         if ( nHeight != 0 )
         {
             if ( pcheckpoint != 0 && nHeight < pcheckpoint->GetHeight() )
