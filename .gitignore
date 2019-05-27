@@ -128,7 +128,7 @@ src/verus.exe
 src/verus-tx.exe
 Verus-CLI*
 verus-cli
-src/cryptoconditions/src/cryptoconditions-config.h.in
+src/cryptoconditions/src/cryptoconditions-config.h*
 #output during builds, symbol tables?
 *.dSYM
 
