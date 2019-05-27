@@ -295,9 +295,14 @@ CPBaaSChainDefinition::CPBaaSChainDefinition(const UniValue &obj)
     nVersion = PBAAS_VERSION;
     name = std::string(uni_get_str(find_value(obj, "name")), 0, (KOMODO_ASSETCHAIN_MAXLEN - 1));
 
-    char nameChars[KOMODO_ASSETCHAIN_MAXLEN];
-    strcpy(nameChars, name.c_str());
-    for (char *pch = nameChars; (pch = strpbrk(pch , "\\/:?\"<>|")) != NULL; *pch++ = '_');
+    string invalidChars = "\\/:?\"<>|";
+    for (int i = 0; i < name.size(); i++)
+    {
+        if (invalidChars.find(name[i]) != string::npos)
+        {
+            name[i] = '_';
+        }
+    }
 
     CBitcoinAddress ba(uni_get_str(find_value(obj, "paymentaddress")));
     ba.GetKeyID(address);
@@ -353,9 +358,15 @@ CPBaaSChainDefinition::CPBaaSChainDefinition(const CTransaction &tx, bool valida
                     FromVector(p.vData[0], *this);
 
                     // TODO - remove this after validation is finished, check now in case some larger strings got into the chain
-                    char nameChars[KOMODO_ASSETCHAIN_MAXLEN];
-                    strcpy(nameChars, name.c_str());
-                    for (char *pch = nameChars; (pch = strpbrk(pch , "\\/:?\"<>|")) != NULL; *pch++ = '_');
+                    name = std::string(name, 0, (KOMODO_ASSETCHAIN_MAXLEN - 1));
+                    string invalidChars = "\\/:?\"<>|";
+                    for (int i = 0; i < name.size(); i++)
+                    {
+                        if (invalidChars.find(name[i]) != string::npos)
+                        {
+                            name[i] = '_';
+                        }
+                    }
 
                     definitionFound = true;
                 }
