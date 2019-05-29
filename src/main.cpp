@@ -4731,8 +4731,6 @@ bool CheckBlock(int32_t *futureblockp,int32_t height,CBlockIndex *pindex,const C
         // we need this lock to prevent accepting transactions we shouldn't
         LOCK2(cs_main, mempool.cs);
 
-        bool vrscCompat = CConstVerusSolutionVector::activationHeight.ActiveVersion(height) < CConstVerusSolutionVector::activationHeight.SOLUTION_VERUSV3;
-
         //printf("checking block %d\n", height);
         while ( 1 )
         {
@@ -4807,10 +4805,6 @@ bool CheckBlock(int32_t *futureblockp,int32_t height,CBlockIndex *pindex,const C
                 if ( lastrejects != 0 )
                 {
                     LogPrintf("lastrejects.%d -> all tx in mempool\n", lastrejects);
-                    if (!vrscCompat)
-                    {
-                        success = state.DoS(0, error("CheckBlock: invalid transactions in block"), REJECT_INVALID, "bad-txns-duplicate");
-                    }
                 }
                 break;
             }
