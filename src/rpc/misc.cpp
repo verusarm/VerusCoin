@@ -132,7 +132,7 @@ UniValue getinfo(const UniValue& params, bool fHelp)
 #endif
     //fprintf(stderr,"after wallet %u\n",(uint32_t)time(NULL));
     obj.push_back(Pair("blocks",        (int)chainActive.Height()));
-    if ( (longestchain = KOMODO_LONGESTCHAIN) == 0 && chainActive.Height() > longestchain )
+    if ( (longestchain = KOMODO_LONGESTCHAIN) == 0 || chainActive.Height() > longestchain )
         longestchain = chainActive.Height();
     //fprintf(stderr,"after longestchain %u\n",(uint32_t)time(NULL));
     obj.push_back(Pair("longestchain",  longestchain));
