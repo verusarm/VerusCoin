@@ -6,7 +6,7 @@ stages:
 ####START####                                     PROJECT LEVEL VARIABLES                                  ####START####
 ########################################################################################################################
 variables:
-  VERSION: 0.6.0-9-PBaaS-Cross-chain-Technology-Preview
+  VERSION: 0.6.0-10-PBaaS-Cross-chain-Technology-Preview
   VERUS_CLI_LINUX: Verus-CLI-Linux-v${VERSION}.tar.gz
   VERUS_CLI_WINDOWS: Verus-CLI-Windows-v${VERSION}.zip
   VERUS_CLI_MACOS: Verus-CLI-MacOS-v${VERSION}.tar.gz
@@ -53,6 +53,7 @@ build:linux:
     - chmod +x verus-cli/fetch-params
     - tar -czvf ${VERUS_CLI_LINUX} verus-cli
     - sha256sum ${VERUS_CLI_LINUX} > ${VERUS_CLI_LINUX}.sha256
+    - git status
   after_script:
     - curl -F file=@"${VERUS_CLI_LINUX}"
       -F channels="${CLI_POST_CHANNEL}"
