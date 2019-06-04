@@ -20,18 +20,24 @@
 #ifndef INCLUDE_VERUS_CLHASH_H
 #define INCLUDE_VERUS_CLHASH_H
 
-#include <cpuid.h>
 
 #include <stdlib.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <assert.h>
+
 #ifdef _WIN32
 #undef __cpuid
 #include <intrin.h>
+#endif
+
+#if defined(__arm__)  || defined(__aarch64__)
+#include "crypto/SSE2NEON.h"
 #else
+#include <cpuid.h>
 #include <x86intrin.h>
 #endif // !WIN32
+
 
 #include <boost/thread.hpp>
 #include "tinyformat.h"
@@ -93,19 +99,20 @@ extern int __cpuverusoptimized;
 
 inline bool IsCPUVerusOptimized()
 {
-    if (__cpuverusoptimized & 0x80)
-    {
-        unsigned int eax,ebx,ecx,edx;
+#if defined(__arm__)  || defined(__aarch64__)
+	__cpuverusoptimized = false;
+#else
 
-        if (!__get_cpuid(1,&eax,&ebx,&ecx,&edx))
-        {
-            __cpuverusoptimized = false;
-        }
+    if (__cpuverusoptimized & 0x80){
+       unsigned int eax,ebx,ecx,edx;
+	    if (!__get_cpuid(1,&eax,&ebx,&ecx,&edx))
+                __cpuverusoptimized = false;
         else
-        {
-            __cpuverusoptimized = ((ecx & (bit_AVX | bit_AES | bit_PCLMUL)) == (bit_AVX | bit_AES | bit_PCLMUL));
-        }
+          __cpuverusoptimized = ((ecx & (bit_AVX | bit_AES | bit_PCLMUL)) == (bit_AVX | bit_AES | bit_PCLMUL));
+     
     }
+#endif
+
     return __cpuverusoptimized;
 };
 

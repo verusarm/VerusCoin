@@ -243,6 +243,17 @@ AC_ARG_WITH([daemon],
   [build_bitcoind=yes])
 
 use_pkgconfig=yes
+
+GCC_TARGET=`$CC -dumpmachine 2>&1`
+case $GCC_TARGET in
+  arm*-*-*)
+    have_arm=true
+    ;;
+  aarch64*-*-*)
+    have_arm=true
+    ;;
+esac
+
 case $host in
   *mingw*)
 
@@ -868,6 +879,7 @@ fi
 AM_CONDITIONAL([TARGET_DARWIN], [test x$TARGET_OS = xdarwin])
 AM_CONDITIONAL([BUILD_DARWIN], [test x$BUILD_OS = xdarwin])
 AM_CONDITIONAL([TARGET_WINDOWS], [test x$TARGET_OS = xwindows])
+AM_CONDITIONAL([ARCH_ARM], [test x$have_arm = xtrue])
 AM_CONDITIONAL([ENABLE_WALLET],[test x$enable_wallet = xyes])
 AM_CONDITIONAL([ENABLE_MINING],[test x$enable_mining = xyes])
 AM_CONDITIONAL([ENABLE_TESTS],[test x$BUILD_TEST = xyes])
@@ -971,6 +983,7 @@ echo "  werror        = $enable_werror"
 echo 
 echo "  target os     = $TARGET_OS"
 echo "  build os      = $BUILD_OS"
+echo "  target arch   = $GCC_TARGET"
 echo
 echo "  CC            = $CC"
 echo "  CFLAGS        = $CFLAGS"

@@ -30,9 +30,15 @@
 #ifdef _WIN32
 #pragma warning (disable : 4146)
 #include <intrin.h>
-#else
+#endif
+
+#ifdef __i386
 #include <x86intrin.h>
 #endif //WIN32
+
+#if defined(__arm__)  || defined(__aarch64__)
+#include "crypto/SSE2NEON.h"
+#endif // !WIN32
 
 void clmul64(uint64_t a, uint64_t b, uint64_t* r)
 {
@@ -721,7 +727,7 @@ bool mine_verus_v2_port(CBlockHeader &bh, CVerusHashV2bWriter &vhw, uint256 &fin
 		*((int64_t *)&(solution.data()[solution.size() - extraSpace])) = i;
         bh.nSolution = solution;
         finalHash = curHash;
-        *count = (i - start) + 1;
+        *count = i - start;
         return true;
 	}
 	return false;
