@@ -203,6 +203,13 @@ public:
     {
         return ::AsVector(*this);
     }
+
+    UniValue ToUniValue() const
+    {
+        UniValue ret(UniValue::VOBJ);
+        ret.push_back(Pair("confirmedinput", confirmedInput));
+        return ret;
+    }
 };
 
 class CChainNotarizationData
