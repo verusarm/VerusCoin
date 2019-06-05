@@ -330,9 +330,11 @@ struct CCcontract_info *CCinit(struct CCcontract_info *cp, uint8_t evalcode)
             cp->ismyvin = IsServiceRewardInput;
             break;
 
-        case EVAL_RESERVEIMPORT:
-        case EVAL_RESERVEEXPORT:
-        case EVAL_RESERVEOUTPUT:
+        case EVAL_INSTANTSPEND:
+        case EVAL_CROSSCHAIN_INPUT:
+        case EVAL_CROSSCHAIN_OUTPUT:
+        case EVAL_CROSSCHAIN_IMPORT:
+        case EVAL_CROSSCHAIN_EXPORT:
             assert(false);
             break;
 

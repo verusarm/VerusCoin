@@ -404,6 +404,16 @@ CServiceReward::CServiceReward(const CTransaction &tx, bool validate)
 }
 
 
+CCrossChainInput::CCrossChainInput(const CTransaction &tx)
+{
+    // TODO - finish
+}
+
+CCrossChainInput::CCrossChainInput(const UniValue &obj)
+{
+    // TODO - finish
+}
+
 uint160 CPBaaSChainDefinition::GetChainID(std::string name)
 {
     const char *chainName = name.c_str();
