@@ -1,4 +1,5 @@
 VerusCoin Command Line Tools v0.5.7
+Contents:
 verusd - VerusCoin daemon.
 verus - VerusCoin command line utility.
 fetch_params.sh - utility to download the zcash parameters needed to start the VerusCoin command line tools and scripts
