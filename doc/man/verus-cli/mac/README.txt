@@ -1,5 +1,4 @@
-VerusCoin Command Line Tools v0.6.0-PBaaS-Cross-chain-Technology-Preview
-Contents:
+VerusCoin Command Line Tools v0.5.7
 verusd - VerusCoin daemon.
 verus - VerusCoin command line utility.
 fetch_params.sh - utility to download the zcash parameters needed to start the VerusCoin command line tools and scripts
