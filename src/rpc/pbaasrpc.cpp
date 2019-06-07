@@ -2210,6 +2210,6 @@ static const CRPCCommand commands[] =
 
 void RegisterPBaaSRPCCommands(CRPCTable &tableRPC)
 {
-    //for (unsigned int vcidx = 0; vcidx < ARRAYLEN(commands); vcidx++)
-    //    tableRPC.appendCommand(commands[vcidx].name, &commands[vcidx]);
+    for (unsigned int vcidx = 0; vcidx < ARRAYLEN(commands); vcidx++)
+        tableRPC.appendCommand(commands[vcidx].name, &commands[vcidx]);
 }
