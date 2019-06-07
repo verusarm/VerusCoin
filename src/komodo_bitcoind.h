@@ -1640,7 +1640,7 @@ bool verusCheckPOSBlock(int32_t slowflag, CBlock *pblock, int32_t height)
                                                 {
                                                     txnouttype tp;
                                                     std::vector<std::vector<unsigned char>> vvch = std::vector<std::vector<unsigned char>>();
-                                                    // solve all outputs to check that destinations all go only to the pk
+                                                    // solve all outputs to check that non-instantspend destinations all go only to the pk
                                                     // specified in the stake params
                                                     if ((!supportInstantSpend || !vout.scriptPubKey.IsInstantSpend()) &&
                                                         (!Solver(vout.scriptPubKey, tp, vvch) || 

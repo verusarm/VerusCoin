@@ -54,7 +54,6 @@ static const uint32_t PBAAS_VERSION = 1;
 static const uint32_t PBAAS_VERSION_INVALID = 0;
 static const uint32_t PBAAS_NODESPERNOTARIZATION = 2;       // number of nodes to reference in each notarization
 static const int64_t PBAAS_MINNOTARIZATIONOUTPUT = 10000;   // enough for one fee worth to finalization and notarization thread
-static const int64_t PBAAS_MAXNOTARIZATIONINPUTS = 50;      // max inputs on a notarization tx
 static const int32_t PBAAS_MINSTARTBLOCKDELTA = 100;        // minimum number of blocks to wait for starting a chain after definition
 static const int32_t PBAAS_MAXPRIORBLOCKS = 16;             // maximum prior block commitments to include in prior blocks chain object
 
@@ -403,12 +402,13 @@ public:
     static const int64_t MIN_PER_BLOCK_NOTARIZATION = 1000000;  // 0.01 VRSC per block notarization minimum
     static const int64_t MIN_BILLING_PERIOD = 480;  // 8 hour minimum billing period for notarization, typically expect days/weeks/months
     static const int64_t DEFAULT_OUTPUT_VALUE = 100000;  // 0.001 VRSC default output value
+    static const int32_t OPTION_RESERVE = 1; // allows reserve conversion when set
 
     uint32_t nVersion;                      // version of this chain definition data structure to allow for extensions (not daemon version)
     std::string name;                       // chain name, maximum 64 characters
     CKeyID address;                         // non-purchased/converted premine and fee recipient address
     int64_t premine;                        // initial supply that is distributed to the premine output address, but not purchased
-    int64_t conversion;                     // factor / 100000000 for conversion of VRSC to coin on launch
+    int64_t conversion;                     // factor / 100000000 for conversion of VRSC to/from coin
     int64_t launchFee;                      // ratio of satoshis to send from contribution to convertible to fee address
     int32_t startBlock;                     // parent chain block # that must kickoff the notarization of block 0, cannot be before this block
     int32_t endBlock;                       // block after which this is considered end-of-lifed
@@ -633,30 +633,36 @@ public:
     }
 };
 
-// This is used on a PBaaS chain to manage reserves of VRSC. type of reserve is assumed to be $VRSC
-class CReserveOutput
+// this is used on either the VRSC chain or PBaaS chain to send transactions to an alternate chain, which will
+// be realized on the other chain using the specified output script.
+// To actually realize the transfer of funds to or from a PBaaS chain, inputs must be aggregated by a miner as inputs to
+// a CCrossChainExport transaction, which may then be imported to the PBaaS chain with one transaction proof proving all inputs
+// being converted to outputs in bulk. This avoids creating the overhead of many redundant transaction proofs
+// which can move a large number of smaller transactions across chains.
+class CCrossChainInput
 {
 public:
-    CAmount nValue;                         // amount of reserve coin in this output
-    CScript scrOut;                         // output script, spend is validated as with a normal bitcoin spend
+    CAmount finalValue;                         // difference between actual output of this tx and final is fee paid
+    CScript scriptPubKey;                       // output script, spend is validated as with a normal bitcoin spend
 
-    CReserveOutput(const std::vector<unsigned char> &asVector)
+    CCrossChainInput() : finalValue(-1) {}
+
+    CCrossChainInput(const std::vector<unsigned char> &asVector)
     {
         FromVector(asVector, *this);
     }
 
-    CReserveOutput(const CAmount value, const CScript &rScrOut)
-    {
-        nValue = value; 
-        scrOut = rScrOut;
-    }
+    CCrossChainInput(const CScript &rScrOut, const CAmount finalout) : scriptPubKey(rScrOut), finalValue(finalout) { }
+
+    CCrossChainInput(const CTransaction &tx);
+    CCrossChainInput(const UniValue &obj);
 
     ADD_SERIALIZE_METHODS;
 
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action) {
-        READWRITE(VARINT(nValue));
-        READWRITE(*(CScriptBase*)(&scrOut));
+        READWRITE(finalValue);
+        READWRITE(*(CScriptBase*)(&scriptPubKey));
     }
 
     std::vector<unsigned char> AsVector()
@@ -666,34 +672,40 @@ public:
 
     bool IsValid()
     {
-        return scrOut.size() != 0;
+        return scriptPubKey.size() != 0 && finalValue >= 0;
+    }
+
+    UniValue ToUniValue()
+    {
+        UniValue ret(UniValue::VOBJ);
+        ret.push_back(Pair("finalvalue", finalValue));
+        ret.push_back(Pair("scriptpubkey", scriptPubKey.ToString()));
+        return ret;
     }
 };
 
-// import $VRSC from another chain transaction
-class CReserveImport
+// This is used on a PBaaS chain to transact with reserves of VRSC as a token that can freely convert between
+// the native coin and the token type. type of reserve is assumed to be $VRSC
+class CCrossChainOutput
 {
 public:
-    CAmount nValue;                         // amount of proxy coin in this output
-    CCrossChainProof transferProof;
+    uint160 chainID;                        // from what chain
+    CAmount nValue;                         // amount of token in this output
+    CScript scriptPubKey;                   // output script, spend is validated as with a normal spend
 
-    CReserveImport(const std::vector<unsigned char> &asVector)
+    CCrossChainOutput(uint160 cID, const CScript &rScrOut, const CAmount value) : chainID(cID), nValue(value), scriptPubKey(rScrOut) { }
+    CCrossChainOutput(const std::vector<unsigned char> &asVector)
     {
         FromVector(asVector, *this);
-    }
-
-    CReserveImport(const CAmount value, CCrossChainProof &rTransferProof)
-    {
-        nValue = value; 
-        transferProof = rTransferProof;
     }
 
     ADD_SERIALIZE_METHODS;
 
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action) {
+        READWRITE(chainID);
         READWRITE(VARINT(nValue));
-        READWRITE(transferProof);
+        READWRITE(*(CScriptBase*)(&scriptPubKey));
     }
 
     std::vector<unsigned char> AsVector()
@@ -703,34 +715,79 @@ public:
 
     bool IsValid()
     {
-        return nValue != 0 && transferProof.IsValid();
+        return scriptPubKey.size() != 0 && !chainID.IsNull() || nValue >= 0;
     }
 };
 
-// send $VRSC or VRSCTOKEN to another chain
-class CReserveExport
+// import transactions from another chain
+// an import transaction on a fractional reserve chain will have an instant spend input of EVAL_CHAIN_IMPORT from the coinbase, 
+// which provides for import of a reserve currency or cross-chain token, or auto-conversion to the native currency.
+class CCrossChainImport
 {
 public:
+    uint160 chainID;                                            // usually the reserve currency, but here for generality
+    CAmount nValue;                                             // amount of proxy coin for final output (difference from actual output divided into 2 fees)
+
+    CCrossChainImport() : nValue(0) { }
+    CCrossChainImport(const CAmount value) : nValue(value) { }
+
+    CCrossChainImport(const std::vector<unsigned char> &asVector)
+    {
+        FromVector(asVector, *this);
+    }
+
+    ADD_SERIALIZE_METHODS;
+
+    template <typename Stream, typename Operation>
+    inline void SerializationOp(Stream& s, Operation ser_action) {
+        READWRITE(VARINT(nValue));
+    }
+
+    std::vector<unsigned char> AsVector()
+    {
+        return ::AsVector(*this);
+    }
+
+    bool IsValid()
+    {
+        return nValue >= 0 && !chainID.IsNull();
+    }
+};
+
+// send some amount of $VRSC as VRSCTOKEN to another chain for distribution to original senders, which are 
+// determined by the inputs to this transaction and stored in the opret of this transaction, so they can be
+// validated on the destination chain as one transaction, yet used as the output scripts of the transaction
+// itself
+// The export type determines how the coins are realized on the destination chain, but the destination
+// script will be used in any case.
+class CCrossChainExport
+{
+public:
+    enum EXPORT_TYPE {
+        EXPORT_INVALID = 0,
+        EXPORT_CONVERSION = 1,      // realized on the destination chain as the destination chain currency at market conversion rate
+        EXPORT_SEND = 2             // realized on destination chain as a representative reserve token, unconverted
+    };
+    uint8_t exportType;
     CAmount nValue;
-    uint256 chainDest;
+    uint160 chainID;
 
-    CReserveExport(const std::vector<unsigned char> &asVector)
+    CCrossChainExport() : exportType(EXPORT_INVALID), nValue(0) {}
+
+    CCrossChainExport(const std::vector<unsigned char> &asVector)
     {
         FromVector(asVector, *this);
     }
 
-    CReserveExport(const CAmount value, const uint256 &rChainDest)
-    {
-        nValue = value; 
-        chainDest = rChainDest;
-    }
+    CCrossChainExport(EXPORT_TYPE exporttype, const CAmount value, const uint160 &rChainDest) : exportType(exporttype), nValue(value), chainID(rChainDest) {}
 
     ADD_SERIALIZE_METHODS;
 
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action) {
+        READWRITE(exportType);
         READWRITE(VARINT(nValue));
-        READWRITE(chainDest);
+        READWRITE(chainID);
     }
 
     std::vector<unsigned char> AsVector()
@@ -740,7 +797,7 @@ public:
 
     bool IsValid()
     {
-        return nValue != 0 && !chainDest.IsNull();
+        return exportType != EXPORT_INVALID && nValue >= 0 && !chainID.IsNull();
     }
 };
 
@@ -748,29 +805,28 @@ public:
 class CReserveExchange
 {
 public:
-    CScript scrOut;                         // output script for resulting coinbase output
+    uint32_t flags;                         // control of direction and constraints
+    CScript scriptPubKey;                   // output script for resulting coinbase output
     CAmount nLimit;                         // lowest or highest price to sell or buy coin output, may fail if including this tx in block makes price out of range
     uint32_t nValidBefore;                  // if not filled in this block, mine tx, but refund input
-    uint256 chainID;                        // currently supports convert from or to reserve according to conversion rules, this is ouput type
+    uint160 chainID;                        // currently supports convert from or to reserve according to conversion rules, this is ouput type
 
     CReserveExchange(const std::vector<unsigned char> &asVector)
     {
         FromVector(asVector, *this);
     }
 
-    CReserveExchange(const CScript &rScrOut, const CAmount Limit, uint32_t ValidBefore, uint256 ChainID)
-    {
-        scrOut = rScrOut;
-        nLimit = Limit;
-        nValidBefore = ValidBefore;
-        chainID = ChainID;
-    }
+    CReserveExchange() : flags(0), nLimit(0), nValidBefore(0) { }
+
+    CReserveExchange(uint32_t Flags, const CScript &rScrOut, const CAmount Limit, uint32_t ValidBefore, uint160 ChainID) : 
+        flags(Flags), scriptPubKey(rScrOut), nLimit(Limit), nValidBefore(ValidBefore), chainID(ChainID) { }
 
     ADD_SERIALIZE_METHODS;
 
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action) {
-        READWRITE(*(CScriptBase*)(&scrOut));
+        READWRITE(flags);
+        READWRITE(*(CScriptBase*)(&scriptPubKey));
         READWRITE(VARINT(nLimit));
         READWRITE(nValidBefore);
         READWRITE(chainID);
@@ -784,7 +840,7 @@ public:
     bool IsValid()
     {
         // this needs an actual check
-        return nValidBefore != 0 && scrOut.size() != 0 && !chainID.IsNull();
+        return nValidBefore != 0 && scriptPubKey.size() != 0 && !chainID.IsNull();
     }
 };
 

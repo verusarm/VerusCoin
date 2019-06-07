@@ -404,6 +404,16 @@ CServiceReward::CServiceReward(const CTransaction &tx, bool validate)
 }
 
 
+CCrossChainInput::CCrossChainInput(const CTransaction &tx)
+{
+    // TODO - finish
+}
+
+CCrossChainInput::CCrossChainInput(const UniValue &obj)
+{
+    // TODO - finish
+}
+
 uint160 CPBaaSChainDefinition::GetChainID(std::string name)
 {
     const char *chainName = name.c_str();
@@ -764,10 +774,11 @@ vector<pair<string, UniValue>> CConnectedChains::SubmitQualifiedBlocks()
                     inHeader.insert(pbh.chainID);
                 }
 
+                uint160 chainID;
                 // now look through all targets that are equal to or above the hash of this header
                 for (auto chainIt = mergeMinedTargets.lower_bound(headerIt->first); !submissionFound && chainIt != mergeMinedTargets.end(); chainIt++)
                 {
-                    uint160 chainID = chainIt->second->GetChainID();
+                    chainID = chainIt->second->GetChainID();
                     if (inHeader.count(chainID))
                     {
                         // first, check that the winning header matches the block that is there
@@ -781,9 +792,6 @@ vector<pair<string, UniValue>> CConnectedChains::SubmitQualifiedBlocks()
                             chainData = *chainIt->second;
 
                             *(CBlockHeader *)&chainData.block = headerIt->second;
-
-                            // once it is going to be submitted, remove block from this chain until a new one is added again
-                            RemoveMergedBlock(chainID);
 
                             submissionFound = true;
                         }
@@ -799,7 +807,13 @@ vector<pair<string, UniValue>> CConnectedChains::SubmitQualifiedBlocks()
                 }
 
                 // if this header matched no block, discard and move to the next, otherwise, we'll drop through
-                if (!submissionFound)
+                if (submissionFound)
+                {
+                    // once it is going to be submitted, remove block from this chain until a new one is added again
+                    RemoveMergedBlock(chainID);
+                    break;
+                }
+                else
                 {
                     qualifiedHeaders.erase(headerIt);
                 }
