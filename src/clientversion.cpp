@@ -55,7 +55,7 @@ const std::string CLIENT_NAME("MagicBean");
 #define GIT_COMMIT_DATE "Wed, 21 Feb 2018 16:15:11 +0200"
 #endif
 
-#define RENDER_BETA_STRING(num) "-PBaaS-Cross-chain-Technology-Preview-" DO_STRINGIZE(num)
+#define RENDER_BETA_STRING(num) "-beta-" DO_STRINGIZE(num)
 #define RENDER_RC_STRING(num) "-rc" DO_STRINGIZE(num)
 #define RENDER_DEV_STRING(num) "-" DO_STRINGIZE(num)
 
