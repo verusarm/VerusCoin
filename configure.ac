@@ -3,7 +3,7 @@ AC_PREREQ([2.60])
 define(_CLIENT_VERSION_MAJOR, 0)
 define(_CLIENT_VERSION_MINOR, 6)
 define(_CLIENT_VERSION_REVISION, 0)
-define(_CLIENT_VERSION_BUILD, 6)
+define(_CLIENT_VERSION_BUILD, 11)
 define(_ZC_BUILD_VAL, m4_if(m4_eval(_CLIENT_VERSION_BUILD < 25), 1, m4_incr(_CLIENT_VERSION_BUILD), m4_eval(_CLIENT_VERSION_BUILD < 50), 1, m4_eval(_CLIENT_VERSION_BUILD - 24), m4_eval(_CLIENT_VERSION_BUILD == 50), 1, , m4_eval(_CLIENT_VERSION_BUILD - 50)))
 define(_CLIENT_VERSION_SUFFIX, m4_if(m4_eval(_CLIENT_VERSION_BUILD < 25), 1, _CLIENT_VERSION_REVISION-beta$1, m4_eval(_CLIENT_VERSION_BUILD < 50), 1, _CLIENT_VERSION_REVISION-rc$1, m4_eval(_CLIENT_VERSION_BUILD == 50), 1, _CLIENT_VERSION_REVISION, _CLIENT_VERSION_REVISION-$1)))
 define(_CLIENT_VERSION_IS_RELEASE, true)
@@ -745,27 +745,6 @@ fi
 #AC_CHECK_HEADER([gmpxx.h],,AC_MSG_ERROR(libgmpxx headers missing))
 #AC_CHECK_LIB([gmpxx],[main],GMPXX_LIBS=-lgmpxx, [AC_MSG_ERROR(libgmpxx missing)])
 
-# libsnark header layout is broken unless cpp's -I is passed with the
-# libsnark directory, so for now we use this hideous workaround:
-echo 'Hunting for libsnark include directory...'
-[LIBSNARK_INCDIR="$(echo "$CPPFLAGS" | sed 's,^.*-I\([^ ]*/include\).*$,\1/libsnark,')"]
-if test -d "$LIBSNARK_INCDIR"; then
-   echo "Found libsnark include directory: $LIBSNARK_INCDIR"
-else
-#AC_MSG_ERROR(libsnark include directory not found)
-echo "libsnark include directory not found ($LIBSNARK_INCDIR)"
-fi
-
-CPPFLAGS="-I$LIBSNARK_INCDIR $CPPFLAGS"
-
-# Now check for libsnark compilability using traditional autoconf tests:
-if test x$TARGET_OS = xdarwin; then
-AC_CHECK_HEADER([libsnark/gadgetlib1/gadget.hpp],,AC_MSG_ERROR(libsnark headers missing))
-AC_CHECK_LIB([snark],[main],LIBSNARK_LIBS=-lsnark, [AC_MSG_ERROR(libsnark missing)], [-lgmpxx])
-fi
-#AC_CHECK_HEADER([libsnark/gadgetlib1/gadget.hpp],,AC_MSG_ERROR(libsnark headers missing))
-#AC_CHECK_LIB([snark],[main],LIBSNARK_LIBS=-lsnark, [AC_MSG_ERROR(libsnark missing)], [-lgmpxx])
-
 RUST_LIBS="-lrustzcash"
 case $host in
   *mingw*)
@@ -792,6 +771,9 @@ if test x$depends_prefix != x; then
 else
   LIBSNARK_DEPINST="$prefix"
 fi
+
+# Set optimization flags for libsnark
+AX_GCC_ARCHFLAG([no], [LIBSNARK_OPTFLAGS="-O2 $ax_cv_gcc_archflag"], [LIBSNARK_OPTFLAGS="-O2"])
 
 # Additional Zcash flags
 AX_CHECK_COMPILE_FLAG([-fwrapv],[CXXFLAGS="$CXXFLAGS -fwrapv"])
@@ -932,6 +914,7 @@ AC_SUBST(ZMQ_LIBS)
 AC_SUBST(GMP_LIBS)
 AC_SUBST(GMPXX_LIBS)
 AC_SUBST(LIBSNARK_DEPINST)
+AC_SUBST(LIBSNARK_OPTFLAGS)
 AC_SUBST(LIBZCASH_LIBS)
 AC_SUBST(PROTON_LIBS)
 AC_CONFIG_FILES([Makefile src/Makefile doc/man/Makefile src/test/buildenv.py])

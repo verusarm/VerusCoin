@@ -57,7 +57,7 @@ src/univalue/gen
 *.pb.cc
 *.pb.h
 .vscode
-
+*.in
 *.log
 *.trs
 *.dmg
@@ -126,7 +126,10 @@ src/verus-tx
 src/verusd.exe
 src/verus.exe
 src/verus-tx.exe
-
+Verus-CLI*
+verus-cli
+src/cryptoconditions/src/cryptoconditions-config.h*
+src/cryptoconditions/compile
 #output during builds, symbol tables?
 *.dSYM
 

@@ -1582,6 +1582,40 @@ bool AcceptToMemoryPoolInt(CTxMemPool& pool, CValidationState &state, const CTra
         }
     }
 
+    // extra checks
+    if (tx.vout.size() == 0)
+    {
+        if (!tx.IsCoinBase())
+        {
+            for (int j = 0; j < tx.vin.size(); j++)
+            {
+                if (tx.vin[j].prevout.hash.IsNull())
+                {
+                    return error("AcceptToMemoryPool: non-coinbase with null input tx");
+                }
+                CTransaction inputTx;
+                uint256 blkHash;
+                if (myGetTransaction(tx.vin[j].prevout.hash, inputTx, blkHash))
+                {
+                    CPBaaSNotarization p(inputTx);
+                    if (p.IsValid())
+                    {
+                        LogPrintf("transaction input from %s on input %d is a notarization of %s\n", tx.vin[j].prevout.hash.GetHex().c_str(), tx.vin[j].prevout.n, p.chainID.GetHex().c_str());                          
+                        printf("transaction input from %s on input %d is a notarization of %s\n", tx.vin[j].prevout.hash.GetHex().c_str(), tx.vin[j].prevout.n, p.chainID.GetHex().c_str());                          
+                    }
+                    else
+                    {
+                        LogPrintf("transaction input from %s on input %d is not a notarization\n", tx.vin[j].prevout.hash.GetHex().c_str(), tx.vin[j].prevout.n);                          
+                        printf("transaction input from %s on input %d is not a notarization\n", tx.vin[j].prevout.hash.GetHex().c_str(), tx.vin[j].prevout.n);                          
+                    }
+                }
+            }
+        }
+        printf("%s%s at height %d has no outputs\n", tx.IsCoinBase() ? "coinbase transaction" : "transaction #", tx.GetHash().GetHex().c_str(), simHeight);
+        LogPrintf("%s%s at height %d has no outputs\n", tx.IsCoinBase() ? "coinbase transaction" : "transaction #", tx.GetHash().GetHex().c_str(), simHeight);
+    }
+
+
     auto verifier = libzcash::ProofVerifier::Strict();
     if ( komodo_validate_interest(tx,chainActive.LastTip()->GetHeight()+1,chainActive.LastTip()->GetMedianTimePast() + 777,0) < 0 )
     {
@@ -4697,8 +4731,6 @@ bool CheckBlock(int32_t *futureblockp,int32_t height,CBlockIndex *pindex,const C
         // we need this lock to prevent accepting transactions we shouldn't
         LOCK2(cs_main, mempool.cs);
 
-        bool vrscCompat = CConstVerusSolutionVector::activationHeight.ActiveVersion(height) < CConstVerusSolutionVector::activationHeight.SOLUTION_VERUSV3;
-
         //printf("checking block %d\n", height);
         while ( 1 )
         {
@@ -4773,10 +4805,6 @@ bool CheckBlock(int32_t *futureblockp,int32_t height,CBlockIndex *pindex,const C
                 if ( lastrejects != 0 )
                 {
                     LogPrintf("lastrejects.%d -> all tx in mempool\n", lastrejects);
-                    if (!vrscCompat)
-                    {
-                        success = state.DoS(0, error("CheckBlock: invalid transactions in block"), REJECT_INVALID, "bad-txns-duplicate");
-                    }
                 }
                 break;
             }
@@ -4879,13 +4907,13 @@ bool ContextualCheckBlockHeader(const CBlockHeader& block, CValidationState& sta
         // Don't accept any forks from the main chain prior to last checkpoint
         CBlockIndex* pcheckpoint = Checkpoints::GetLastCheckpoint(chainParams.Checkpoints());
         int32_t notarized_height;
-        if ( nHeight == 1 && chainActive.LastTip() != 0 && chainActive.LastTip()->GetHeight() > 1 )
-        {
-            CBlockIndex *heightblock = chainActive[nHeight];
-            if ( heightblock != 0 && heightblock->GetBlockHash() == hash )
-                return true;
-            return state.DoS(1, error("%s: trying to change height 1 forbidden", __func__));
-        }
+        //if ( nHeight == 1 && chainActive.LastTip() != 0 && chainActive.LastTip()->GetHeight() > 1 )
+        //{
+        //   CBlockIndex *heightblock = chainActive[nHeight];
+        //    if ( heightblock != 0 && heightblock->GetBlockHash() == hash )
+        //        return true;
+        //    return state.DoS(1, error("%s: trying to change height 1 forbidden", __func__));
+        //}
         if ( nHeight != 0 )
         {
             if ( pcheckpoint != 0 && nHeight < pcheckpoint->GetHeight() )
