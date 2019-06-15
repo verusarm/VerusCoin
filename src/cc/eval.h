@@ -49,9 +49,11 @@
         EVAL(EVAL_CROSSCHAIN_OUTPUT, 0x9)  \
         EVAL(EVAL_CROSSCHAIN_EXPORT, 0xa)  \
         EVAL(EVAL_CROSSCHAIN_IMPORT, 0xb)  \
+        EVAL(EVAL_RESERVE_OUTPUT, 0xc)  \
+        EVAL(EVAL_RESERVE_EXCHANGE, 0xd)  \
         EVAL(EVAL_IMPORTPAYOUT, 0xe1)  \
-        EVAL(EVAL_IMPORTCOIN,   0xe2)  \
-        EVAL(EVAL_ASSETS,   0xe3)  \
+        EVAL(EVAL_IMPORTCOIN, 0xe2)  \
+        EVAL(EVAL_ASSETS, 0xe3)  \
         EVAL(EVAL_FAUCET, 0xe4) \
         EVAL(EVAL_REWARDS, 0xe5) \
         EVAL(EVAL_DICE, 0xe6) \

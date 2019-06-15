@@ -216,6 +216,15 @@ void GetDefinedChains(vector<CPBaaSChainDefinition> &chains, bool includeExpired
     }
 }
 
+void CheckPBaaSAPIsValid()
+{
+    if (!chainActive.LastTip() ||
+        CConstVerusSolutionVector::activationHeight.ActiveVersion(chainActive.LastTip()->GetHeight()) != CConstVerusSolutionVector::activationHeight.SOLUTION_VERUSV3)
+    {
+        throw JSONRPCError(RPC_INVALID_REQUEST, "PBaaS not activated on blockchain.");
+    }
+}
+
 UniValue getchaindefinition(const UniValue& params, bool fHelp)
 {
     if (fHelp || params.size() != 1)
@@ -259,6 +268,9 @@ UniValue getchaindefinition(const UniValue& params, bool fHelp)
             + HelpExampleRpc("getchaindefinition", "\"chainname\"")
         );
     }
+
+    CheckPBaaSAPIsValid();
+
     UniValue ret(UniValue::VOBJ);
 
     string name = params[0].get_str();
@@ -325,6 +337,9 @@ UniValue getdefinedchains(const UniValue& params, bool fHelp)
             + HelpExampleRpc("getdefinedchains", "true")
         );
     }
+
+    CheckPBaaSAPIsValid();
+
     UniValue ret(UniValue::VARR);
 
     bool includeExpired = params[0].isBool() ? params[0].get_bool() : false;
@@ -703,6 +718,7 @@ UniValue submitnotarizationpayment(const UniValue& params, bool fHelp)
             + HelpExampleRpc("submitnotarizationpayment", "\"hextx\"")
         );
     }
+    CheckPBaaSAPIsValid();
 
 }
 
@@ -727,6 +743,8 @@ UniValue submitacceptednotarization(const UniValue& params, bool fHelp)
             + HelpExampleRpc("submitacceptednotarization", "\"hextx\"")
         );
     }
+
+    CheckPBaaSAPIsValid();
 
     // decode the transaction and ensure that it is formatted as expected
     CTransaction notarization;
@@ -1437,6 +1455,8 @@ UniValue sendtochain(const UniValue& params, bool fHelp)
         );
     }
 
+    CheckPBaaSAPIsValid();
+
     // each object represents a send, and all sends are aggregated into one transaction to improve potential for scaling when moving funds between
     // and across multiple chains.
     //
@@ -1581,6 +1601,9 @@ UniValue definechain(const UniValue& params, bool fHelp)
             + HelpExampleRpc("definechain", "jsondefinition")
         );
     }
+
+    CheckPBaaSAPIsValid();
+
     if (!params[0].isObject())
     {
         throw JSONRPCError(RPC_INVALID_PARAMETER, "JSON object required. see help.");
@@ -1751,6 +1774,8 @@ UniValue addmergedblock(const UniValue& params, bool fHelp)
         );
     }
 
+    CheckPBaaSAPIsValid();
+
     // check to see if we should replace any existing block or add a new one. if so, add this to the merge mine vector
     string name = params[1].get_str();
     if (name == "")
@@ -1823,6 +1848,8 @@ UniValue submitmergedblock(const UniValue& params, bool fHelp)
             + HelpExampleCli("submitblock", "\"mydata\"")
             + HelpExampleRpc("submitblock", "\"mydata\"")
         );
+
+    CheckPBaaSAPIsValid();
 
     CBlock block;
     //LogPrintStr("Hex block submission: " + params[0].get_str());
@@ -1931,6 +1958,8 @@ UniValue getmergedblocktemplate(const UniValue& params, bool fHelp)
             + HelpExampleCli("getblocktemplate", "")
             + HelpExampleRpc("getblocktemplate", "")
          );
+
+    CheckPBaaSAPIsValid();
 
     LOCK(cs_main);
 
