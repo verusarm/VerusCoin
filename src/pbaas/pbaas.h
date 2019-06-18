@@ -402,13 +402,14 @@ public:
     static const int64_t MIN_PER_BLOCK_NOTARIZATION = 1000000;  // 0.01 VRSC per block notarization minimum
     static const int64_t MIN_BILLING_PERIOD = 480;  // 8 hour minimum billing period for notarization, typically expect days/weeks/months
     static const int64_t DEFAULT_OUTPUT_VALUE = 100000;  // 0.001 VRSC default output value
-    static const int32_t OPTION_RESERVE = 1; // allows reserve conversion when set
+    static const int32_t OPTION_RESERVE = 1; // allows reserve conversion using base calculations when set
+    static const int32_t OPTION_CONVERT = 2; // allows conversion to the currency from Verus if set
 
     uint32_t nVersion;                      // version of this chain definition data structure to allow for extensions (not daemon version)
     std::string name;                       // chain name, maximum 64 characters
     CKeyID address;                         // non-purchased/converted premine and fee recipient address
     int64_t premine;                        // initial supply that is distributed to the premine output address, but not purchased
-    int64_t conversion;                     // factor / 100000000 for conversion of VRSC to/from coin
+    int64_t conversion;                     // factor / 100000000 for conversion of VRSC to/from coin, prior to chain start only for reserve
     int64_t launchFee;                      // ratio of satoshis to send from contribution to convertible to fee address
     int32_t startBlock;                     // parent chain block # that must kickoff the notarization of block 0, cannot be before this block
     int32_t endBlock;                       // block after which this is considered end-of-lifed
