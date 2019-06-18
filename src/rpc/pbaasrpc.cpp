@@ -143,6 +143,15 @@ bool GetChainDefinition(uint160 chainID, CPBaaSChainDefinition &chainDef)
         return true;
     }
 
+    if (!IsVerusActive())
+    {
+        if (ConnectedChains.NotaryChain().IsValid() && (chainID == ConnectedChains.NotaryChain().chainDefinition.GetChainID()))
+        {
+            chainDef = ConnectedChains.NotaryChain().chainDefinition;
+            return true;
+        }
+    }
+
     // make the chain definition output
     cp = CCinit(&CC, EVAL_PBAASDEFINITION);
 
@@ -207,6 +216,15 @@ void GetDefinedChains(vector<CPBaaSChainDefinition> &chains, bool includeExpired
     }
 }
 
+void CheckPBaaSAPIsValid()
+{
+    if (!chainActive.LastTip() ||
+        CConstVerusSolutionVector::activationHeight.ActiveVersion(chainActive.LastTip()->GetHeight()) != CConstVerusSolutionVector::activationHeight.SOLUTION_VERUSV3)
+    {
+        throw JSONRPCError(RPC_INVALID_REQUEST, "PBaaS not activated on blockchain.");
+    }
+}
+
 UniValue getchaindefinition(const UniValue& params, bool fHelp)
 {
     if (fHelp || params.size() != 1)
@@ -250,6 +268,9 @@ UniValue getchaindefinition(const UniValue& params, bool fHelp)
             + HelpExampleRpc("getchaindefinition", "\"chainname\"")
         );
     }
+
+    CheckPBaaSAPIsValid();
+
     UniValue ret(UniValue::VOBJ);
 
     string name = params[0].get_str();
@@ -316,6 +337,9 @@ UniValue getdefinedchains(const UniValue& params, bool fHelp)
             + HelpExampleRpc("getdefinedchains", "true")
         );
     }
+
+    CheckPBaaSAPIsValid();
+
     UniValue ret(UniValue::VARR);
 
     bool includeExpired = params[0].isBool() ? params[0].get_bool() : false;
@@ -694,6 +718,7 @@ UniValue submitnotarizationpayment(const UniValue& params, bool fHelp)
             + HelpExampleRpc("submitnotarizationpayment", "\"hextx\"")
         );
     }
+    CheckPBaaSAPIsValid();
 
 }
 
@@ -718,6 +743,8 @@ UniValue submitacceptednotarization(const UniValue& params, bool fHelp)
             + HelpExampleRpc("submitacceptednotarization", "\"hextx\"")
         );
     }
+
+    CheckPBaaSAPIsValid();
 
     // decode the transaction and ensure that it is formatted as expected
     CTransaction notarization;
@@ -1402,6 +1429,134 @@ UniValue getcrossnotarization(const UniValue& params, bool fHelp)
     return ret;
 }
 
+UniValue sendtochain(const UniValue& params, bool fHelp)
+{
+    if (fHelp || params.size() != 1)
+    {
+        throw runtime_error(
+            "sendtochain '[{\"name\": \"PBAASCHAIN\", \"paymentaddress\": \"RRehdmUV7oEAqoZnzEGBH34XysnWaBatct\", \"amount\": 5.0}]'\n"
+            "\nThis sends a Verus output as a JSON object or lists of Verus outputs as a list of objects to multiple chains or back.\n"
+            "\nFunds are sourced automatically from the current wallet, which must be present, as in sendtoaddress.\n"
+
+            "\nArguments\n"
+            "       {\n"
+            "           \"chain\"          : \"xxxx\",  (string, required) unique Verus ecosystem-wide name/symbol of this PBaaS chain\n"
+            "           \"paymentaddress\" : \"Rxxx\",  (string, required) premine and launch fee recipient\n"
+            "           \"amount\"         : \"n\",     (int64,  required) amount of coins that will be premined and distributed to premine address\n"
+            "           \"convert\"        : \"false\", (bool,   optional) auto-convert to PBaaS currency at current price\n"
+            "       }\n"
+
+            "\nResult:\n"
+            "       \"txid\" : \"transactionid\" (string) The transaction id.\n"
+
+            "\nExamples:\n"
+            + HelpExampleCli("sendtochain", "'[{\"name\": \"PBAASCHAIN\", \"paymentaddress\": \"RRehdmUV7oEAqoZnzEGBH34XysnWaBatct\", \"amount\": 5.0}]'")
+            + HelpExampleRpc("sendtochain", "'[{\"name\": \"PBAASCHAIN\", \"paymentaddress\": \"RRehdmUV7oEAqoZnzEGBH34XysnWaBatct\", \"amount\": 5.0}]'")
+        );
+    }
+
+    CheckPBaaSAPIsValid();
+
+    // each object represents a send, and all sends are aggregated into one transaction to improve potential for scaling when moving funds between
+    // and across multiple chains.
+    //
+    // each output will require an additional standard cross-chain fee that will be divided evenly in two ways,
+    // between the transaction aggregator -- the miner or staker who creates the aggregating export, 
+    // and the transaction importer on the alternate chain who posts each exported bundle.
+    //
+    vector<CRecipient> outputs;
+    vector<bool> vConvert;
+
+    if (params.size() != 1 || (!params[0].isArray() && !params[0].isObject()))
+    {
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid parameters. Must provide a single object or single list of objects that represent valid outputs. see help.");
+    }
+
+    const UniValue *pOutputArr = &params[0];
+    UniValue substArr(UniValue::VARR);
+    if (params[0].isObject())
+    {
+        substArr.push_back(params[0]);
+        pOutputArr = &substArr;
+    }
+    const UniValue &objArr = *pOutputArr;
+
+    // convert all entries to CRecipient
+    // any failure fails all
+    for (int i = 0; i < objArr.size(); i++)
+    {
+        // default double fee for miner of chain definition tx
+        // one output for definition, one for finalization
+        string name = uni_get_str(find_value(params[0], "chain"), "");
+        string paymentAddr = uni_get_str(find_value(params[0], "paymentaddress"), "");
+        CAmount amount = uni_get_int64(find_value(params[0], "amount"), -1);
+        bool convert = uni_get_int(find_value(params[0], "convert"), false);
+
+        if (name == "" || paymentAddr == "" || amount < 0)
+        {
+            throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid parameters for object #" + to_string(i));
+        }
+
+        CBitcoinAddress ba(DecodeDestination(paymentAddr));
+        CKeyID kID;
+
+        if (!ba.IsValid() || !ba.GetKeyID(kID))
+        {
+            throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid payment address in object #" + to_string(i));
+        }
+
+        uint160 chainID = CCrossChainRPCData::GetChainID(name);
+        CPBaaSChainDefinition chainDef;
+        // validate that the target chain is still running
+        if (!GetChainDefinition(chainID, chainDef) || !chainDef.IsValid())
+        {
+            throw JSONRPCError(RPC_INVALID_PARAMETER, "Chain specified in object #" + to_string(i) + " is not a valid chain");
+        }
+
+        // validate that the entry is a valid chain being notarized
+        CChainNotarizationData nData;
+        if (GetNotarizationData(chainID, IsVerusActive() ? EVAL_ACCEPTEDNOTARIZATION : EVAL_ACCEPTEDNOTARIZATION, nData))
+        {
+            // if the chain is being notarized and cannot confirm before its end, refuse to send
+            // also, if it hasn't been notarized as recently as the active notarization threshold, refuse as well
+            // TODO: define threshold, for now, only check that last notarization is at least minimum confirmation
+            // distance
+            if ((nData.vtx.size() && 
+                (nData.vtx[nData.bestChain].second.notarizationHeight + (CPBaaSNotarization::MIN_BLOCKS_BETWEEN_ACCEPTED * CPBaaSNotarization::FINAL_CONFIRMATIONS) >
+                    chainDef.endBlock)) ||
+                (!chainDef.eraOptions.size() || !(chainDef.eraOptions[0] & CPBaaSChainDefinition::OPTION_RESERVE)))
+            {
+                throw JSONRPCError(RPC_INVALID_PARAMETER, "Chain specified in object #" + to_string(i) + " is not a valid chain");
+            }
+        }
+        else
+        {
+            throw JSONRPCError(RPC_INVALID_PARAMETER, "Chain specified in object #" + to_string(i) + " is not notarized");
+        }
+
+        // make the output script, either a normal output or a conversion
+
+        CCcontract_info CC;
+        CCcontract_info *cp;
+        cp = CCinit(&CC, EVAL_CROSSCHAIN_INPUT);
+
+        CPubKey pk = CPubKey(ParseHex(CC.CChexstr));
+        // TODO: determine dests properly
+        std::vector<CTxDestination> dests = std::vector<CTxDestination>({CKeyID(chainDef.GetConditionID(EVAL_CROSSCHAIN_INPUT))});
+        CCrossChainInput cci; // TODO fill with payment script and amount (adjust amount for fees)
+        CTxOut ccOut = MakeCC1of1Vout(EVAL_CROSSCHAIN_INPUT, amount, pk, dests, cci);
+        outputs.push_back(CRecipient({ccOut.scriptPubKey, amount, false}));
+    }
+    // send the specified amount to chain ID as an EVAL_CROSSCHAIN_INPUT to the chain ID
+    // the transaction holds the ultimate destination address, and until the transaction
+    // is packaged into an EVAL_CROSSCHAIN_EXPORT bundle, the output can be spent by
+    // the original sender
+    // once bundled, transaction outputs can be transferred to the other chain through a proof of the bundle by anyone and is considered irreversible
+    // all bundled outputs can be moved to and spent on the destination chain as soon as a notarization of the same block
+    // or later has been confirmed. bundling transactions can be done at any time, but moving an export bundle
+    // happens only after is is in a block behind a confirmed notarization.
+}
+
 UniValue definechain(const UniValue& params, bool fHelp)
 {
     if (fHelp || params.size() != 1)
@@ -1446,6 +1601,9 @@ UniValue definechain(const UniValue& params, bool fHelp)
             + HelpExampleRpc("definechain", "jsondefinition")
         );
     }
+
+    CheckPBaaSAPIsValid();
+
     if (!params[0].isObject())
     {
         throw JSONRPCError(RPC_INVALID_PARAMETER, "JSON object required. see help.");
@@ -1616,6 +1774,8 @@ UniValue addmergedblock(const UniValue& params, bool fHelp)
         );
     }
 
+    CheckPBaaSAPIsValid();
+
     // check to see if we should replace any existing block or add a new one. if so, add this to the merge mine vector
     string name = params[1].get_str();
     if (name == "")
@@ -1688,6 +1848,8 @@ UniValue submitmergedblock(const UniValue& params, bool fHelp)
             + HelpExampleCli("submitblock", "\"mydata\"")
             + HelpExampleRpc("submitblock", "\"mydata\"")
         );
+
+    CheckPBaaSAPIsValid();
 
     CBlock block;
     //LogPrintStr("Hex block submission: " + params[0].get_str());
@@ -1796,6 +1958,8 @@ UniValue getmergedblocktemplate(const UniValue& params, bool fHelp)
             + HelpExampleCli("getblocktemplate", "")
             + HelpExampleRpc("getblocktemplate", "")
          );
+
+    CheckPBaaSAPIsValid();
 
     LOCK(cs_main);
 

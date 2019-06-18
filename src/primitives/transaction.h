@@ -698,7 +698,7 @@ public:
     bool IsCoinImport() const
     {
         // return (vin.size() == 1 && vin[0].prevout.n == 10e8);
-        false; // we don't support "importing" coins this way
+        return false; // we don't support "importing" coins this way
     }
 
     friend bool operator==(const CTransaction& a, const CTransaction& b)
