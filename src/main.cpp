@@ -1593,6 +1593,7 @@ bool AcceptToMemoryPoolInt(CTxMemPool& pool, CValidationState &state, const CTra
                 {
                     return error("AcceptToMemoryPool: non-coinbase with null input tx");
                 }
+                /*
                 CTransaction inputTx;
                 uint256 blkHash;
                 if (myGetTransaction(tx.vin[j].prevout.hash, inputTx, blkHash))
@@ -1609,12 +1610,12 @@ bool AcceptToMemoryPoolInt(CTxMemPool& pool, CValidationState &state, const CTra
                         printf("transaction input from %s on input %d is not a notarization\n", tx.vin[j].prevout.hash.GetHex().c_str(), tx.vin[j].prevout.n);                          
                     }
                 }
+                */
             }
         }
-        printf("%s%s at height %d has no outputs\n", tx.IsCoinBase() ? "coinbase transaction" : "transaction #", tx.GetHash().GetHex().c_str(), simHeight);
-        LogPrintf("%s%s at height %d has no outputs\n", tx.IsCoinBase() ? "coinbase transaction" : "transaction #", tx.GetHash().GetHex().c_str(), simHeight);
+        //printf("%s%s at height %d has no outputs\n", tx.IsCoinBase() ? "coinbase transaction" : "transaction #", tx.GetHash().GetHex().c_str(), simHeight);
+        //LogPrintf("%s%s at height %d has no outputs\n", tx.IsCoinBase() ? "coinbase transaction" : "transaction #", tx.GetHash().GetHex().c_str(), simHeight);
     }
-
 
     auto verifier = libzcash::ProofVerifier::Strict();
     if ( komodo_validate_interest(tx,chainActive.LastTip()->GetHeight()+1,chainActive.LastTip()->GetMedianTimePast() + 777,0) < 0 )
